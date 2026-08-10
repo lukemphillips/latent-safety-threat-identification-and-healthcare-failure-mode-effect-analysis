@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team Display — Mater ED</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="display-shell">
+  <div class="display-header">
+    <div>
+      <h1 id="d-caseid">No active case</h1>
+      <div id="d-updated" style="opacity:.7;font-size:.9rem">—</div>
+    </div>
+    <div class="elapsed" id="d-elapsed">00:00</div>
+  </div>
+
+  <div class="display-grid">
+    <div class="display-panel">
+      <h2>Live vitals &amp; timeline</h2>
+      <div id="d-vitals"></div>
+      <h2 style="margin-top:1.2rem">Blood gas</h2>
+      <div id="d-gas"></div>
+    </div>
+    <div class="display-panel">
+      <h2>Blood products / MTP</h2>
+      <div id="d-blood"></div>
+    </div>
+    <div class="display-panel">
+      <h2>Patient, injuries &amp; interventions</h2>
+      <div id="d-summary"></div>
+    </div>
+  </div>
+</div>
+<script src="js/store.js"></script>
+<script src="js/display.js"></script>
+</body>
+</html>
