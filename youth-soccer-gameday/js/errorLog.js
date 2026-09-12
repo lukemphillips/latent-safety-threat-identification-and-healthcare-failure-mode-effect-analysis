@@ -3,6 +3,9 @@
 // Kept in its own localStorage key, separate from the team/roster data, so
 // clearing one never touches the other.
 
+// Kept as "gaffer-..." (the app's previous name) rather than renamed to
+// match the Boot Room rebrand — it's an internal, invisible identifier, and
+// changing it would just orphan any existing log on a coach's device.
 const KEY = 'gaffer-error-log-v1';
 const MAX_ENTRIES = 30;
 

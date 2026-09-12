@@ -361,7 +361,7 @@ function goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted) {
 function runPostMatchBackup(game) {
   saveAutoBackup();
   const json = JSON.stringify(getState(), null, 2);
-  const filename = `gaffer-backup-${game.date}-${game.opponent.replace(/[^a-z0-9]+/gi, '-')}.json`;
+  const filename = `bootroom-backup-${game.date}-${game.opponent.replace(/[^a-z0-9]+/gi, '-')}.json`;
   tryDownloadFile(filename, json);
   writeAutoSaveFile(json);
 }

@@ -1,4 +1,4 @@
-# Gaffer
+# Boot Room
 
 A game-day manager for a youth soccer team: roster, fixtures, match-day
 squad selection, a formation/lineup builder, and a live in-game tracker for
@@ -188,7 +188,7 @@ see everything working immediately. Reset or clear that data any time from
   a match day, and a player who sat out the second match of a day doesn't
   pick up a phantom appearance just because their minutes carried over.
 - **Club logo** — upload an image in Settings (Team section) to replace the
-  default Gaffer crest in the header with your own club badge. Resized
+  default Boot Room crest in the header with your own club badge. Resized
   automatically to a small header-sized image before saving, so a full-size
   photo straight off a phone doesn't bloat local storage; stays on this
   device like everything else. Remove it any time to go back to the
@@ -223,7 +223,7 @@ see everything working immediately. Reset or clear that data any time from
   everything currently on the device. Get in the habit of backing up before
   a big change, and any time you're not sure the data will still be there
   next time you open the app.
-  - **Automatic backups** — on top of the manual button, Gaffer snapshots a
+  - **Automatic backups** — on top of the manual button, Boot Room snapshots a
     backup by itself every time a match finishes (End Game or End & Next),
     with no action needed. It's kept as a second, independent copy on the
     same device (not sent anywhere — everything here stays local), so a bad
@@ -242,7 +242,7 @@ see everything working immediately. Reset or clear that data any time from
     new dated file every match, which adds up over a season. On a
     desktop/laptop, in Chrome or Edge (this needs the File System Access
     API), Settings also offers "Choose File Location": pick a file once
-    (e.g. `gaffer-backup.json` in Documents) and Gaffer silently overwrites
+    (e.g. `bootroom-backup.json` in Documents) and Boot Room silently overwrites
     that same file after every match from then on, so there's always
     exactly one current file rather than a growing pile. It's independent
     of the dated downloads — use one, the other, both, or neither.

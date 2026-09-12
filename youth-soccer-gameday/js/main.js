@@ -45,7 +45,7 @@ function renderNav() {
 
 function renderBrand() {
   const { team } = getState();
-  brandNameEl.textContent = team.name ? `${team.name} · Gaffer` : 'Gaffer';
+  brandNameEl.textContent = team.name ? `${team.name} · Boot Room` : 'Boot Room';
 
   const logoUrl = team.logoDataUrl || null;
   if (logoUrl !== brandLogoUrl) {

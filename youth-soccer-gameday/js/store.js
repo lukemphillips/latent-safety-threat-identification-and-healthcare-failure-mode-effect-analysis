@@ -92,7 +92,7 @@ export function clearAllData() {
 // underlying cause was.
 export function restoreFromBackup(data) {
   if (!data || !data.team || !Array.isArray(data.players) || !Array.isArray(data.games)) {
-    throw new Error('That doesn\'t look like a Gaffer backup — expected an object with team, players, and games.');
+    throw new Error('That doesn\'t look like a Boot Room backup — expected an object with team, players, and games.');
   }
   state = data;
   persist();
@@ -121,7 +121,7 @@ function gameCompleteness(g) {
 // Returns a summary of what changed, for the UI to report back.
 export function mergeBackup(data) {
   if (!data || !data.team || !Array.isArray(data.players) || !Array.isArray(data.games)) {
-    throw new Error('That doesn\'t look like a Gaffer backup — expected an object with team, players, and games.');
+    throw new Error('That doesn\'t look like a Boot Room backup — expected an object with team, players, and games.');
   }
   const s = getState();
   let playersAdded = 0, gamesAdded = 0, gamesUpdated = 0, awardsAdded = 0;

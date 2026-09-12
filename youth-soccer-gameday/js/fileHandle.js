@@ -1,5 +1,5 @@
 // A single, self-updating local backup file — the coach picks a file
-// location once (e.g. "gaffer-backup.json" in Documents) and Gaffer
+// location once (e.g. "bootroom-backup.json" in Documents) and Boot Room
 // silently overwrites that same file after every match finishes, instead
 // of downloading a new dated file each time (see util.js's
 // tryDownloadFile, which still runs alongside this as a full history).
@@ -12,6 +12,9 @@
 // write here is best-effort and silently gives up rather than blocking
 // anything else.
 
+// Kept as "gaffer-fs" (the app's previous name) rather than renamed to
+// match the Boot Room rebrand — it's an internal, invisible identifier, and
+// changing it would orphan any file handle a coach already chose under it.
 const DB_NAME = 'gaffer-fs';
 const STORE_NAME = 'handles';
 const HANDLE_KEY = 'autoSaveFile';
@@ -62,7 +65,7 @@ export function autoSaveFileSupported() {
 // future writes. Must be called from a user gesture (e.g. a button click).
 export async function chooseAutoSaveFile() {
   const handle = await window.showSaveFilePicker({
-    suggestedName: 'gaffer-backup.json',
+    suggestedName: 'bootroom-backup.json',
     types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
   });
   await idbSet(HANDLE_KEY, handle);

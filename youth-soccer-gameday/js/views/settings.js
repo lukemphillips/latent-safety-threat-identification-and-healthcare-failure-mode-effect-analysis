@@ -42,7 +42,7 @@ export function renderSettings(app) {
           ${team.logoDataUrl ? '<button type="button" class="btn ghost sm" data-action="remove-logo">Remove Logo</button>' : ''}
         </div>
       </div>
-      <p class="muted small" style="margin-top:-6px;">Shows in the header in place of the default Gaffer crest. A square image works best — it's resized automatically, and stays on this device like everything else.</p>
+      <p class="muted small" style="margin-top:-6px;">Shows in the header in place of the default Boot Room crest. A square image works best — it's resized automatically, and stays on this device like everything else.</p>
       <div class="field">
         <label>Team name</label>
         <input type="text" name="name" value="${escapeHtml(team.name)}" required />
@@ -142,7 +142,7 @@ export function renderSettings(app) {
       <button class="btn ghost block" data-action="merge-data">🔀 Merge in Another Coach's Backup</button>
     </div>
     <div class="card stack">
-      <p class="muted small mt-0">Gaffer also snapshots a backup automatically on this device every time a match finishes — no need to remember to do it yourself. Keeps the 5 most recent.</p>
+      <p class="muted small mt-0">Boot Room also snapshots a backup automatically on this device every time a match finishes — no need to remember to do it yourself. Keeps the 5 most recent.</p>
       ${autoBackups.length ? autoBackups.map(autoBackupRow).join('') : '<p class="muted small">None yet — one is saved the first time a match finishes.</p>'}
     </div>
     <div class="card stack">
@@ -153,7 +153,7 @@ export function renderSettings(app) {
 
     <div class="section-title">Diagnostics</div>
     <div class="card stack">
-      <p class="muted small mt-0">If Gaffer misbehaves for you or another coach, errors are captured automatically here on that device — no need to remember exactly what happened. Copy the log and send it to whoever maintains the app.</p>
+      <p class="muted small mt-0">If Boot Room misbehaves for you or another coach, errors are captured automatically here on that device — no need to remember exactly what happened. Copy the log and send it to whoever maintains the app.</p>
       <div class="small">${errorCountText(errorLog)}</div>
       <button class="btn secondary block" data-action="copy-error-log" ${errorLog.length ? '' : 'disabled'}>📋 Copy Error Log</button>
       <textarea id="error-log-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;">${escapeHtml(formatErrorLogText())}</textarea>
@@ -179,7 +179,7 @@ export function renderSettings(app) {
   const removeLogoBtn = app.querySelector('[data-action="remove-logo"]');
   if (removeLogoBtn) {
     removeLogoBtn.addEventListener('click', async () => {
-      if (!(await confirmDialog('Remove the club logo? The header will go back to the default Gaffer crest.'))) return;
+      if (!(await confirmDialog('Remove the club logo? The header will go back to the default Boot Room crest.'))) return;
       update((state) => { delete state.team.logoDataUrl; });
       renderSettings(app);
     });
@@ -440,7 +440,7 @@ function openRestoreModal() {
           return;
         }
         if (!parsed || !parsed.team || !Array.isArray(parsed.players) || !Array.isArray(parsed.games)) {
-          showError("That doesn't look like a Gaffer backup — expected an object with team, players, and games.");
+          showError("That doesn't look like a Boot Room backup — expected an object with team, players, and games.");
           return;
         }
         if (!(await confirmDialog('Restore this backup? It replaces everything currently in the app on this device.', { okLabel: 'Restore', danger: true }))) return;
