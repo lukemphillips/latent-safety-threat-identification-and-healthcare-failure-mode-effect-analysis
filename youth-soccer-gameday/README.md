@@ -240,6 +240,19 @@ see everything working immediately. Reset or clear that data any time from
     that same file after every match from then on, so there's always
     exactly one current file rather than a growing pile. It's independent
     of the dated downloads — use one, the other, both, or neither.
+  - **Merging in another coach's backup** — for one team split across two
+    simultaneous matches (e.g. two 5-a-side games at once, each tracked on
+    a different coach's phone), Settings > Data also has "Merge in Another
+    Coach's Backup". The other coach sends their Backup (any way — a
+    shared cloud folder, AirDrop, a message); pasting it in here adds their
+    game(s) and any players not already present, without touching anything
+    already on this device. Where "Restore" replaces everything, "Merge"
+    only adds — if a game id somehow exists on both sides, it keeps
+    whichever copy is further along (a completed match always wins over a
+    live or scheduled one) rather than picking either one blindly. This is
+    a periodic, bring-it-together-after-the-fact join, not live sync —
+    there's no server in the middle, so nothing updates on the other
+    coach's phone until someone shares a file again.
 
 ## Age-group formats (DDSL / FAI Player Development Plan)
 

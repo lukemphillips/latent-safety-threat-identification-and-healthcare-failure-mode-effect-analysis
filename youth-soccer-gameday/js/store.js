@@ -99,6 +99,75 @@ export function restoreFromBackup(data) {
   listeners.forEach((fn) => fn(state));
 }
 
+const STATUS_RANK = { scheduled: 0, live: 1, completed: 2 };
+
+// A rough "how far along is this" score for picking between two copies of
+// the same game id — status first (a finished match always wins over a
+// live or scheduled one), then how much has actually been logged, so an
+// accidental duplicate id doesn't regress a completed match back to live.
+function gameCompleteness(g) {
+  return (STATUS_RANK[g.status] ?? 0) * 10000 + (g.live?.subLog?.length || 0);
+}
+
+// Combines another device's backup into what's already here, for two
+// coaches each running a separate simultaneous match for the same team
+// (see Settings > Data) — e.g. two 5-a-side games at once, each tracked on
+// its own phone, brought back together afterward via a shared file. Unlike
+// restoreFromBackup this never throws away local data: it only adds
+// players/games/weekly awards the incoming file has that aren't already
+// here, and for a game id that exists on both sides, keeps whichever copy
+// is further along. Team-level settings are left exactly as they are
+// locally — a merge shouldn't silently change your own device's config.
+// Returns a summary of what changed, for the UI to report back.
+export function mergeBackup(data) {
+  if (!data || !data.team || !Array.isArray(data.players) || !Array.isArray(data.games)) {
+    throw new Error('That doesn\'t look like a Gaffer backup — expected an object with team, players, and games.');
+  }
+  const s = getState();
+  let playersAdded = 0, gamesAdded = 0, gamesUpdated = 0, awardsAdded = 0;
+
+  const localPlayerIds = new Set(s.players.map((p) => p.id));
+  data.players.forEach((p) => {
+    if (!localPlayerIds.has(p.id)) {
+      s.players.push(p);
+      localPlayerIds.add(p.id);
+      playersAdded += 1;
+    }
+  });
+
+  const localGamesById = new Map(s.games.map((g) => [g.id, g]));
+  data.games.forEach((incoming) => {
+    const existing = localGamesById.get(incoming.id);
+    if (!existing) {
+      s.games.push(incoming);
+      localGamesById.set(incoming.id, incoming);
+      gamesAdded += 1;
+    } else if (gameCompleteness(incoming) > gameCompleteness(existing)) {
+      const idx = s.games.indexOf(existing);
+      s.games[idx] = incoming;
+      localGamesById.set(incoming.id, incoming);
+      gamesUpdated += 1;
+    }
+  });
+
+  const incomingAwards = data.team.weeklyAwards || [];
+  if (incomingAwards.length) {
+    s.team.weeklyAwards = s.team.weeklyAwards || [];
+    const localAwardIds = new Set(s.team.weeklyAwards.map((a) => a.id));
+    incomingAwards.forEach((a) => {
+      if (!localAwardIds.has(a.id)) {
+        s.team.weeklyAwards.push(a);
+        localAwardIds.add(a.id);
+        awardsAdded += 1;
+      }
+    });
+  }
+
+  persist();
+  listeners.forEach((fn) => fn(state));
+  return { playersAdded, gamesAdded, gamesUpdated, awardsAdded };
+}
+
 function loadAutoBackups() {
   try {
     const raw = localStorage.getItem(AUTO_BACKUP_KEY);

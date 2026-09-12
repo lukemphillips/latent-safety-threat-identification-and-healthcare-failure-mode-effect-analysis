@@ -1,4 +1,4 @@
-import { getState, update, resetToSample, clearAllData, restoreFromBackup, findPlayer, getAutoBackups, restoreAutoBackupById } from '../store.js';
+import { getState, update, resetToSample, clearAllData, restoreFromBackup, mergeBackup, findPlayer, getAutoBackups, restoreAutoBackupById } from '../store.js';
 import { FORMATIONS, remapLineupToFormat } from '../formations.js';
 import { escapeHtml, uid, copyToClipboard } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -123,6 +123,10 @@ export function renderSettings(app) {
       <button class="btn ghost block" data-action="restore-data">📥 Restore from Backup</button>
     </div>
     <div class="card stack">
+      <p class="muted small mt-0">Running two matches for this team at once (e.g. two 5-a-side games), each tracked on a different coach's phone? Have that coach send you their Backup (above), then bring it in here — unlike Restore, this adds their game(s) and any new players alongside what's already on this device instead of replacing it. Works with a file shared any way you like (a synced Dropbox/Google Drive/OneDrive folder, AirDrop, a message).</p>
+      <button class="btn ghost block" data-action="merge-data">🔀 Merge in Another Coach's Backup</button>
+    </div>
+    <div class="card stack">
       <p class="muted small mt-0">Gaffer also snapshots a backup automatically on this device every time a match finishes — no need to remember to do it yourself. Keeps the 5 most recent.</p>
       ${autoBackups.length ? autoBackups.map(autoBackupRow).join('') : '<p class="muted small">None yet — one is saved the first time a match finishes.</p>'}
     </div>
@@ -223,6 +227,7 @@ export function renderSettings(app) {
     setTimeout(() => { backupBtn.textContent = '💾 Backup Team Data'; }, 3000);
   });
   app.querySelector('[data-action="restore-data"]').addEventListener('click', () => openRestoreModal());
+  app.querySelector('[data-action="merge-data"]').addEventListener('click', () => openMergeModal(app));
   app.querySelectorAll('[data-action="restore-auto-backup"]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!(await confirmDialog('Restore this automatic backup? It replaces everything currently in the app on this device.', { okLabel: 'Restore', danger: true }))) return;
@@ -315,6 +320,55 @@ function ruleRow(r) {
       <button class="icon-btn" data-action="remove-rule" data-id="${r.id}" aria-label="Remove rule">✕</button>
     </div>
   `;
+}
+
+function openMergeModal(app) {
+  openModal({
+    title: "Merge in Another Coach's Backup",
+    bodyHtml: `
+      <p class="muted small mt-0">Paste the backup the other coach copied with "Backup Team Data" on their phone. This adds their game(s) and any players not already here — it won't remove or overwrite anything already on this device.</p>
+      <form id="merge-form" class="stack">
+        <textarea name="backup" required style="width:100%; min-height:160px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;" placeholder="Paste the other coach's backup JSON here"></textarea>
+        <div id="merge-error" class="small" style="color:var(--red);" hidden></div>
+        <button type="submit" class="btn secondary block">Merge In</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      const errorEl = modalEl.querySelector('#merge-error');
+      // Inline rather than alertDialog() for the same reason as the Restore
+      // modal: an alert would close this modal to show itself, losing
+      // whatever was pasted right when a typo needs fixing.
+      const showError = (msg) => { errorEl.textContent = msg; errorEl.hidden = false; };
+
+      modalEl.querySelector('#merge-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        errorEl.hidden = true;
+        const raw = new FormData(e.target).get('backup');
+        let parsed;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          showError("That text isn't valid JSON — make sure you copied the whole backup.");
+          return;
+        }
+        let summary;
+        try {
+          summary = mergeBackup(parsed);
+        } catch (err) {
+          showError(err.message);
+          return;
+        }
+        closeModal();
+        const parts = [];
+        if (summary.gamesAdded) parts.push(`${summary.gamesAdded} game${summary.gamesAdded === 1 ? '' : 's'} added`);
+        if (summary.gamesUpdated) parts.push(`${summary.gamesUpdated} game${summary.gamesUpdated === 1 ? '' : 's'} updated`);
+        if (summary.playersAdded) parts.push(`${summary.playersAdded} player${summary.playersAdded === 1 ? '' : 's'} added`);
+        if (summary.awardsAdded) parts.push(`${summary.awardsAdded} weekly award${summary.awardsAdded === 1 ? '' : 's'} added`);
+        alertDialog(parts.length ? `Merged: ${parts.join(', ')}.` : 'Nothing new to merge in — this device already had everything from that backup.');
+        renderSettings(app);
+      });
+    },
+  });
 }
 
 function openRestoreModal() {
