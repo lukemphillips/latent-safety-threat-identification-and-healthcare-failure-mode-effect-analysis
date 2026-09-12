@@ -257,6 +257,11 @@ button { font: inherit; }
 .badge.league { background: #eaf1ff; color: var(--blue); }
 .badge.friendly { background: #f3eaff; color: #7c3aed; }
 .badge.tournament { background: #fff0e0; color: #c2691d; }
+.badge.stream-a { background: var(--green-100); color: var(--green-700); }
+.badge.stream-b { background: #eaf1ff; color: var(--blue); }
+.badge.stream-c { background: var(--amber-bg); color: var(--amber); }
+.badge.stream-d { background: #f3eaff; color: #7c3aed; }
+.badge.stream-none { background: #eef0f2; color: var(--ink-soft); }
 
 /* Player rows */
 .player-row {

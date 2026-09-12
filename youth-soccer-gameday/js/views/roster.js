@@ -1,8 +1,9 @@
 import { getState, update, findPlayer } from '../store.js';
-import { uid, escapeHtml } from '../util.js';
+import { uid, escapeHtml, streamBadgeHtml } from '../util.js';
 import { openModal, closeModal } from '../modal.js';
 
 const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'];
+const STREAMS = ['A', 'B', 'C', 'D'];
 
 export function renderRoster(app) {
   const { players } = getState();
@@ -17,7 +18,10 @@ export function renderRoster(app) {
         <h1>Roster</h1>
         <div class="sub">${players.filter((p) => p.active).length} active players</div>
       </div>
-      <button class="btn" data-action="add-player">+ Add</button>
+      <div class="row">
+        <a class="btn ghost sm" href="#/balance">🎲 Balance</a>
+        <button class="btn" data-action="add-player">+ Add</button>
+      </div>
     </div>
     <div class="card">
       ${sorted.length ? sorted.map(playerRow).join('') : '<div class="empty">No players yet. Add your first player.</div>'}
@@ -38,6 +42,7 @@ function playerRow(p) {
         <div class="player-name ${p.active ? '' : 'inactive'}">${escapeHtml(p.name)}</div>
         <div class="player-sub">${p.position || ''}${p.guardianName ? ' · ' + escapeHtml(p.guardianName) : ''}</div>
       </div>
+      ${streamBadgeHtml(p.skillStream)}
       ${p.active ? '' : '<span class="badge pending">inactive</span>'}
     </div>
   `;
@@ -45,7 +50,7 @@ function playerRow(p) {
 
 function openPlayerForm(playerId) {
   const existing = playerId ? findPlayer(playerId) : null;
-  const p = existing || { name: '', jerseyNumber: '', position: 'MID', guardianName: '', guardianPhone: '', active: true };
+  const p = existing || { name: '', jerseyNumber: '', position: 'MID', skillStream: '', guardianName: '', guardianPhone: '', active: true };
 
   const dlg = openModal({
     title: existing ? 'Edit Player' : 'Add Player',
@@ -66,6 +71,13 @@ function openPlayerForm(playerId) {
               ${POSITIONS.map((pos) => `<option value="${pos}" ${p.position === pos ? 'selected' : ''}>${pos}</option>`).join('')}
             </select>
           </div>
+        </div>
+        <div class="field">
+          <label>Streaming classification (for fair team-splitting)</label>
+          <select name="skillStream">
+            <option value="" ${!p.skillStream ? 'selected' : ''}>Unclassified</option>
+            ${STREAMS.map((s) => `<option value="${s}" ${p.skillStream === s ? 'selected' : ''}>Stream ${s}</option>`).join('')}
+          </select>
         </div>
         <div class="field">
           <label>Guardian name</label>
@@ -94,6 +106,7 @@ function openPlayerForm(playerId) {
           name: (fd.get('name') || '').trim(),
           jerseyNumber: fd.get('jerseyNumber') ? Number(fd.get('jerseyNumber')) : null,
           position: fd.get('position'),
+          skillStream: fd.get('skillStream') || null,
           guardianName: (fd.get('guardianName') || '').trim(),
           guardianPhone: (fd.get('guardianPhone') || '').trim(),
           active: fd.get('active') === 'on',

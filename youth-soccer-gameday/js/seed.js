@@ -16,18 +16,19 @@ export function seedTeam() {
 }
 
 const NAMES = [
-  ['Ava Martinez', 'DEF'], ['Liam Chen', 'GK'], ['Noah Patel', 'MID'],
-  ['Mia Johnson', 'FWD'], ['Ethan Wright', 'DEF'], ['Sofia Rossi', 'MID'],
-  ['Lucas Kim', 'FWD'], ['Zoe Nguyen', 'DEF'], ['Oliver Brooks', 'MID'],
-  ['Isla Thompson', 'FWD'], ['Jack Ramirez', 'GK'], ['Emma Davies', 'DEF'],
+  ['Ava Martinez', 'DEF', 'A'], ['Liam Chen', 'GK', 'B'], ['Noah Patel', 'MID', 'C'],
+  ['Mia Johnson', 'FWD', 'A'], ['Ethan Wright', 'DEF', 'B'], ['Sofia Rossi', 'MID', 'A'],
+  ['Lucas Kim', 'FWD', 'B'], ['Zoe Nguyen', 'DEF', 'C'], ['Oliver Brooks', 'MID', 'D'],
+  ['Isla Thompson', 'FWD', 'C'], ['Jack Ramirez', 'GK', 'D'], ['Emma Davies', 'DEF', 'D'],
 ];
 
 export function seedPlayers() {
-  return NAMES.map(([name, position], i) => ({
+  return NAMES.map(([name, position, skillStream], i) => ({
     id: uid(),
     name,
     jerseyNumber: i + 1,
     position,
+    skillStream,
     guardianName: '',
     guardianPhone: '',
     active: true,

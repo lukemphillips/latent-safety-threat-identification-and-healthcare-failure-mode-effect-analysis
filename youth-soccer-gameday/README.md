@@ -28,8 +28,14 @@ see everything working immediately. Reset or clear that data any time from
 
 ## Features
 
-- **Roster** — players with jersey number, position, guardian contact, and
-  active/inactive status.
+- **Roster** — players with jersey number, preferred position, guardian
+  contact, active/inactive status, and a streaming classification (A/B/C/D)
+  you assign per player to keep team-building fair.
+- **Balance Teams** — pick who's involved (defaults to the whole active
+  roster), then randomly split them into two teams. The split balances each
+  streaming classification separately (so it's not just an even head count
+  but an even mix of A/B/C/D on both sides), and "Shuffle Again" re-rolls
+  without losing your squad selection.
 - **Schedule** — League / Friendly / Tournament fixtures (tournament games
   carry a tournament name + stage, e.g. "Summer Cup · Final").
 - **RSVP** — optional advance-availability tracker (In/Maybe/Out), for teams
@@ -92,6 +98,7 @@ js/
   views/
     dashboard.js
     roster.js
+    balanceTeams.js random 2-team split, balanced by streaming classification
     schedule.js
     gameDetail.js  RSVP tab + Squad (attendance + lineup) tab
     liveGame.js    live match tracker (and read-only summary once completed)

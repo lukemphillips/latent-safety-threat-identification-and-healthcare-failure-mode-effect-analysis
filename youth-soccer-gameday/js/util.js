@@ -71,3 +71,8 @@ export function matchTypeBadgeHtml(game) {
   const type = game.matchType || 'league';
   return `<span class="badge ${type}">${matchTypeLabel(type)}</span>`;
 }
+
+export function streamBadgeHtml(stream) {
+  if (!stream) return '<span class="badge stream-none">Unclassified</span>';
+  return `<span class="badge stream-${stream.toLowerCase()}">Stream ${stream}</span>`;
+}

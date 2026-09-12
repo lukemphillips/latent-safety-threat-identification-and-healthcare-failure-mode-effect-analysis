@@ -6,6 +6,7 @@ import { renderGameDetail } from './views/gameDetail.js';
 import { renderLiveGame } from './views/liveGame.js';
 import { renderSettings } from './views/settings.js';
 import { renderStats } from './views/stats.js';
+import { renderBalanceTeams } from './views/balanceTeams.js';
 
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
@@ -13,7 +14,7 @@ const brandNameEl = document.getElementById('brand-team-name');
 
 const NAV_ITEMS = [
   { match: (p) => p.length === 0, path: '#/', label: 'Home', icon: '🏠' },
-  { match: (p) => p[0] === 'roster', path: '#/roster', label: 'Roster', icon: '👥' },
+  { match: (p) => p[0] === 'roster' || p[0] === 'balance', path: '#/roster', label: 'Roster', icon: '👥' },
   { match: (p) => p[0] === 'schedule' || p[0] === 'game', path: '#/schedule', label: 'Schedule', icon: '📅' },
   { match: (p) => p[0] === 'stats', path: '#/stats', label: 'Stats', icon: '📊' },
   { match: (p) => p[0] === 'settings', path: '#/settings', label: 'Settings', icon: '⚙️' },
@@ -53,6 +54,7 @@ function route() {
   let result;
   if (parts.length === 0) result = renderDashboard(app);
   else if (parts[0] === 'roster') result = renderRoster(app);
+  else if (parts[0] === 'balance') result = renderBalanceTeams(app);
   else if (parts[0] === 'schedule') result = renderSchedule(app);
   else if (parts[0] === 'stats') result = renderStats(app);
   else if (parts[0] === 'settings') result = renderSettings(app);
