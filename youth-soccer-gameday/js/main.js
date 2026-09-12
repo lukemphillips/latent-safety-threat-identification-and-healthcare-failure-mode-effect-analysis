@@ -10,6 +10,7 @@ import { renderLiveGame } from './views/liveGame.js';
 import { renderSettings } from './views/settings.js';
 import { renderStats } from './views/stats.js';
 import { renderBalanceTeams } from './views/balanceTeams.js';
+import { renderHelp } from './views/help.js';
 
 initErrorLogging();
 
@@ -63,6 +64,7 @@ function route() {
   else if (parts[0] === 'schedule') result = renderSchedule(app);
   else if (parts[0] === 'stats') result = renderStats(app);
   else if (parts[0] === 'settings') result = renderSettings(app);
+  else if (parts[0] === 'help') result = renderHelp(app);
   else if (parts[0] === 'game' && parts[1]) {
     result = parts[2] === 'live'
       ? renderLiveGame(app, parts[1])

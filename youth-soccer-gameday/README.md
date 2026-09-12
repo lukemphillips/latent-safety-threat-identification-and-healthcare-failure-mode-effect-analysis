@@ -262,6 +262,10 @@ see everything working immediately. Reset or clear that data any time from
     an automatic on-device backup of the combined result, same as a match
     ending would — the merged data is protected right away rather than
     waiting on the next match or a manual Backup Team Data tap.
+- **Help & How-To** — an in-app guide (❓ icon on the Dashboard, or the link
+  at the top of Settings) covering getting started, running a live match,
+  fair play, keeping data safe, and troubleshooting, so a coach doesn't
+  need to read this README to use the app day-to-day.
 
 ## Age-group formats (DDSL / FAI Player Development Plan)
 

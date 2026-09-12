@@ -25,6 +25,7 @@ export function renderDashboard(app) {
         <h1>${team.name || 'Your Team'}</h1>
         <div class="sub">${team.ageGroup ? team.ageGroup + ' · ' : ''}${team.squadFormat}-a-side</div>
       </div>
+      <a class="icon-btn" href="#/help" aria-label="Help &amp; How-To">❓</a>
     </div>
 
     ${latestBackup ? `

@@ -15,6 +15,8 @@ export function renderSettings(app) {
   app.innerHTML = `
     <div class="page-title"><h1>Settings</h1></div>
 
+    <a class="btn ghost block" href="#/help" style="margin-bottom:12px;">❓ Help &amp; How-To</a>
+
     <div class="card stack">
       ${fileSaveSupported ? `
         <p class="muted small mt-0">🗂️ A dated backup file downloads automatically after every match (see Data, below). This is instead for one single file, at a location you pick, that keeps overwriting itself with the latest data — so there's always exactly one current file rather than a growing pile. Desktop/laptop Chrome or Edge only — doesn't work on iPhone or iPad, even in Chrome there (see note below if that's what you're on).</p>
