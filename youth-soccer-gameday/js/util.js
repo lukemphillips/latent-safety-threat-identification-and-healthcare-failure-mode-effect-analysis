@@ -100,3 +100,22 @@ export function playerPositions(p) {
 export function formatPositions(p) {
   return playerPositions(p).join('/');
 }
+
+// Same "is a substitution worth suggesting right now" rule the live view's
+// fair-play banner shows, but as a plain boolean over ids/seconds — shared
+// so the global sub-due alert (main.js) and the banner (liveGame.js) never
+// drift apart on what counts as "due".
+export function isSubDue(team, live, benchIds, onFieldOutfieldIds) {
+  if (!team.equalPlayingTimePolicy) return false;
+  if (!benchIds.length || !onFieldOutfieldIds.length) return false;
+
+  const minStintSeconds = (team.minStintMinutes ?? 4) * 60;
+  const stintOf = (id) => Math.max(0, live.elapsedSeconds - ((live.stintStart || {})[id] ?? 0));
+  const restEligible = onFieldOutfieldIds.filter((id) => stintOf(id) >= minStintSeconds);
+  if (!restEligible.length) return false;
+
+  const timeOf = (id) => live.playingTime[id] || 0;
+  const leastBenchTime = Math.min(...benchIds.map(timeOf));
+  const mostFieldTime = Math.max(...restEligible.map(timeOf));
+  return (mostFieldTime - leastBenchTime) > 60;
+}

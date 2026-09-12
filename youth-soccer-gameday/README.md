@@ -76,7 +76,10 @@ see everything working immediately. Reset or clear that data any time from
   setting up the next one — score and clock start fresh, but each player's
   fair-play minutes carry over from the earlier match(es) that day, so
   playing-time suggestions in match two stay honest about the whole day, not
-  just what's happened since kickoff. A scheduled game (one that hasn't
+  just what's happened since kickoff. If that button isn't showing up, it's
+  because there's no second scheduled game on the same date yet — the live
+  view shows a hint pointing to "+ Add Match Day Opponent" in that case,
+  which is on the game's own page (not the live view). A scheduled game (one that hasn't
   started yet) also gets a 🗑 icon next to Edit on its page for a quick,
   one-tap delete — handy for a fixture added by mistake or a cancelled
   match. Once a game is live or completed, deleting it moves to Edit
@@ -129,7 +132,12 @@ see everything working immediately. Reset or clear that data any time from
   - Fair-play suggestions (optional, see Settings) that flag which bench
     player has the least playing time and which eligible on-field player has
     the most (respecting the minimum-stint rule) — a nudge, not an enforced
-    rule.
+    rule. A substitution newly becoming due also triggers a vibrate + two-tone
+    chime (🔔 toggle in Settings, on by default) — driven by the same global
+    ticker as the clock, so it fires even if you've stepped away to another
+    tab, and only once per time it becomes due rather than repeating every
+    second. Vibration only works on browsers that support it (notably not
+    iOS Safari); the on-screen banner is always there either way.
   - Squad rules — configure pairs of players who should never both be on
     the bench at once (e.g. your only two keeper-capable defenders); the
     app warns (but never blocks) a substitution that would break this.
@@ -190,7 +198,10 @@ js/
                    alert(), since a page embedded in an iframe (e.g. this app's
                    Claude Artifact deployment) can't rely on those being
                    permitted by the embedder
-  util.js          formatting/id helpers
+  util.js          formatting/id helpers, isSubDue() (shared fair-play
+                   "due now" rule used by both the live-view banner and
+                   the sub-due alert)
+  subAlert.js      vibrate + Web Audio chime for "a substitution is due"
   views/
     dashboard.js
     roster.js

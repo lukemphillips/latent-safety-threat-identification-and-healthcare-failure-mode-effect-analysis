@@ -1,5 +1,7 @@
 import { initErrorLogging } from './errorLog.js';
 import { getState, update, subscribe } from './store.js';
+import { isSubDue } from './util.js';
+import { playSubDueAlert } from './subAlert.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderRoster } from './views/roster.js';
 import { renderSchedule } from './views/schedule.js';
@@ -81,6 +83,13 @@ if (document.readyState !== 'loading') route();
 // Ticks any running live match once a second, regardless of which screen is
 // showing — so the clock (and playing time) keeps moving while the coach
 // steps away to the Squad tab to add a late arrival, check the roster, etc.
+//
+// Also watches for a substitution newly becoming "due" (same rule as the
+// live view's fair-play banner) and fires a vibrate+chime alert — tracked
+// per game so it only fires once when the state flips from balanced to
+// due, not every second it stays that way.
+const subDueByGameId = {};
+
 setInterval(() => {
   const liveGame = getState().games.find((g) => g.status === 'live' && g.live && g.live.running);
   if (!liveGame) return;
@@ -93,5 +102,17 @@ setInterval(() => {
       g.live.playingTime[pid] = (g.live.playingTime[pid] || 0) + 1;
     });
     if (gk) g.live.playingTime[gk] = (g.live.playingTime[gk] || 0) + 1;
+
+    const presentIds = new Set(g.presentIds || []);
+    const sentOffIds = new Set(g.live.sentOff || []);
+    const benchIds = state.players
+      .filter((p) => p.active && presentIds.has(p.id) && !sentOffIds.has(p.id)
+        && !g.live.onField.includes(p.id) && p.id !== gk)
+      .map((p) => p.id);
+    const due = isSubDue(state.team, g.live, benchIds, g.live.onField);
+    if (due && !subDueByGameId[g.id] && state.team.subAlertsEnabled !== false) {
+      playSubDueAlert();
+    }
+    subDueByGameId[g.id] = due;
   });
 }, 1000);

@@ -50,6 +50,11 @@ export function renderSettings(app) {
         Equal playing time policy (show fair-play suggestions during live games)
       </label>
       <label class="checkbox-row">
+        <input type="checkbox" name="subAlertsEnabled" ${team.subAlertsEnabled !== false ? 'checked' : ''} />
+        🔔 Vibrate/chime when a substitution is due (needs the equal playing
+        time policy above; works even if you're on another tab)
+      </label>
+      <label class="checkbox-row">
         <input type="checkbox" name="enableCards" ${team.enableCards ? 'checked' : ''} />
         Log yellow/red cards (recommended for older age groups)
       </label>
@@ -154,6 +159,7 @@ export function renderSettings(app) {
       state.team.numPeriods = Number(fd.get('numPeriods')) || state.team.numPeriods;
       state.team.minStintMinutes = fd.get('minStintMinutes') === '' ? 0 : Number(fd.get('minStintMinutes'));
       state.team.equalPlayingTimePolicy = fd.get('equalPlayingTimePolicy') === 'on';
+      state.team.subAlertsEnabled = fd.get('subAlertsEnabled') === 'on';
       state.team.enableCards = fd.get('enableCards') === 'on';
       if (applyFormat) {
         // Reshapes each lineup to the new formation instead of wiping it —

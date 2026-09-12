@@ -11,6 +11,7 @@ export function seedTeam() {
     equalPlayingTimePolicy: true,
     minStintMinutes: 4,
     enableCards: false,
+    subAlertsEnabled: true,
     rules: [],
   };
 }
@@ -28,6 +29,7 @@ export function emptyTeam() {
     equalPlayingTimePolicy: true,
     minStintMinutes: 4,
     enableCards: false,
+    subAlertsEnabled: true,
     rules: [],
   };
 }

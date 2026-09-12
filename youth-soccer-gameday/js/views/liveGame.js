@@ -83,6 +83,7 @@ export function renderLiveGame(app, gameId) {
           <button class="btn danger" data-action="end-game">End Game</button>
           ${nextMatch ? `<button class="btn secondary" data-action="next-match">🏁 End &amp; Next: ${escapeHtml(nextMatch.opponent)}</button>` : ''}
         </div>
+        ${!nextMatch ? `<div class="muted small" style="margin-top:4px;">Playing a second match today? <a href="#/game/${game.id}">Add a match day opponent</a> to get an "End &amp; Next" button here.</div>` : ''}
       `}
     </div>
 
