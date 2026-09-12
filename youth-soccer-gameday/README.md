@@ -106,9 +106,10 @@ see everything working immediately. Reset or clear that data any time from
   from Stats once a Monday-to-Sunday week's matches are done (it groups
   completed games into weeks and gives each one a Set/Change button —
   handles a weekend with two fixtures the same as a single midweek game).
-  Picked from whoever was marked present across that week's games; season
-  totals show up in the Stats leaderboard's 🏅 column alongside Player of
-  the Match and captaincies.
+  Pick one player or several (a checklist, not an either/or) from whoever
+  was marked present across that week's games; season totals show up in
+  the Stats leaderboard's 🏅 column alongside Player of the Match and
+  captaincies.
 - **RSVP** — optional advance-availability tracker (In/Maybe/Out), for teams
   that want it. If your club already collects RSVPs elsewhere, skip it —
   the Squad tab's attendance still works on its own without it. Where the

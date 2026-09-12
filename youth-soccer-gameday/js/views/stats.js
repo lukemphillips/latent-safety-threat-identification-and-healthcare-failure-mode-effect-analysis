@@ -2,6 +2,15 @@ import { getState, update } from '../store.js';
 import { escapeHtml, formatDate, formatMinutes, formatPercent, formatPositions, matchTypeBadgeHtml, sortByDateTime, startOfWeekIso, weekLabel, uid } from '../util.js';
 import { openModal, closeModal, alertDialog } from '../modal.js';
 
+// Reads a weekly award's chosen players regardless of whether it's the
+// current multi-player shape (playerIds) or an older single-player one
+// (playerId) saved before multiple winners were supported.
+function awardPlayerIds(award) {
+  if (!award) return [];
+  if (award.playerIds) return award.playerIds;
+  return award.playerId ? [award.playerId] : [];
+}
+
 function sortColumns(team) {
   const cols = [
     { key: 'apps', label: 'Apps' },
@@ -57,7 +66,7 @@ function computeLeaderRows() {
     });
     const presentCount = trackedForAttendance.filter((g) => (g.presentIds || []).includes(p.id)).length;
     const attendance = trackedForAttendance.length ? presentCount / trackedForAttendance.length : null;
-    const weeklyAwardCount = weeklyAwards.filter((a) => a.playerId === p.id).length;
+    const weeklyAwardCount = weeklyAwards.filter((a) => awardPlayerIds(a).includes(p.id)).length;
     return { player: p, apps, minutes, goals, assists, saves, yellows, reds, potm, captaincies, weeklyAwards: weeklyAwardCount, attendance };
   });
 }
@@ -183,7 +192,8 @@ export function renderStats(app) {
 
 function weekRowHtml(week) {
   const { players } = getState();
-  const winner = week.award ? players.find((p) => p.id === week.award.playerId) : null;
+  const winnerIds = awardPlayerIds(week.award);
+  const winners = winnerIds.map((id) => players.find((p) => p.id === id)).filter(Boolean);
   return `
     <div class="card">
       <div class="card-row">
@@ -191,9 +201,9 @@ function weekRowHtml(week) {
           <div style="font-weight:700;">${escapeHtml(weekLabel(week.weekStart))}</div>
           <div class="muted small">${week.games.map((g) => `${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)}`).join(', ')}</div>
         </div>
-        <button class="btn ghost sm" data-action="set-week-award" data-week="${week.weekStart}">${week.award ? 'Change' : 'Set'}</button>
+        <button class="btn ghost sm" data-action="set-week-award" data-week="${week.weekStart}">${winners.length ? 'Change' : 'Set'}</button>
       </div>
-      <div class="small" style="margin-top:8px;">⭐ ${winner ? `<strong>${escapeHtml(winner.name)}</strong>` : '<span class="muted">Not set</span>'}</div>
+      <div class="small" style="margin-top:8px;">⭐ ${winners.length ? winners.map((p) => `<strong>${escapeHtml(p.name)}</strong>`).join(', ') : '<span class="muted">Not set</span>'}</div>
     </div>
   `;
 }
@@ -207,17 +217,19 @@ function openWeekAwardModal(week, onSaved) {
     alertDialog('No active players to choose from yet.');
     return;
   }
+  const selectedIds = new Set(awardPlayerIds(week.award));
   openModal({
     title: 'Player of the Week',
     bodyHtml: `
-      <p class="muted small mt-0">${escapeHtml(weekLabel(week.weekStart))} — ${week.games.map((g) => `${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)}`).join(', ')}</p>
+      <p class="muted small mt-0">${escapeHtml(weekLabel(week.weekStart))} — ${week.games.map((g) => `${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)}`).join(', ')}. Pick one or more.</p>
       <form id="week-award-form" class="stack">
-        <div class="field">
-          <label>Player of the Week</label>
-          <select name="player">
-            <option value="">— none —</option>
-            ${pool.map((p) => `<option value="${p.id}" ${week.award?.playerId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
-          </select>
+        <div class="stack" style="max-height:280px; overflow-y:auto;">
+          ${pool.map((p) => `
+            <label class="checkbox-row">
+              <input type="checkbox" name="players" value="${p.id}" ${selectedIds.has(p.id) ? 'checked' : ''} />
+              ${escapeHtml(p.name)}
+            </label>
+          `).join('')}
         </div>
         <button type="submit" class="btn block">Save</button>
       </form>
@@ -225,16 +237,17 @@ function openWeekAwardModal(week, onSaved) {
     onMount: (modalEl) => {
       modalEl.querySelector('#week-award-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        const playerId = new FormData(e.target).get('player') || null;
+        const playerIds = new FormData(e.target).getAll('players');
         update((state) => {
           state.team.weeklyAwards = state.team.weeklyAwards || [];
           const existing = state.team.weeklyAwards.find((a) => a.weekStart === week.weekStart);
-          if (!playerId) {
+          if (!playerIds.length) {
             state.team.weeklyAwards = state.team.weeklyAwards.filter((a) => a.weekStart !== week.weekStart);
           } else if (existing) {
-            existing.playerId = playerId;
+            existing.playerIds = playerIds;
+            delete existing.playerId;
           } else {
-            state.team.weeklyAwards.push({ id: uid(), weekStart: week.weekStart, playerId });
+            state.team.weeklyAwards.push({ id: uid(), weekStart: week.weekStart, playerIds });
           }
         });
         closeModal();
