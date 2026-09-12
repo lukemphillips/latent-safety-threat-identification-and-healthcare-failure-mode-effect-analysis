@@ -15,6 +15,17 @@ export function renderSettings(app) {
   app.innerHTML = `
     <div class="page-title"><h1>Settings</h1></div>
 
+    <div class="card stack">
+      ${fileSaveSupported ? `
+        <p class="muted small mt-0">🗂️ A dated backup file downloads automatically after every match (see Data, below). This is instead for one single file, at a location you pick, that keeps overwriting itself with the latest data — so there's always exactly one current file rather than a growing pile. Only works in this browser (Chrome/Edge).</p>
+        <div id="autosave-file-status" class="small">Checking…</div>
+        <button class="btn secondary block" data-action="choose-autosave-file">🗂️ Choose File Location</button>
+        <button class="btn ghost block" data-action="clear-autosave-file" hidden id="clear-autosave-btn">Turn Off</button>
+      ` : `
+        <p class="muted small mt-0">🗂️ A single self-updating backup file at a location you pick isn't available in this browser (needs Chrome or Edge). The dated backup file that downloads after every match (see Data, below) still works here.</p>
+      `}
+    </div>
+
     <div class="section-title">Team</div>
     <form id="team-form" class="card stack">
       <div class="field">
@@ -114,16 +125,6 @@ export function renderSettings(app) {
     <div class="card stack">
       <p class="muted small mt-0">Gaffer also snapshots a backup automatically on this device every time a match finishes — no need to remember to do it yourself. Keeps the 5 most recent.</p>
       ${autoBackups.length ? autoBackups.map(autoBackupRow).join('') : '<p class="muted small">None yet — one is saved the first time a match finishes.</p>'}
-    </div>
-    <div class="card stack">
-      ${fileSaveSupported ? `
-        <p class="muted small mt-0">A dated backup file also downloads automatically after every match — that's separate from this. This is for one single file that keeps overwriting itself with the latest data instead, if you'd rather have just one to keep track of. Only works in this browser (Chrome/Edge).</p>
-        <div id="autosave-file-status" class="small">Checking…</div>
-        <button class="btn secondary block" data-action="choose-autosave-file">🗂️ Choose File Location</button>
-        <button class="btn ghost block" data-action="clear-autosave-file" hidden id="clear-autosave-btn">Turn Off</button>
-      ` : `
-        <p class="muted small mt-0">🗂️ A single self-updating backup file isn't available in this browser (needs Chrome or Edge). The dated backup file that downloads after every match still works here.</p>
-      `}
     </div>
     <div class="card stack">
       <p class="muted small mt-0">Use these to demo the app or start fresh.</p>
