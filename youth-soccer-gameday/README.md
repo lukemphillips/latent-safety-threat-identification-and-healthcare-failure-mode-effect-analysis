@@ -185,7 +185,11 @@ js/
   importRoster.js  CSV/Excel parsing + header-alias mapping for bulk import
   errorLog.js      on-device uncaught-error capture for Settings > Diagnostics
   rules.js         "keep at least one on the pitch" pair-rule checking
-  modal.js         small <dialog>-based modal helper
+  modal.js         small <dialog>-based modal helper, plus confirmDialog()/
+                   alertDialog() — used everywhere instead of window.confirm()/
+                   alert(), since a page embedded in an iframe (e.g. this app's
+                   Claude Artifact deployment) can't rely on those being
+                   permitted by the embedder
   util.js          formatting/id helpers
   views/
     dashboard.js

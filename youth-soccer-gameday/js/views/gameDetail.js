@@ -1,7 +1,7 @@
 import { getState, update, findGame } from '../store.js';
 import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions } from '../util.js';
 import { formationFor } from '../formations.js';
-import { openModal, closeModal } from '../modal.js';
+import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { openGameForm } from './schedule.js';
 
 let selectingSlotId = null;
@@ -44,7 +44,7 @@ function honoreePool(game) {
 function openHonoreeModal(game, { field, title, label }) {
   const pool = honoreePool(game);
   if (!pool.length) {
-    alert('No active players to choose from yet.');
+    alertDialog('No active players to choose from yet.');
     return;
   }
   openModal({
@@ -313,8 +313,8 @@ function renderSquadTab(container, game) {
     });
   });
 
-  container.querySelector('[data-action="clear-lineup"]').addEventListener('click', () => {
-    if (!confirm('Clear the whole lineup?')) return;
+  container.querySelector('[data-action="clear-lineup"]').addEventListener('click', async () => {
+    if (!(await confirmDialog('Clear the whole lineup?'))) return;
     selectingSlotId = null;
     update((state) => {
       const g = state.games.find((x) => x.id === game.id);
@@ -477,8 +477,9 @@ function matchDayCarryover(games, game) {
 // button inside Edit Game (any status). Navigates back to Schedule and
 // returns whether the delete went ahead, so callers can decide what else
 // to do (e.g. also close a modal) only on success.
-function deleteGame(game) {
-  if (!confirm(`Delete the game vs ${game.opponent}? This can't be undone.`)) return false;
+async function deleteGame(game) {
+  const ok = await confirmDialog(`Delete the game vs ${game.opponent}? This can't be undone.`, { okLabel: 'Delete', danger: true });
+  if (!ok) return false;
   update((state) => {
     state.games = state.games.filter((g) => g.id !== game.id);
   });
@@ -520,7 +521,7 @@ export function autoFillLineup(formation, presentPlayers, currentSlots) {
   return slots;
 }
 
-function startGame(game) {
+async function startGame(game) {
   const { players, team, games } = getState();
   const active = players.filter((p) => p.active);
   const presentIds = game.presentIds || [];
@@ -529,8 +530,8 @@ function startGame(game) {
     .filter(([slotId, pid]) => slotId !== 'gk' && pid)
     .map(([, pid]) => pid);
 
-  if (!presentIds.length && !confirm('No players marked present yet. Start the game anyway?')) return;
-  if (!gkId && !confirm(`No goalkeeper set for the ${periodLabel(team, 1)}. Start anyway?`)) return;
+  if (!presentIds.length && !(await confirmDialog('No players marked present yet. Start the game anyway?'))) return;
+  if (!gkId && !(await confirmDialog(`No goalkeeper set for the ${periodLabel(team, 1)}. Start anyway?`))) return;
 
   const carryover = matchDayCarryover(games, game);
   const playingTime = {};
@@ -639,8 +640,8 @@ function openEditGameForm(game) {
         });
         closeModal();
       });
-      modalEl.querySelector('[data-action="delete-game"]').addEventListener('click', () => {
-        if (!deleteGame(game)) return;
+      modalEl.querySelector('[data-action="delete-game"]').addEventListener('click', async () => {
+        if (!(await deleteGame(game))) return;
         closeModal();
       });
     },

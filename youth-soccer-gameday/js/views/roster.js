@@ -1,6 +1,6 @@
 import { getState, update, findPlayer } from '../store.js';
 import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, copyToClipboard } from '../util.js';
-import { openModal, closeModal } from '../modal.js';
+import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { parseRosterFile, TEMPLATE_CSV } from '../importRoster.js';
 
 const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'];
@@ -131,8 +131,8 @@ function openPlayerForm(playerId) {
 
       const delBtn = modalEl.querySelector('[data-action="delete-player"]');
       if (delBtn) {
-        delBtn.addEventListener('click', () => {
-          if (!confirm(`Remove ${p.name} from the roster? This also removes their RSVPs and lineup spots.`)) return;
+        delBtn.addEventListener('click', async () => {
+          if (!(await confirmDialog(`Remove ${p.name} from the roster? This also removes their RSVPs and lineup spots.`, { okLabel: 'Remove', danger: true }))) return;
           update((state) => {
             state.players = state.players.filter((pl) => pl.id !== existing.id);
             state.team.rules = (state.team.rules || []).filter(
@@ -270,7 +270,7 @@ function openImportModal() {
           const checked = [...previewEl.querySelectorAll('[data-import-row]:checked')]
             .map((el) => validRows[Number(el.dataset.importRow)]);
           if (!checked.length) {
-            alert('No players selected to import.');
+            alertDialog('No players selected to import.');
             return;
           }
           update((state) => {

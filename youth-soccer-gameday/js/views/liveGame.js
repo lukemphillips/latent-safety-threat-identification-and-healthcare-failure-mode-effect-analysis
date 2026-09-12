@@ -2,7 +2,7 @@ import { getState, update, findGame } from '../store.js';
 import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml } from '../util.js';
 import { outfieldTargetCount } from '../formations.js';
 import { violatedRules } from '../rules.js';
-import { openModal, closeModal } from '../modal.js';
+import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 
 let selectingInboundId = null;
 let lastGameId = null;
@@ -159,11 +159,11 @@ export function renderLiveGame(app, gameId) {
     const nextPeriodBtns = app.querySelectorAll('[data-action="next-period"]');
     nextPeriodBtns.forEach((btn) => btn.addEventListener('click', () => openGkModal(gameId, active, presentIds, sentOffIds, live.currentPeriod + 1, true)));
 
-    app.querySelector('[data-action="end-game"]').addEventListener('click', () => {
+    app.querySelector('[data-action="end-game"]').addEventListener('click', async () => {
       const msg = live.currentPeriod < team.numPeriods
         ? `You're still in ${periodLabel(team, live.currentPeriod)}. End the game early?`
         : 'End the game? Final score and playing time will be locked in.';
-      if (!confirm(msg)) return;
+      if (!(await confirmDialog(msg, { okLabel: 'End Game' }))) return;
       update((state) => {
         const g = state.games.find((x) => x.id === gameId);
         g.status = 'completed';
@@ -173,8 +173,8 @@ export function renderLiveGame(app, gameId) {
 
     const nextMatchBtn = app.querySelector('[data-action="next-match"]');
     if (nextMatchBtn) {
-      nextMatchBtn.addEventListener('click', () => {
-        if (!confirm(`End this match and move on to ${nextMatch.opponent}? Final score and playing time will be locked in, and fair-play minutes will carry over into the next match.`)) return;
+      nextMatchBtn.addEventListener('click', async () => {
+        if (!(await confirmDialog(`End this match and move on to ${nextMatch.opponent}? Final score and playing time will be locked in, and fair-play minutes will carry over into the next match.`, { okLabel: 'End & Next' }))) return;
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
           g.status = 'completed';
@@ -197,11 +197,11 @@ export function renderLiveGame(app, gameId) {
     }
 
     app.querySelectorAll('[data-action="send-off"]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const playerId = btn.dataset.playerId;
         const player = byId[playerId];
-        if (!confirm(`Send off ${player?.name}? They'll be unavailable for the rest of the match.`)) return;
+        if (!(await confirmDialog(`Send off ${player?.name}? They'll be unavailable for the rest of the match.`, { okLabel: 'Send Off', danger: true }))) return;
         update((state) => {
           removePlayerFromPlay(state, gameId, playerId);
           const g = state.games.find((x) => x.id === gameId);
@@ -272,13 +272,13 @@ function stintSeconds(live, playerId) {
   return Math.max(0, live.elapsedSeconds - startedAt);
 }
 
-function applySub(gameId, inId, outId, byId, team) {
+async function applySub(gameId, inId, outId, byId, team) {
   const game = findGame(gameId);
   const minStintSeconds = (team.minStintMinutes ?? 4) * 60;
   const outStint = stintSeconds(game.live, outId);
   if (minStintSeconds > 0 && outStint < minStintSeconds) {
     const msg = `${byId[outId]?.name} has only been on for ${formatClock(outStint)} this stint (minimum ${team.minStintMinutes ?? 4} min). Sub anyway?`;
-    if (!confirm(msg)) return;
+    if (!(await confirmDialog(msg, { okLabel: 'Sub Anyway' }))) return;
   }
 
   const currentBench = new Set(
@@ -292,7 +292,7 @@ function applySub(gameId, inId, outId, byId, team) {
   const violations = violatedRules(team, wouldBeBenched, byId);
   if (violations.length) {
     const msg = violations.map((v) => `${v.nameA} & ${v.nameB}`).join(', ');
-    if (!confirm(`This substitution leaves both players benched in a "keep one on" rule: ${msg}. Continue anyway?`)) return;
+    if (!(await confirmDialog(`This substitution leaves both players benched in a "keep one on" rule: ${msg}. Continue anyway?`, { okLabel: 'Continue Anyway' }))) return;
   }
 
   const inName = byId[inId]?.name || '';
@@ -469,7 +469,7 @@ function eventRowHtml(entry, team) {
 
 function openGoalModal(gameId, pool) {
   if (!pool.length) {
-    alert('No one is on the pitch yet to credit with a goal.');
+    alertDialog('No one is on the pitch yet to credit with a goal.');
     return;
   }
   const options = (excludeId) => `<option value="">— none —</option>` + pool
@@ -624,7 +624,7 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
       </form>
     `,
     onMount: (modalEl) => {
-      modalEl.querySelector('#gk-form').addEventListener('submit', (e) => {
+      modalEl.querySelector('#gk-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
         const newGkId = fd.get('gk');
@@ -638,7 +638,7 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
             const prevStint = stintSeconds(game.live, prevGkId);
             if (minStintSeconds > 0 && prevStint < minStintSeconds) {
               const prevName = active.find((p) => p.id === prevGkId)?.name;
-              if (!confirm(`${prevName} has only kept goal for ${formatClock(prevStint)} this stint (minimum ${getState().team.minStintMinutes ?? 4} min). Change anyway?`)) return;
+              if (!(await confirmDialog(`${prevName} has only kept goal for ${formatClock(prevStint)} this stint (minimum ${getState().team.minStintMinutes ?? 4} min). Change anyway?`, { okLabel: 'Change Anyway' }))) return;
             }
           }
         }

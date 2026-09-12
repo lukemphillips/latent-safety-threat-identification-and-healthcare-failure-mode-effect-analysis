@@ -1,7 +1,7 @@
 import { getState, update, resetToSample, clearAllData, findPlayer } from '../store.js';
 import { FORMATIONS, remapLineupToFormat } from '../formations.js';
 import { escapeHtml, uid, copyToClipboard } from '../util.js';
-import { openModal, closeModal } from '../modal.js';
+import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
 
@@ -117,17 +117,17 @@ export function renderSettings(app) {
     const ageGroupValue = form.querySelector('[name="ageGroup"]').value;
     const band = suggestFormatForAgeGroup(ageGroupValue);
     if (!band) {
-      alert('Enter an age group with a number in it (e.g. "U10") to get a suggestion.');
+      alertDialog('Enter an age group with a number in it (e.g. "U10") to get a suggestion.');
       return;
     }
     if (!band.squadFormat) {
-      alert(`${band.label}: ${band.notes}`);
+      alertDialog(`${band.label}: ${band.notes}`);
       return;
     }
     form.querySelector('[name="squadFormat"]').value = String(band.squadFormat);
     form.querySelector('[name="periodMinutes"]').value = String(band.periodMinutes);
     form.querySelector('[name="numPeriods"]').value = String(band.numPeriods);
-    alert(`Suggested ${band.label} format applied: ${band.squadFormat}-a-side, ${band.numPeriods} × ${band.periodMinutes} min.${band.notes ? ' ' + band.notes : ''} Review and hit Save Team Settings to keep it.`);
+    alertDialog(`Suggested ${band.label} format applied: ${band.squadFormat}-a-side, ${band.numPeriods} × ${band.periodMinutes} min.${band.notes ? ' ' + band.notes : ''} Review and hit Save Team Settings to keep it.`);
   });
 
   app.querySelector('#team-form').addEventListener('submit', (e) => {
@@ -142,7 +142,7 @@ export function renderSettings(app) {
     // Block just this field; everything else in the form still saves below.
     const liveGameExists = getState().games.some((g) => g.status === 'live');
     if (formatRequested && liveGameExists) {
-      alert("Can't change the squad format while a match is live — finish or end that match first. Your other changes here will still be saved.");
+      alertDialog("Can't change the squad format while a match is live — finish or end that match first. Your other changes here will still be saved.");
     }
     const applyFormat = formatRequested && !liveGameExists;
 
@@ -168,11 +168,11 @@ export function renderSettings(app) {
     });
   });
 
-  app.querySelector('[data-action="reset-sample"]').addEventListener('click', () => {
-    if (confirm('Reload sample team, roster, and games? This replaces current data.')) resetToSample();
+  app.querySelector('[data-action="reset-sample"]').addEventListener('click', async () => {
+    if (await confirmDialog('Reload sample team, roster, and games? This replaces current data.', { okLabel: 'Reload', danger: true })) resetToSample();
   });
-  app.querySelector('[data-action="clear-data"]').addEventListener('click', () => {
-    if (confirm('Clear all players and games? This cannot be undone.')) clearAllData();
+  app.querySelector('[data-action="clear-data"]').addEventListener('click', async () => {
+    if (await confirmDialog('Clear all players and games? This cannot be undone.', { okLabel: 'Clear All', danger: true })) clearAllData();
   });
 
   app.querySelector('[data-action="add-rule"]').addEventListener('click', () => openRuleForm(players));
@@ -198,8 +198,8 @@ export function renderSettings(app) {
     });
     setTimeout(() => { copyLogBtn.textContent = '📋 Copy Error Log'; }, 2500);
   });
-  app.querySelector('[data-action="clear-error-log"]').addEventListener('click', () => {
-    if (!confirm('Clear the error log on this device?')) return;
+  app.querySelector('[data-action="clear-error-log"]').addEventListener('click', async () => {
+    if (!(await confirmDialog('Clear the error log on this device?', { okLabel: 'Clear Log', danger: true }))) return;
     clearErrorLog();
     renderSettings(app);
   });
@@ -226,7 +226,7 @@ function ruleRow(r) {
 function openRuleForm(players) {
   const active = players.filter((p) => p.active);
   if (active.length < 2) {
-    alert('You need at least two active players to set a rule.');
+    alertDialog('You need at least two active players to set a rule.');
     return;
   }
   const options = (excludeId) => active

@@ -3,6 +3,7 @@ import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDa
 import { isJuniorAgeGroup } from '../ageFormats.js';
 import { formationFor, emptyLineupSlots } from '../formations.js';
 import { autoFillLineup } from './gameDetail.js';
+import { confirmDialog } from '../modal.js';
 
 const STREAM_ORDER = ['A', 'B', 'C', 'D', null];
 const MIN_TEAMS = 2;
@@ -102,8 +103,8 @@ function sendSquadToMatch(playerIds, gameId) {
 }
 
 function confirmOverwrite(targetGame) {
-  if (!(targetGame.presentIds || []).length) return true;
-  return confirm(`vs ${targetGame.opponent} already has ${targetGame.presentIds.length} player(s) marked present. Replace with this squad and auto-fill a fresh lineup?`);
+  if (!(targetGame.presentIds || []).length) return Promise.resolve(true);
+  return confirmDialog(`vs ${targetGame.opponent} already has ${targetGame.presentIds.length} player(s) marked present. Replace with this squad and auto-fill a fresh lineup?`, { okLabel: 'Replace' });
 }
 
 export function renderBalanceTeams(app, gameId) {
@@ -267,10 +268,10 @@ export function renderBalanceTeams(app, gameId) {
 
   const importSquadBtn = app.querySelector('[data-action="import-squad"]');
   if (importSquadBtn) {
-    importSquadBtn.addEventListener('click', () => {
+    importSquadBtn.addEventListener('click', async () => {
       const targetGame = findGame(targetGameId);
       if (!targetGame) return;
-      if (!confirmOverwrite(targetGame)) return;
+      if (!(await confirmOverwrite(targetGame))) return;
       sendSquadToMatch(included.map((p) => p.id), targetGameId);
       importedSquad = { gameId: targetGameId, opponent: targetGame.opponent };
       renderBalanceTeams(app, gameId);
@@ -278,12 +279,12 @@ export function renderBalanceTeams(app, gameId) {
   }
 
   app.querySelectorAll('[data-action="import-team"]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const idx = Number(btn.dataset.teamIndex);
       const teamPlayers = split?.[idx];
       const targetGame = findGame(targetGameId);
       if (!targetGame || !teamPlayers) return;
-      if (!confirmOverwrite(targetGame)) return;
+      if (!(await confirmOverwrite(targetGame))) return;
       sendSquadToMatch(teamPlayers.map((p) => p.id), targetGameId);
       importedTeams[idx] = { gameId: targetGameId, opponent: targetGame.opponent };
       renderBalanceTeams(app, gameId);
