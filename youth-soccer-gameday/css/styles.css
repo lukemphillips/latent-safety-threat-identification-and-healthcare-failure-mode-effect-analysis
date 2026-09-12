@@ -21,6 +21,12 @@
 
 * { box-sizing: border-box; }
 
+/* The [hidden] attribute's default display:none loses to any class rule
+   that also sets display (.btn, .field-row, etc.) unless it's this
+   specific — toggling .hidden via JS on those elements silently did
+   nothing without this. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;

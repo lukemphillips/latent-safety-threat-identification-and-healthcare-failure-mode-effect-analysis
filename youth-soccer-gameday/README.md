@@ -66,14 +66,23 @@ see everything working immediately. Reset or clear that data any time from
   with it — now the split itself is safe to leave and come back to, and
   once you send a team to a match, that choice is saved for good.
 - **Schedule** — League / Friendly / Tournament fixtures (tournament games
-  carry a tournament name + stage, e.g. "Summer Cup · Final"). Games on the
-  same date are grouped under a "Match Day" heading, and a game's page has
-  a one-tap "+ Add Match Day Opponent" for the (very common at junior ages)
-  case of playing two matches against two different opposition teams on the
-  same day — it carries over the date/location/match type, you just add the
-  new opponent. Once one exists, the game's page lists it under "Also on
-  this date" with its current status, and the button relabels itself
-  "+ Add Another Match Day Opponent" — so adding one is never in doubt.
+  carry a tournament name + stage, e.g. "Summer Cup · Final"), each with its
+  own match length: "+ Add Game" pre-fills minutes-per-period and number of
+  periods from your team's defaults (set in Settings), but either can be
+  changed for that one match — handy for a tournament running short
+  periods, or a friendly with a different format than your league games.
+  Games on the same date are grouped under a "Match Day" heading, and
+  "+ Add Game" also has an "⚡ Also add a second match this day" option
+  that creates both matches — same date, location and format, a second
+  opponent and kickoff time you set — in one go, rather than adding the
+  first, saving, then coming back to add the second. A game's page also
+  has its own one-tap "+ Add Match Day Opponent" for adding a second match
+  after the first is already set up (still very common at junior ages) —
+  it carries over the date/location/match type/format, you just add the
+  opponent and (if different) a time. Once one exists, the game's page
+  lists it under "Also on this date" with its current status, and the
+  button relabels itself "+ Add Another Match Day Opponent" — so adding
+  one is never in doubt.
   During a live game, if a same-date game is still scheduled, an
   "🏁 End & Next" button ends the current match and jumps straight into
   setting up the next one — score and clock start fresh, but each player's
@@ -151,11 +160,13 @@ see everything working immediately. Reset or clear that data any time from
 - **Stats** — a sortable leaderboard (appearances, minutes, goals, assists,
   saves, cards when enabled, Player-of-the-Match awards, times captained,
   attendance %), full match history, and head-to-head records per opponent.
-- **Settings** — team name, age group, squad format, match length, minimum
-  stint length, the equal-playing-time toggle, cards toggle, squad rules,
-  and a collapsible age-group format guide (see below) with a one-tap
-  "Suggest format" button that reads your age group and fills in the
-  squad format + match length for you. Changing squad format (e.g.
+- **Settings** — team name, age group, squad format, default match length
+  (minutes per period + number of periods — each game can still set its
+  own when scheduled), minimum stint length, the equal-playing-time
+  toggle, cards toggle, squad rules, and a collapsible age-group format
+  guide (see below) with a one-tap "Suggest format" button that reads your
+  age group and fills in the squad format + match length for you.
+  Changing squad format (e.g.
   7-a-side to 5-a-side) reshapes every upcoming lineup to fit — spots the
   new formation still has keep their player, anyone whose spot no longer
   exists just moves to the bench, so nobody's silently dropped and nothing

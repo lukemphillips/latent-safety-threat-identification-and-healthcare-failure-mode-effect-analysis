@@ -33,14 +33,15 @@ export function renderSettings(app) {
       <button type="button" class="btn ghost sm" data-action="suggest-format">Suggest format for this age group</button>
       <div class="field-row">
         <div class="field">
-          <label>Minutes per period</label>
+          <label>Default minutes per period</label>
           <input type="number" name="periodMinutes" min="1" max="60" value="${team.periodMinutes}" />
         </div>
         <div class="field">
-          <label># of periods</label>
+          <label>Default # of periods</label>
           <input type="number" name="numPeriods" min="1" max="4" value="${team.numPeriods}" />
         </div>
       </div>
+      <p class="muted small" style="margin-top:-8px;">Used to pre-fill new games — each game can still set its own match length when it's scheduled.</p>
       <div class="field">
         <label>Minimum minutes on the pitch before a sub</label>
         <input type="number" name="minStintMinutes" min="0" max="30" step="1" value="${team.minStintMinutes ?? 4}" />

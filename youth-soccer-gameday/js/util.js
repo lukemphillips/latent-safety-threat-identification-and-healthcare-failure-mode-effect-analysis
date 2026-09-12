@@ -46,10 +46,20 @@ export function nowHHMM() {
 
 const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th'];
 
-export function periodLabel(team, n) {
-  if (team.numPeriods === 2) return n === 1 ? '1st Half' : '2nd Half';
-  if (team.numPeriods === 4) return `${ORDINALS[n - 1] || n + 'th'} Quarter`;
+// numPeriods is the resolved value for a specific game — game.numPeriods
+// if that game overrode the team default, else the team's own numPeriods.
+export function periodLabel(numPeriods, n) {
+  if (numPeriods === 2) return n === 1 ? '1st Half' : '2nd Half';
+  if (numPeriods === 4) return `${ORDINALS[n - 1] || n + 'th'} Quarter`;
   return `Period ${n}`;
+}
+
+export function gameNumPeriods(game, team) {
+  return game.numPeriods ?? team.numPeriods;
+}
+
+export function gamePeriodMinutes(game, team) {
+  return game.periodMinutes ?? team.periodMinutes;
 }
 
 export function formatPercent(fraction) {

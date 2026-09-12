@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions } from '../util.js';
+import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions, gameNumPeriods, gamePeriodMinutes } from '../util.js';
 import { formationFor } from '../formations.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { openGameForm } from './schedule.js';
@@ -150,6 +150,7 @@ export function renderGameDetail(app, gameId, tab) {
   if (quickDeleteBtn) quickDeleteBtn.addEventListener('click', () => deleteGame(game));
   app.querySelector('[data-action="add-matchday-opponent"]').addEventListener('click', () => openGameForm({
     date: game.date, location: game.location, isHome: game.isHome, matchType: game.matchType,
+    periodMinutes: gamePeriodMinutes(game, getState().team), numPeriods: gameNumPeriods(game, getState().team),
   }));
   app.querySelector('[data-action="set-captain"]').addEventListener('click', () => openHonoreeModal(game, {
     field: 'captainId', title: 'Set Captain', label: 'Captain',
@@ -284,7 +285,7 @@ function renderSquadTab(container, game) {
         <button class="btn ghost sm" data-action="clear-lineup">Clear Lineup</button>
       </div>
     </div>
-    <div class="banner info">Tap an open spot on the pitch, then tap a player to place them — or use "Auto-Fill" to place everyone present by their preferred position, then adjust from there. The GK spot sets your ${periodLabel(team, 1)} keeper.</div>
+    <div class="banner info">Tap an open spot on the pitch, then tap a player to place them — or use "Auto-Fill" to place everyone present by their preferred position, then adjust from there. The GK spot sets your ${periodLabel(gameNumPeriods(game, team), 1)} keeper.</div>
     <div class="pitch-wrap">
       <div class="pitch">
         ${formation.slots.map((slot) => pitchSlotHtml(slot, slots[slot.id] ? byId[slots[slot.id]] : null)).join('')}
@@ -556,7 +557,7 @@ async function startGame(game) {
     .map(([, pid]) => pid);
 
   if (!presentIds.length && !(await confirmDialog('No players marked present yet. Start the game anyway?'))) return;
-  if (!gkId && !(await confirmDialog(`No goalkeeper set for the ${periodLabel(team, 1)}. Start anyway?`))) return;
+  if (!gkId && !(await confirmDialog(`No goalkeeper set for the ${periodLabel(gameNumPeriods(game, team), 1)}. Start anyway?`))) return;
 
   const carryover = matchDayCarryover(games, game);
   const playingTime = {};
@@ -630,6 +631,18 @@ function openEditGameForm(game) {
           <input type="checkbox" name="isHome" ${game.isHome ? 'checked' : ''} />
           Home game
         </label>
+        ${game.status === 'scheduled' ? `
+          <div class="field-row">
+            <div class="field">
+              <label>Minutes per period</label>
+              <input type="number" name="periodMinutes" min="1" max="60" value="${gamePeriodMinutes(game, getState().team)}" />
+            </div>
+            <div class="field">
+              <label># of periods</label>
+              <input type="number" name="numPeriods" min="1" max="4" value="${gameNumPeriods(game, getState().team)}" />
+            </div>
+          </div>
+        ` : ''}
         <div class="field">
           <label>Notes</label>
           <textarea name="notes">${escapeHtml(game.notes)}</textarea>
@@ -662,6 +675,11 @@ function openEditGameForm(game) {
           g.location = (fd.get('location') || '').trim();
           g.isHome = fd.get('isHome') === 'on';
           g.notes = (fd.get('notes') || '').trim();
+          // Fields only present in the form while the game is still
+          // scheduled — a live game's period settings can't safely change
+          // (see the squad-format block in Settings for the same reason).
+          if (fd.has('periodMinutes')) g.periodMinutes = Number(fd.get('periodMinutes')) || g.periodMinutes;
+          if (fd.has('numPeriods')) g.numPeriods = Number(fd.get('numPeriods')) || g.numPeriods;
         });
         closeModal();
       });

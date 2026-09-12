@@ -67,8 +67,10 @@ function gameCard(game) {
 
 export function openGameForm(prefill) {
   const pf = prefill || {};
+  const { team } = getState();
+  const isMatchDayAdd = !!pf.date;
   openModal({
-    title: pf.date ? 'Add Match Day Opponent' : 'Add Game',
+    title: isMatchDayAdd ? 'Add Match Day Opponent' : 'Add Game',
     bodyHtml: `
       <form id="game-form" class="stack">
         <div class="field">
@@ -111,7 +113,33 @@ export function openGameForm(prefill) {
           <input type="checkbox" name="isHome" ${pf.isHome === false ? '' : 'checked'} />
           Home game
         </label>
-        <button type="submit" class="btn block">${pf.date ? 'Add Match' : 'Add Game'}</button>
+        <div class="field-row">
+          <div class="field">
+            <label>Minutes per period</label>
+            <input type="number" name="periodMinutes" min="1" max="60" value="${pf.periodMinutes ?? team.periodMinutes}" />
+          </div>
+          <div class="field">
+            <label># of periods</label>
+            <input type="number" name="numPeriods" min="1" max="4" value="${pf.numPeriods ?? team.numPeriods}" />
+          </div>
+        </div>
+        ${!isMatchDayAdd ? `
+          <label class="checkbox-row">
+            <input type="checkbox" name="addSecondMatch" />
+            ⚡ Also add a second match this day (same date, location & format — different opponent)
+          </label>
+          <div class="field-row" data-second-match-fields hidden>
+            <div class="field">
+              <label>Second opponent</label>
+              <input type="text" name="secondOpponent" placeholder="e.g. Eastside United" />
+            </div>
+            <div class="field">
+              <label>Second match time</label>
+              <input type="time" name="secondTime" value="${pf.time || nowHHMM()}" />
+            </div>
+          </div>
+        ` : ''}
+        <button type="submit" class="btn block">${isMatchDayAdd ? 'Add Match' : 'Add Game'}</button>
       </form>
     `,
     onMount: (modalEl) => {
@@ -122,36 +150,62 @@ export function openGameForm(prefill) {
         tournamentFields.hidden = typeSelect.value !== 'tournament';
       });
 
+      const secondMatchCheckbox = form.querySelector('[name="addSecondMatch"]');
+      const secondMatchFields = form.querySelector('[data-second-match-fields]');
+      if (secondMatchCheckbox) {
+        secondMatchCheckbox.addEventListener('change', () => {
+          secondMatchFields.hidden = !secondMatchCheckbox.checked;
+        });
+      }
+
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         const fd = new FormData(form);
         const opponent = (fd.get('opponent') || '').trim();
         if (!opponent) return;
+
+        const periodMinutes = Number(fd.get('periodMinutes')) || team.periodMinutes;
+        const numPeriods = Number(fd.get('numPeriods')) || team.numPeriods;
+        const secondOpponent = (fd.get('secondOpponent') || '').trim();
+        const addSecond = fd.get('addSecondMatch') === 'on' && secondOpponent;
+
+        const firstId = uid();
+        const secondId = addSecond ? uid() : null;
+
         update((state) => {
-          const rsvps = {};
-          state.players.filter((p) => p.active).forEach((p) => { rsvps[p.id] = 'pending'; });
-          state.games.push({
-            id: uid(),
-            opponent,
+          const buildRsvps = () => {
+            const rsvps = {};
+            state.players.filter((p) => p.active).forEach((p) => { rsvps[p.id] = 'pending'; });
+            return rsvps;
+          };
+          const shared = {
             matchType: fd.get('matchType') || 'league',
             tournamentName: (fd.get('tournamentName') || '').trim(),
             stage: (fd.get('stage') || '').trim(),
             date: fd.get('date'),
-            time: fd.get('time'),
             location: (fd.get('location') || '').trim(),
             isHome: fd.get('isHome') === 'on',
+            periodMinutes,
+            numPeriods,
             status: 'scheduled',
-            rsvps,
-            presentIds: [],
             captainId: null,
             playerOfMatchId: null,
-            lineup: { slots: emptyLineupSlots(state.team.squadFormat) },
             live: null,
             notes: '',
+          };
+          state.games.push({
+            id: firstId, opponent, time: fd.get('time'), rsvps: buildRsvps(), presentIds: [],
+            lineup: { slots: emptyLineupSlots(state.team.squadFormat) }, ...shared,
           });
+          if (secondId) {
+            state.games.push({
+              id: secondId, opponent: secondOpponent, time: fd.get('secondTime') || fd.get('time'), rsvps: buildRsvps(), presentIds: [],
+              lineup: { slots: emptyLineupSlots(state.team.squadFormat) }, ...shared,
+            });
+          }
         });
         closeModal();
-        location.hash = `#/game/${getState().games[getState().games.length - 1].id}`;
+        location.hash = `#/game/${firstId}`;
       });
     },
   });

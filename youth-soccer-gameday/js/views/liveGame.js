@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml } from '../util.js';
+import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes } from '../util.js';
 import { outfieldTargetCount } from '../formations.js';
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -25,6 +25,11 @@ export function renderLiveGame(app, gameId) {
   const live = game.live;
   const isCompleted = game.status === 'completed';
   const targetOutfield = outfieldTargetCount(team.squadFormat);
+  // A game can override the team's default period length/count (set when
+  // the match was scheduled) — resolve once and use these everywhere below
+  // instead of reading team.numPeriods/periodMinutes directly.
+  const numPeriods = gameNumPeriods(game, team);
+  const periodMinutes = gamePeriodMinutes(game, team);
   const nextMatch = games.find((g) => g.date === game.date && g.id !== game.id && g.status === 'scheduled');
   // A sibling that exists but isn't "scheduled" (already live, or already
   // finished) still means a match day opponent WAS added — worth saying so
@@ -50,7 +55,7 @@ export function renderLiveGame(app, gameId) {
     <div class="page-title">
       <div>
         <h1>${game.isHome ? 'vs' : '@'} ${escapeHtml(game.opponent)}</h1>
-        <div class="sub">${formatDate(game.date)} · ${isCompleted ? 'Final' : periodLabel(team, live.currentPeriod)}</div>
+        <div class="sub">${formatDate(game.date)} · ${isCompleted ? 'Final' : periodLabel(numPeriods, live.currentPeriod)}</div>
         <div style="margin-top:6px;">${matchTypeBadgeHtml(game)}</div>
       </div>
       <a class="icon-btn" href="#/game/${game.id}" aria-label="Back to game">✕</a>
@@ -60,7 +65,7 @@ export function renderLiveGame(app, gameId) {
 
     <div class="card timer-card">
       <div class="timer-display">${formatClock(live.elapsedSeconds)}</div>
-      <div class="muted small">${isCompleted ? 'Full time' : periodLabel(team, live.currentPeriod) + ` · ${team.periodMinutes} min`}</div>
+      <div class="muted small">${isCompleted ? 'Full time' : periodLabel(numPeriods, live.currentPeriod) + ` · ${periodMinutes} min`}</div>
 
       <div class="score-board">
         <div class="score-team">
@@ -82,8 +87,8 @@ export function renderLiveGame(app, gameId) {
         </div>
         <div class="timer-actions">
           <button class="btn ghost sm" data-action="log-save">🧤 GK Save</button>
-          ${live.currentPeriod < team.numPeriods
-            ? `<button class="btn secondary sm" data-action="next-period">Next: ${periodLabel(team, live.currentPeriod + 1)}</button>`
+          ${live.currentPeriod < numPeriods
+            ? `<button class="btn secondary sm" data-action="next-period">Next: ${periodLabel(numPeriods, live.currentPeriod + 1)}</button>`
             : ''}
         </div>
         <div class="timer-actions">
@@ -97,11 +102,11 @@ export function renderLiveGame(app, gameId) {
       `}
     </div>
 
-    ${!isCompleted && live.elapsedSeconds >= team.periodMinutes * 60 * live.currentPeriod && live.currentPeriod < team.numPeriods
-      ? `<div class="banner warn spread"><span>⏱ Time's up for ${periodLabel(team, live.currentPeriod)}.</span><button class="btn sm" data-action="next-period">Start ${periodLabel(team, live.currentPeriod + 1)}</button></div>`
+    ${!isCompleted && live.elapsedSeconds >= periodMinutes * 60 * live.currentPeriod && live.currentPeriod < numPeriods
+      ? `<div class="banner warn spread"><span>⏱ Time's up for ${periodLabel(numPeriods, live.currentPeriod)}.</span><button class="btn sm" data-action="next-period">Start ${periodLabel(numPeriods, live.currentPeriod + 1)}</button></div>`
       : ''}
 
-    ${goalkeeperCardHtml(team, live, currentGk, isCompleted)}
+    ${goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted)}
 
     ${!isCompleted ? fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) : ''}
 
@@ -139,7 +144,7 @@ export function renderLiveGame(app, gameId) {
     ${live.subLog.length ? `
       <div class="section-title">Match Events</div>
       <div class="card">
-        ${live.subLog.slice().reverse().map((entry) => eventRowHtml(entry, team)).join('')}
+        ${live.subLog.slice().reverse().map((entry) => eventRowHtml(entry, numPeriods)).join('')}
       </div>
     ` : ''}
   `;
@@ -171,8 +176,8 @@ export function renderLiveGame(app, gameId) {
     nextPeriodBtns.forEach((btn) => btn.addEventListener('click', () => openGkModal(gameId, active, presentIds, sentOffIds, live.currentPeriod + 1, true)));
 
     app.querySelector('[data-action="end-game"]').addEventListener('click', async () => {
-      const msg = live.currentPeriod < team.numPeriods
-        ? `You're still in ${periodLabel(team, live.currentPeriod)}. End the game early?`
+      const msg = live.currentPeriod < numPeriods
+        ? `You're still in ${periodLabel(numPeriods, live.currentPeriod)}. End the game early?`
         : 'End the game? Final score and playing time will be locked in.';
       if (!(await confirmDialog(msg, { okLabel: 'End Game' }))) return;
       update((state) => {
@@ -319,14 +324,14 @@ async function applySub(gameId, inId, outId, byId, team) {
   selectingInboundId = null;
 }
 
-function goalkeeperCardHtml(team, live, currentGk, isCompleted) {
-  const periods = Array.from({ length: team.numPeriods }, (_, i) => i + 1);
+function goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted) {
+  const periods = Array.from({ length: numPeriods }, (_, i) => i + 1);
   const stint = currentGk ? stintSeconds(live, currentGk.id) : null;
   return `
     <div class="card">
       <div class="spread">
         <div>
-          <div class="muted small">Goalkeeper — ${periodLabel(team, live.currentPeriod)}</div>
+          <div class="muted small">Goalkeeper — ${periodLabel(numPeriods, live.currentPeriod)}</div>
           <div style="font-weight:700; font-size:15px;">${currentGk ? escapeHtml(currentGk.name) : '⚠️ Not set'}</div>
           ${currentGk && !isCompleted ? `<div class="muted small">Stint: ${formatClock(stint)}</div>` : ''}
         </div>
@@ -335,7 +340,7 @@ function goalkeeperCardHtml(team, live, currentGk, isCompleted) {
           ${!isCompleted ? `<button class="btn sm ${currentGk ? 'ghost' : ''}" data-action="${currentGk ? 'change-gk' : 'assign-gk'}">${currentGk ? 'Change' : 'Assign'}</button>` : ''}
         </div>
       </div>
-      ${periods.length > 1 ? `<div class="muted small" style="margin-top:8px;">${periods.map((n) => `${periodLabel(team, n)}: ${live.gkByPeriod[n] ? escapeHtml((getState().players.find((p) => p.id === live.gkByPeriod[n]) || {}).name || '?') : '—'}`).join(' · ')}</div>` : ''}
+      ${periods.length > 1 ? `<div class="muted small" style="margin-top:8px;">${periods.map((n) => `${periodLabel(numPeriods, n)}: ${live.gkByPeriod[n] ? escapeHtml((getState().players.find((p) => p.id === live.gkByPeriod[n]) || {}).name || '?') : '—'}`).join(' · ')}</div>` : ''}
     </div>
   `;
 }
@@ -436,7 +441,7 @@ const EVENT_ICONS = {
   'send-off': '🟥', 'period-start': '⏱', 'gk-change': '🧤',
 };
 
-function eventRowHtml(entry, team) {
+function eventRowHtml(entry, numPeriods) {
   const icon = entry.type === 'card' ? (entry.cardType === 'red' ? '🟥' : '🟨') : (EVENT_ICONS[entry.type] || '•');
   let label = '';
   switch (entry.type) {
@@ -462,10 +467,10 @@ function eventRowHtml(entry, team) {
       label = `${entry.cardType === 'red' ? 'Red' : 'Yellow'} card: ${escapeHtml(entry.name)}`;
       break;
     case 'period-start':
-      label = `${periodLabel(team, entry.period)} started`;
+      label = `${periodLabel(numPeriods, entry.period)} started`;
       break;
     case 'gk-change':
-      label = `Goalkeeper: ${escapeHtml(entry.inName)} on${entry.outName ? `, ${escapeHtml(entry.outName)} off` : ''} (${periodLabel(team, entry.period)})`;
+      label = `Goalkeeper: ${escapeHtml(entry.inName)} on${entry.outName ? `, ${escapeHtml(entry.outName)} off` : ''} (${periodLabel(numPeriods, entry.period)})`;
       break;
     default:
       label = entry.type;
