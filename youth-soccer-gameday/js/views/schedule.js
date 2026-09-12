@@ -1,5 +1,5 @@
 import { getState, update } from '../store.js';
-import { uid, escapeHtml, formatDate, formatTime, sortByDateTime, todayIso, nowHHMM } from '../util.js';
+import { uid, escapeHtml, formatDate, formatTime, sortByDateTime, todayIso, nowHHMM, matchTypeBadgeHtml } from '../util.js';
 import { emptyLineupSlots } from '../formations.js';
 import { openModal, closeModal } from '../modal.js';
 
@@ -30,25 +30,49 @@ function gameCard(game) {
   const result = game.status === 'completed' && game.live
     ? ` · ${game.live.scoreUs}-${game.live.scoreThem}`
     : '';
+  const tournamentLine = game.matchType === 'tournament' && game.tournamentName
+    ? `<div class="muted small">${escapeHtml(game.tournamentName)}${game.stage ? ' · ' + escapeHtml(game.stage) : ''}</div>`
+    : '';
   return `
     <a class="card" href="#/game/${game.id}" style="display:block;">
       <div class="card-row">
         <div>
           <div style="font-weight:700; font-size:15px;">${game.isHome ? 'vs' : '@'} ${escapeHtml(game.opponent)}</div>
           <div class="muted small">${formatDate(game.date)} · ${formatTime(game.time)}${game.location ? ' · ' + escapeHtml(game.location) : ''}${result}</div>
+          ${tournamentLine}
         </div>
-        <span class="badge ${game.status}">${game.status === 'live' ? 'LIVE' : game.status}</span>
+        <div class="stack" style="align-items:flex-end;">
+          <span class="badge ${game.status}">${game.status === 'live' ? 'LIVE' : game.status}</span>
+          ${matchTypeBadgeHtml(game)}
+        </div>
       </div>
     </a>
   `;
 }
 
 function openGameForm() {
-  const { team } = getState();
   openModal({
     title: 'Add Game',
     bodyHtml: `
       <form id="game-form" class="stack">
+        <div class="field">
+          <label>Match type</label>
+          <select name="matchType">
+            <option value="league" selected>League</option>
+            <option value="friendly">Friendly</option>
+            <option value="tournament">Tournament</option>
+          </select>
+        </div>
+        <div class="field-row" data-tournament-fields hidden>
+          <div class="field">
+            <label>Tournament name</label>
+            <input type="text" name="tournamentName" placeholder="e.g. Summer Cup" />
+          </div>
+          <div class="field">
+            <label>Stage</label>
+            <input type="text" name="stage" placeholder="e.g. Group Stage" />
+          </div>
+        </div>
         <div class="field">
           <label>Opponent</label>
           <input type="text" name="opponent" required placeholder="e.g. Riverside Rovers" />
@@ -76,6 +100,12 @@ function openGameForm() {
     `,
     onMount: (modalEl) => {
       const form = modalEl.querySelector('#game-form');
+      const typeSelect = form.querySelector('[name="matchType"]');
+      const tournamentFields = form.querySelector('[data-tournament-fields]');
+      typeSelect.addEventListener('change', () => {
+        tournamentFields.hidden = typeSelect.value !== 'tournament';
+      });
+
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         const fd = new FormData(form);
@@ -87,12 +117,16 @@ function openGameForm() {
           state.games.push({
             id: uid(),
             opponent,
+            matchType: fd.get('matchType') || 'league',
+            tournamentName: (fd.get('tournamentName') || '').trim(),
+            stage: (fd.get('stage') || '').trim(),
             date: fd.get('date'),
             time: fd.get('time'),
             location: (fd.get('location') || '').trim(),
             isHome: fd.get('isHome') === 'on',
             status: 'scheduled',
             rsvps,
+            presentIds: [],
             lineup: { slots: emptyLineupSlots(state.team.squadFormat) },
             live: null,
             notes: '',

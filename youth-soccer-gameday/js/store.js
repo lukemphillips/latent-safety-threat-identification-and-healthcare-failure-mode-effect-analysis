@@ -1,6 +1,6 @@
-import { seedTeam, seedPlayers, seedGames } from './seed.js';
+import { seedTeam, seedPlayers, seedGames, seedRules } from './seed.js';
 
-const STORAGE_KEY = 'ysg-data-v1';
+const STORAGE_KEY = 'ysg-data-v2';
 
 let state = null;
 const listeners = new Set();
@@ -8,6 +8,7 @@ const listeners = new Set();
 function freshData() {
   const team = seedTeam();
   const players = seedPlayers();
+  team.rules = seedRules(players);
   const games = seedGames(players, team.squadFormat);
   return { team, players, games };
 }

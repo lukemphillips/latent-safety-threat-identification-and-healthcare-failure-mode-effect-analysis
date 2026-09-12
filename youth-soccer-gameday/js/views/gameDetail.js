@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, formatDate, formatTime, todayIso } from '../util.js';
+import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel } from '../util.js';
 import { formationFor } from '../formations.js';
 import { openModal, closeModal } from '../modal.js';
 
@@ -24,6 +24,8 @@ export function renderGameDetail(app, gameId, tab) {
       <div>
         <h1>${game.isHome ? 'vs' : '@'} ${escapeHtml(game.opponent)}</h1>
         <div class="sub">${formatDate(game.date)} · ${formatTime(game.time)}${game.location ? ' · ' + escapeHtml(game.location) : ''}</div>
+        ${game.matchType === 'tournament' && game.tournamentName ? `<div class="sub">${escapeHtml(game.tournamentName)}${game.stage ? ' · ' + escapeHtml(game.stage) : ''}</div>` : ''}
+        <div style="margin-top:6px;">${matchTypeBadgeHtml(game)}</div>
       </div>
       <button class="icon-btn" data-action="edit-game" aria-label="Edit game">✏️</button>
     </div>
@@ -32,7 +34,7 @@ export function renderGameDetail(app, gameId, tab) {
 
     <div class="tabs">
       <a class="tab ${tab === 'rsvp' ? 'active' : ''}" href="#/game/${game.id}/rsvp">RSVP</a>
-      <a class="tab ${tab === 'lineup' ? 'active' : ''}" href="#/game/${game.id}/lineup">Lineup</a>
+      <a class="tab ${tab === 'lineup' ? 'active' : ''}" href="#/game/${game.id}/lineup">Squad</a>
     </div>
 
     <div id="tab-content"></div>
@@ -48,7 +50,7 @@ export function renderGameDetail(app, gameId, tab) {
   if (summaryBtn) summaryBtn.addEventListener('click', () => { location.hash = `#/game/${game.id}/live`; });
 
   const content = app.querySelector('#tab-content');
-  if (tab === 'lineup') renderLineupTab(content, game);
+  if (tab === 'lineup') renderSquadTab(content, game);
   else renderRsvpTab(content, game);
 }
 
@@ -79,6 +81,7 @@ function renderRsvpTab(container, game) {
   active.forEach((p) => { counts[game.rsvps[p.id] || 'pending']++; });
 
   container.innerHTML = `
+    <div class="banner info">Optional — use this if you're collecting availability ahead of time. Match-day squad selection (Squad tab) works independently.</div>
     <div class="rsvp-summary card">
       <span>✅ ${counts.yes} in</span>
       <span>❓ ${counts.maybe} maybe</span>
@@ -120,23 +123,38 @@ function rsvpRow(game, p) {
   `;
 }
 
-function renderLineupTab(container, game) {
+function renderSquadTab(container, game) {
   const { players, team } = getState();
   const active = players.filter((p) => p.active);
+  const presentIds = new Set(game.presentIds || []);
+  const present = active.filter((p) => presentIds.has(p.id));
+  const absent = active.filter((p) => !presentIds.has(p.id));
+
   const formation = formationFor(team.squadFormat);
   const slots = game.lineup.slots;
   const assignedIds = new Set(Object.values(slots).filter(Boolean));
-  const bench = active.filter((p) => !assignedIds.has(p.id));
+  const bench = present.filter((p) => !assignedIds.has(p.id));
   const filledCount = Object.values(slots).filter(Boolean).length;
 
   const byId = Object.fromEntries(active.map((p) => [p.id, p]));
 
   container.innerHTML = `
-    <div class="spread" style="margin-bottom:10px;">
+    <div class="section-title" style="margin-top:0;">Who's here today?</div>
+    <div class="card">
+      <div class="spread" style="margin-bottom:10px;">
+        <span class="muted small">${present.length}/${active.length} present</span>
+        <button class="btn ghost sm" data-action="mark-all-present">Mark All Present</button>
+      </div>
+      <div class="chip-list">
+        ${active.length ? active.map((p) => attendanceChipHtml(p, presentIds.has(p.id))).join('') : '<span class="muted small">No active players on the roster.</span>'}
+      </div>
+    </div>
+
+    <div class="spread" style="margin:16px 0 10px;">
       <span class="muted small">${formation.label} · ${filledCount}/${formation.slots.length} filled</span>
       <button class="btn ghost sm" data-action="clear-lineup">Clear Lineup</button>
     </div>
-    <div class="banner info">Tap an open spot on the pitch, then tap a player to place them.</div>
+    <div class="banner info">Tap an open spot on the pitch, then tap a player to place them. The GK spot sets your ${periodLabel(team, 1)} keeper.</div>
     <div class="pitch-wrap">
       <div class="pitch">
         ${formation.slots.map((slot) => pitchSlotHtml(slot, slots[slot.id] ? byId[slots[slot.id]] : null)).join('')}
@@ -144,9 +162,40 @@ function renderLineupTab(container, game) {
     </div>
     <div class="section-title">Bench (${bench.length})</div>
     <div class="bench-list">
-      ${bench.length ? bench.map((p) => benchChipHtml(p, game)).join('') : '<span class="muted small">Everyone is on the pitch.</span>'}
+      ${bench.length ? bench.map((p) => benchChipHtml(p)).join('') : `<span class="muted small">${present.length ? 'Everyone present is on the pitch.' : 'Mark players present above to build your squad.'}</span>`}
     </div>
+
+    ${absent.length ? `
+      <div class="section-title">Not here (${absent.length})</div>
+      <div class="muted small">${absent.map((p) => escapeHtml(p.name)).join(', ')}</div>
+    ` : ''}
   `;
+
+  container.querySelector('[data-action="mark-all-present"]').addEventListener('click', () => {
+    update((state) => {
+      const g = state.games.find((x) => x.id === game.id);
+      g.presentIds = state.players.filter((p) => p.active).map((p) => p.id);
+    });
+  });
+
+  container.querySelectorAll('[data-attendance-toggle]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const playerId = el.dataset.attendanceToggle;
+      update((state) => {
+        const g = state.games.find((x) => x.id === game.id);
+        const set = new Set(g.presentIds || []);
+        if (set.has(playerId)) {
+          set.delete(playerId);
+          Object.keys(g.lineup.slots).forEach((sid) => {
+            if (g.lineup.slots[sid] === playerId) g.lineup.slots[sid] = null;
+          });
+        } else {
+          set.add(playerId);
+        }
+        g.presentIds = [...set];
+      });
+    });
+  });
 
   container.querySelector('[data-action="clear-lineup"]').addEventListener('click', () => {
     if (!confirm('Clear the whole lineup?')) return;
@@ -170,7 +219,7 @@ function renderLineupTab(container, game) {
         return;
       }
       selectingSlotId = selectingSlotId === slotId ? null : slotId;
-      renderLineupTab(container, findGame(game.id));
+      renderSquadTab(container, findGame(game.id));
     });
   });
 
@@ -187,6 +236,15 @@ function renderLineupTab(container, game) {
     });
   });
 
+  function attendanceChipHtml(p, isPresent) {
+    return `
+      <button type="button" class="bench-chip ${isPresent ? 'picking' : ''}" data-attendance-toggle="${p.id}">
+        <span class="jersey">${p.jerseyNumber ?? '-'}</span>
+        ${escapeHtml(p.name)} ${isPresent ? '✅' : '⚪'}
+      </button>
+    `;
+  }
+
   function pitchSlotHtml(slot, player) {
     const isSelecting = selectingSlotId === slot.id;
     const initials = player ? (player.jerseyNumber ?? player.name.slice(0, 2).toUpperCase()) : '+';
@@ -199,23 +257,29 @@ function renderLineupTab(container, game) {
     `;
   }
 
-  function benchChipHtml(p, game) {
-    const rsvp = game.rsvps[p.id] || 'pending';
-    const rsvpIcon = { yes: '✅', no: '❌', maybe: '❓', pending: '⏳' }[rsvp];
+  function benchChipHtml(p) {
     const disabledClass = selectingSlotId ? '' : 'disabled';
     return `
       <button type="button" class="bench-chip ${disabledClass}" data-bench-player="${p.id}">
         <span class="jersey">${p.jerseyNumber ?? '-'}</span>
-        ${escapeHtml(p.name)} <span title="RSVP: ${rsvp}">${rsvpIcon}</span>
+        ${escapeHtml(p.name)}
       </button>
     `;
   }
 }
 
 function startGame(game) {
-  const { players } = getState();
+  const { players, team } = getState();
   const active = players.filter((p) => p.active);
-  const startingIds = Object.values(game.lineup.slots).filter(Boolean);
+  const presentIds = game.presentIds || [];
+  const gkId = game.lineup.slots.gk || null;
+  const outfieldIds = Object.entries(game.lineup.slots)
+    .filter(([slotId, pid]) => slotId !== 'gk' && pid)
+    .map(([, pid]) => pid);
+
+  if (!presentIds.length && !confirm('No players marked present yet. Start the game anyway?')) return;
+  if (!gkId && !confirm(`No goalkeeper set for the ${periodLabel(team, 1)}. Start anyway?`)) return;
+
   const playingTime = {};
   active.forEach((p) => { playingTime[p.id] = 0; });
 
@@ -224,13 +288,15 @@ function startGame(game) {
     g.status = 'live';
     g.live = {
       running: false,
+      currentPeriod: 1,
       elapsedSeconds: 0,
       scoreUs: 0,
       scoreThem: 0,
-      onField: startingIds,
+      onField: outfieldIds,
+      gkByPeriod: { 1: gkId },
+      sentOff: [],
       playingTime,
       subLog: [],
-      startedAt: null,
     };
   });
   location.hash = `#/game/${game.id}/live`;
@@ -241,6 +307,24 @@ function openEditGameForm(game) {
     title: 'Edit Game',
     bodyHtml: `
       <form id="edit-game-form" class="stack">
+        <div class="field">
+          <label>Match type</label>
+          <select name="matchType">
+            <option value="league" ${(!game.matchType || game.matchType === 'league') ? 'selected' : ''}>League</option>
+            <option value="friendly" ${game.matchType === 'friendly' ? 'selected' : ''}>Friendly</option>
+            <option value="tournament" ${game.matchType === 'tournament' ? 'selected' : ''}>Tournament</option>
+          </select>
+        </div>
+        <div class="field-row" data-tournament-fields ${game.matchType === 'tournament' ? '' : 'hidden'}>
+          <div class="field">
+            <label>Tournament name</label>
+            <input type="text" name="tournamentName" value="${escapeHtml(game.tournamentName || '')}" placeholder="e.g. Summer Cup" />
+          </div>
+          <div class="field">
+            <label>Stage</label>
+            <input type="text" name="stage" value="${escapeHtml(game.stage || '')}" placeholder="e.g. Group Stage" />
+          </div>
+        </div>
         <div class="field">
           <label>Opponent</label>
           <input type="text" name="opponent" required value="${escapeHtml(game.opponent)}" />
@@ -274,11 +358,21 @@ function openEditGameForm(game) {
       </form>
     `,
     onMount: (modalEl) => {
-      modalEl.querySelector('#edit-game-form').addEventListener('submit', (e) => {
+      const form = modalEl.querySelector('#edit-game-form');
+      const typeSelect = form.querySelector('[name="matchType"]');
+      const tournamentFields = form.querySelector('[data-tournament-fields]');
+      typeSelect.addEventListener('change', () => {
+        tournamentFields.hidden = typeSelect.value !== 'tournament';
+      });
+
+      form.addEventListener('submit', (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
         update((state) => {
           const g = state.games.find((x) => x.id === game.id);
+          g.matchType = fd.get('matchType') || 'league';
+          g.tournamentName = (fd.get('tournamentName') || '').trim();
+          g.stage = (fd.get('stage') || '').trim();
           g.opponent = (fd.get('opponent') || '').trim() || g.opponent;
           g.date = fd.get('date');
           g.time = fd.get('time');

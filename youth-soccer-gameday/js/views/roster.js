@@ -115,8 +115,12 @@ function openPlayerForm(playerId) {
           if (!confirm(`Remove ${p.name} from the roster? This also removes their RSVPs and lineup spots.`)) return;
           update((state) => {
             state.players = state.players.filter((pl) => pl.id !== existing.id);
+            state.team.rules = (state.team.rules || []).filter(
+              (r) => r.playerAId !== existing.id && r.playerBId !== existing.id
+            );
             state.games.forEach((g) => {
               delete g.rsvps[existing.id];
+              g.presentIds = (g.presentIds || []).filter((id) => id !== existing.id);
               if (g.lineup?.slots) {
                 Object.keys(g.lineup.slots).forEach((slotId) => {
                   if (g.lineup.slots[slotId] === existing.id) g.lineup.slots[slotId] = null;
@@ -124,7 +128,11 @@ function openPlayerForm(playerId) {
               }
               if (g.live) {
                 g.live.onField = (g.live.onField || []).filter((id) => id !== existing.id);
+                g.live.sentOff = (g.live.sentOff || []).filter((id) => id !== existing.id);
                 delete g.live.playingTime?.[existing.id];
+                Object.keys(g.live.gkByPeriod || {}).forEach((period) => {
+                  if (g.live.gkByPeriod[period] === existing.id) g.live.gkByPeriod[period] = null;
+                });
               }
             });
           });

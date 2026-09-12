@@ -70,3 +70,8 @@ export function emptyLineupSlots(squadFormat) {
   f.slots.forEach((s) => { slots[s.id] = null; });
   return slots;
 }
+
+// Outfield players only, i.e. the formation minus the goalkeeper slot.
+export function outfieldTargetCount(squadFormat) {
+  return formationFor(squadFormat).slots.filter((s) => s.role !== 'GK').length;
+}

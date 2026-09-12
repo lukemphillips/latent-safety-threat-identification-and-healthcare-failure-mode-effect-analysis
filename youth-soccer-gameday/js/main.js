@@ -5,6 +5,7 @@ import { renderSchedule } from './views/schedule.js';
 import { renderGameDetail } from './views/gameDetail.js';
 import { renderLiveGame } from './views/liveGame.js';
 import { renderSettings } from './views/settings.js';
+import { renderStats } from './views/stats.js';
 
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
   { match: (p) => p.length === 0, path: '#/', label: 'Home', icon: '🏠' },
   { match: (p) => p[0] === 'roster', path: '#/roster', label: 'Roster', icon: '👥' },
   { match: (p) => p[0] === 'schedule' || p[0] === 'game', path: '#/schedule', label: 'Schedule', icon: '📅' },
+  { match: (p) => p[0] === 'stats', path: '#/stats', label: 'Stats', icon: '📊' },
   { match: (p) => p[0] === 'settings', path: '#/settings', label: 'Settings', icon: '⚙️' },
 ];
 
@@ -52,6 +54,7 @@ function route() {
   if (parts.length === 0) result = renderDashboard(app);
   else if (parts[0] === 'roster') result = renderRoster(app);
   else if (parts[0] === 'schedule') result = renderSchedule(app);
+  else if (parts[0] === 'stats') result = renderStats(app);
   else if (parts[0] === 'settings') result = renderSettings(app);
   else if (parts[0] === 'game' && parts[1]) {
     result = parts[2] === 'live'
