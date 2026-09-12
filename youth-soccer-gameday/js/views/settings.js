@@ -4,11 +4,13 @@ import { escapeHtml, uid, copyToClipboard } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
+import { autoSaveFileSupported, chooseAutoSaveFile, getAutoSaveFileName, clearAutoSaveFile } from '../fileHandle.js';
 
 export function renderSettings(app) {
   const { team, players } = getState();
   const errorLog = getErrorLog();
   const autoBackups = getAutoBackups();
+  const fileSaveSupported = autoSaveFileSupported();
 
   app.innerHTML = `
     <div class="page-title"><h1>Settings</h1></div>
@@ -114,6 +116,16 @@ export function renderSettings(app) {
       ${autoBackups.length ? autoBackups.map(autoBackupRow).join('') : '<p class="muted small">None yet — one is saved the first time a match finishes.</p>'}
     </div>
     <div class="card stack">
+      ${fileSaveSupported ? `
+        <p class="muted small mt-0">A dated backup file also downloads automatically after every match — that's separate from this. This is for one single file that keeps overwriting itself with the latest data instead, if you'd rather have just one to keep track of. Only works in this browser (Chrome/Edge).</p>
+        <div id="autosave-file-status" class="small">Checking…</div>
+        <button class="btn secondary block" data-action="choose-autosave-file">🗂️ Choose File Location</button>
+        <button class="btn ghost block" data-action="clear-autosave-file" hidden id="clear-autosave-btn">Turn Off</button>
+      ` : `
+        <p class="muted small mt-0">🗂️ A single self-updating backup file isn't available in this browser (needs Chrome or Edge). The dated backup file that downloads after every match still works here.</p>
+      `}
+    </div>
+    <div class="card stack">
       <p class="muted small mt-0">Use these to demo the app or start fresh.</p>
       <button class="btn secondary block" data-action="reset-sample">Reload Sample Data</button>
       <button class="btn danger block" data-action="clear-data">Clear All Data</button>
@@ -217,6 +229,32 @@ export function renderSettings(app) {
       renderSettings(app);
     });
   });
+
+  if (fileSaveSupported) {
+    const statusEl = app.querySelector('#autosave-file-status');
+    const clearBtn = app.querySelector('#clear-autosave-btn');
+    getAutoSaveFileName().then((name) => {
+      const el = app.querySelector('#autosave-file-status');
+      const btn = app.querySelector('#clear-autosave-btn');
+      if (!el) return; // settings re-rendered before this resolved
+      el.textContent = name ? `Saving to: ${name}` : 'Not set up yet.';
+      if (btn) btn.hidden = !name;
+    });
+    app.querySelector('[data-action="choose-autosave-file"]').addEventListener('click', async () => {
+      try {
+        const name = await chooseAutoSaveFile();
+        statusEl.textContent = `Saving to: ${name}`;
+        clearBtn.hidden = false;
+      } catch (e) {
+        if (e?.name !== 'AbortError') console.warn('Could not set the auto-save file', e);
+      }
+    });
+    clearBtn.addEventListener('click', async () => {
+      await clearAutoSaveFile();
+      statusEl.textContent = 'Not set up yet.';
+      clearBtn.hidden = true;
+    });
+  }
 
   app.querySelector('[data-action="add-rule"]').addEventListener('click', () => openRuleForm(players));
   app.querySelectorAll('[data-action="remove-rule"]').forEach((btn) => {

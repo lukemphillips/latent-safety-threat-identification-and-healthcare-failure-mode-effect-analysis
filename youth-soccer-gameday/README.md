@@ -232,6 +232,14 @@ see everything working immediately. Reset or clear that data any time from
     (the sandbox blocks a page from starting its own downloads), so the
     automatic on-device snapshot and the manual Backup button are what's
     guaranteed to work there.
+  - **A single self-updating backup file** — the downloaded file above is a
+    new dated file every match, which adds up over a season. In Chrome or
+    Edge (not Safari or Firefox — this needs the File System Access API),
+    Settings > Data also offers "Choose File Location": pick a file once
+    (e.g. `gaffer-backup.json` in Documents) and Gaffer silently overwrites
+    that same file after every match from then on, so there's always
+    exactly one current file rather than a growing pile. It's independent
+    of the dated downloads — use one, the other, both, or neither.
 
 ## Age-group formats (DDSL / FAI Player Development Plan)
 

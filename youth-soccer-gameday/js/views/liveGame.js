@@ -1,5 +1,6 @@
 import { getState, update, findGame, saveAutoBackup } from '../store.js';
 import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile } from '../util.js';
+import { writeAutoSaveFile } from '../fileHandle.js';
 import { outfieldTargetCount } from '../formations.js';
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -350,16 +351,19 @@ function goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted) {
 
 // Fires whenever a match finishes (End Game or End & Next). Snapshots an
 // automatic local backup (survives a bad edit or accidental Clear All
-// Data — see saveAutoBackup) and, best-effort, offers the browser a file
-// to download too. The download only actually happens on a normal page;
-// a sandboxed embedding like the Claude Artifact viewer blocks a page from
-// starting its own downloads, so it silently no-ops there — the automatic
-// local snapshot and the manual Backup button in Settings are what's
-// guaranteed to work in that context.
+// Data — see saveAutoBackup), best-effort downloads a dated file, and
+// best-effort overwrites the single self-updating file if the coach has
+// chosen one (Settings > Data). The download and file-write only actually
+// happen on a normal page; a sandboxed embedding like the Claude Artifact
+// viewer blocks a page from starting its own downloads, so both silently
+// no-op there — the automatic local snapshot and the manual Backup button
+// in Settings are what's guaranteed to work in that context.
 function runPostMatchBackup(game) {
   saveAutoBackup();
+  const json = JSON.stringify(getState(), null, 2);
   const filename = `gaffer-backup-${game.date}-${game.opponent.replace(/[^a-z0-9]+/gi, '-')}.json`;
-  tryDownloadFile(filename, JSON.stringify(getState(), null, 2));
+  tryDownloadFile(filename, json);
+  writeAutoSaveFile(json);
 }
 
 function fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) {
