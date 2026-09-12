@@ -187,6 +187,12 @@ see everything working immediately. Reset or clear that data any time from
   re-summed on top of it, so a player's season minutes don't double-count
   a match day, and a player who sat out the second match of a day doesn't
   pick up a phantom appearance just because their minutes carried over.
+- **Club logo** — upload an image in Settings (Team section) to replace the
+  default Gaffer crest in the header with your own club badge. Resized
+  automatically to a small header-sized image before saving, so a full-size
+  photo straight off a phone doesn't bloat local storage; stays on this
+  device like everything else. Remove it any time to go back to the
+  default crest.
 - **Settings** — team name, age group, squad format, default match length
   (minutes per period + number of periods — each game can still set its
   own when scheduled), minimum stint length, the equal-playing-time

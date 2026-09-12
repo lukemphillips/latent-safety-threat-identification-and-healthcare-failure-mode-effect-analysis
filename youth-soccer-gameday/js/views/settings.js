@@ -1,6 +1,6 @@
 import { getState, update, resetToSample, clearAllData, restoreFromBackup, mergeBackup, findPlayer, getAutoBackups, restoreAutoBackupById } from '../store.js';
 import { FORMATIONS, remapLineupToFormat } from '../formations.js';
-import { escapeHtml, uid, copyToClipboard } from '../util.js';
+import { escapeHtml, uid, copyToClipboard, resizeImageFile } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
@@ -30,6 +30,19 @@ export function renderSettings(app) {
 
     <div class="section-title">Team</div>
     <form id="team-form" class="card stack">
+      <div class="row" style="align-items:center; margin-bottom:4px;">
+        <span class="jersey" style="width:52px; height:52px; overflow:hidden; font-size:24px; background:${team.logoDataUrl ? '#fff' : ''};">
+          ${team.logoDataUrl ? `<img src="${team.logoDataUrl}" alt="Club logo" style="width:100%; height:100%; object-fit:contain;" />` : '⚽'}
+        </span>
+        <div class="stack" style="flex:1; gap:6px;">
+          <label class="btn secondary sm" style="text-align:center; cursor:pointer;">
+            📷 ${team.logoDataUrl ? 'Change' : 'Upload'} Club Logo
+            <input type="file" accept="image/*" id="logo-upload-input" hidden />
+          </label>
+          ${team.logoDataUrl ? '<button type="button" class="btn ghost sm" data-action="remove-logo">Remove Logo</button>' : ''}
+        </div>
+      </div>
+      <p class="muted small" style="margin-top:-6px;">Shows in the header in place of the default Gaffer crest. A square image works best — it's resized automatically, and stays on this device like everything else.</p>
       <div class="field">
         <label>Team name</label>
         <input type="text" name="name" value="${escapeHtml(team.name)}" required />
@@ -147,6 +160,30 @@ export function renderSettings(app) {
       <button class="btn ghost block" data-action="clear-error-log" ${errorLog.length ? '' : 'disabled'}>Clear Log</button>
     </div>
   `;
+
+  app.querySelector('#logo-upload-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alertDialog('Please choose an image file (PNG, JPG, etc.).');
+      return;
+    }
+    try {
+      const dataUrl = await resizeImageFile(file);
+      update((state) => { state.team.logoDataUrl = dataUrl; });
+      renderSettings(app);
+    } catch (err) {
+      alertDialog(err.message || "Couldn't load that image — try a different file.");
+    }
+  });
+  const removeLogoBtn = app.querySelector('[data-action="remove-logo"]');
+  if (removeLogoBtn) {
+    removeLogoBtn.addEventListener('click', async () => {
+      if (!(await confirmDialog('Remove the club logo? The header will go back to the default Gaffer crest.'))) return;
+      update((state) => { delete state.team.logoDataUrl; });
+      renderSettings(app);
+    });
+  }
 
   app.querySelector('[data-action="suggest-format"]').addEventListener('click', () => {
     const form = app.querySelector('#team-form');

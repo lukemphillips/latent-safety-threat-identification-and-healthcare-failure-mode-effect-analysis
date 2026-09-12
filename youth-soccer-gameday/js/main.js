@@ -17,6 +17,9 @@ initErrorLogging();
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
 const brandNameEl = document.getElementById('brand-team-name');
+const brandBadgeEl = document.getElementById('brand-badge');
+const defaultBadgeHtml = brandBadgeEl.innerHTML;
+let brandLogoUrl = null;
 
 const NAV_ITEMS = [
   { match: (p) => p.length === 0, path: '#/', label: 'Home', icon: '🏠' },
@@ -43,6 +46,14 @@ function renderNav() {
 function renderBrand() {
   const { team } = getState();
   brandNameEl.textContent = team.name ? `${team.name} · Gaffer` : 'Gaffer';
+
+  const logoUrl = team.logoDataUrl || null;
+  if (logoUrl !== brandLogoUrl) {
+    brandLogoUrl = logoUrl;
+    brandBadgeEl.innerHTML = logoUrl
+      ? `<img src="${logoUrl}" alt="" style="width:100%; height:100%; object-fit:contain;" />`
+      : defaultBadgeHtml;
+  }
 }
 
 let viewCleanup = null;

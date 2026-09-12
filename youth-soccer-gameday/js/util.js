@@ -133,6 +133,33 @@ export function tryDownloadFile(filename, text) {
   }
 }
 
+// Resizes an uploaded image (a club logo) down to fit within maxDim x
+// maxDim, preserving aspect ratio, and returns it as a PNG data URL — a
+// photo taken straight off a phone can be several MB, which would bloat
+// localStorage badly for what's only ever shown as a small header badge.
+export function resizeImageFile(file, maxDim = 160) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error('Could not read that file.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("That doesn't look like a valid image file."));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export function streamBadgeHtml(stream) {
   if (!stream) return '<span class="badge stream-none">Unclassified</span>';
   return `<span class="badge stream-${stream.toLowerCase()}">Stream ${stream}</span>`;
