@@ -1,3 +1,4 @@
+import { initErrorLogging } from './errorLog.js';
 import { getState, update, subscribe } from './store.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderRoster } from './views/roster.js';
@@ -7,6 +8,8 @@ import { renderLiveGame } from './views/liveGame.js';
 import { renderSettings } from './views/settings.js';
 import { renderStats } from './views/stats.js';
 import { renderBalanceTeams } from './views/balanceTeams.js';
+
+initErrorLogging();
 
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
@@ -36,7 +39,7 @@ function renderNav() {
 
 function renderBrand() {
   const { team } = getState();
-  brandNameEl.textContent = team.name ? `${team.name} · Game Day` : 'Game Day';
+  brandNameEl.textContent = team.name ? `${team.name} · Gaffer` : 'Gaffer';
 }
 
 let viewCleanup = null;

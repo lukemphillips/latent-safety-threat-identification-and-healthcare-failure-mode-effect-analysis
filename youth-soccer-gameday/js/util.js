@@ -72,6 +72,18 @@ export function matchTypeBadgeHtml(game) {
   return `<span class="badge ${type}">${matchTypeLabel(type)}</span>`;
 }
 
+// Tries the Clipboard API; falls back to a manual-select textarea (calling
+// onFallback) when it's unavailable or denied — e.g. non-HTTPS contexts,
+// some in-app browsers, or a viewer who hasn't granted permission.
+export async function copyToClipboard(text, { onSuccess, onFallback } = {}) {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (onSuccess) onSuccess();
+  } catch {
+    if (onFallback) onFallback();
+  }
+}
+
 export function streamBadgeHtml(stream) {
   if (!stream) return '<span class="badge stream-none">Unclassified</span>';
   return `<span class="badge stream-${stream.toLowerCase()}">Stream ${stream}</span>`;

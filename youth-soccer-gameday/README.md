@@ -1,4 +1,4 @@
-# Youth Soccer Game Day
+# Gaffer
 
 A game-day manager for a youth soccer team: roster, fixtures, match-day
 squad selection, a formation/lineup builder, and a live in-game tracker for
@@ -100,6 +100,11 @@ see everything working immediately. Reset or clear that data any time from
   and a collapsible age-group format guide (see below) with a one-tap
   "Suggest format" button that reads your age group and fills in the
   squad format + match length for you.
+- **Diagnostics** — since there's no server to phone home to, uncaught
+  errors are captured automatically into a small on-device log (Settings)
+  instead of just vanishing. If the app misbehaves for you or another
+  coach, "Copy Error Log" grabs the details (what broke, when, on which
+  screen) to paste into a message to whoever maintains the app.
 
 ## Age-group formats (DDSL / FAI Player Development Plan)
 
@@ -129,6 +134,7 @@ js/
   formations.js    pitch formation templates per squad size
   ageFormats.js    DDSL/FAI age-group format reference + suggestion logic
   importRoster.js  CSV/Excel parsing + header-alias mapping for bulk import
+  errorLog.js      on-device uncaught-error capture for Settings > Diagnostics
   rules.js         "keep at least one on the pitch" pair-rule checking
   modal.js         small <dialog>-based modal helper
   util.js          formatting/id helpers

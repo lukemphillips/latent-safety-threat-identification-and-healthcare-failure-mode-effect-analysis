@@ -1,5 +1,5 @@
 import { getState, update, findPlayer } from '../store.js';
-import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions } from '../util.js';
+import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, copyToClipboard } from '../util.js';
 import { openModal, closeModal } from '../modal.js';
 import { parseRosterFile, TEMPLATE_CSV } from '../importRoster.js';
 
@@ -194,15 +194,15 @@ function openImportModal() {
       let parsedRows = [];
 
       copyBtn.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(TEMPLATE_CSV);
-          copyBtn.textContent = '✅ Copied!';
-        } catch {
-          fallbackEl.hidden = false;
-          fallbackEl.focus();
-          fallbackEl.select();
-          copyBtn.textContent = 'Select the text below and copy it';
-        }
+        await copyToClipboard(TEMPLATE_CSV, {
+          onSuccess: () => { copyBtn.textContent = '✅ Copied!'; },
+          onFallback: () => {
+            fallbackEl.hidden = false;
+            fallbackEl.focus();
+            fallbackEl.select();
+            copyBtn.textContent = 'Select the text below and copy it';
+          },
+        });
         setTimeout(() => { copyBtn.textContent = '📋 Copy CSV Template'; }, 2500);
       });
 

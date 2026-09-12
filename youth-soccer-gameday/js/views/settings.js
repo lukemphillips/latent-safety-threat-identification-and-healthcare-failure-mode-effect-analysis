@@ -1,11 +1,13 @@
 import { getState, update, resetToSample, clearAllData, findPlayer } from '../store.js';
 import { FORMATIONS, emptyLineupSlots } from '../formations.js';
-import { escapeHtml, uid } from '../util.js';
+import { escapeHtml, uid, copyToClipboard } from '../util.js';
 import { openModal, closeModal } from '../modal.js';
 import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
+import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
 
 export function renderSettings(app) {
   const { team, players } = getState();
+  const errorLog = getErrorLog();
 
   app.innerHTML = `
     <div class="page-title"><h1>Settings</h1></div>
@@ -99,6 +101,15 @@ export function renderSettings(app) {
       <button class="btn secondary block" data-action="reset-sample">Reload Sample Data</button>
       <button class="btn danger block" data-action="clear-data">Clear All Data</button>
     </div>
+
+    <div class="section-title">Diagnostics</div>
+    <div class="card stack">
+      <p class="muted small mt-0">If Gaffer misbehaves for you or another coach, errors are captured automatically here on that device — no need to remember exactly what happened. Copy the log and send it to whoever maintains the app.</p>
+      <div class="small">${errorCountText(errorLog)}</div>
+      <button class="btn secondary block" data-action="copy-error-log" ${errorLog.length ? '' : 'disabled'}>📋 Copy Error Log</button>
+      <textarea id="error-log-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;">${escapeHtml(formatErrorLogText())}</textarea>
+      <button class="btn ghost block" data-action="clear-error-log" ${errorLog.length ? '' : 'disabled'}>Clear Log</button>
+    </div>
   `;
 
   app.querySelector('[data-action="suggest-format"]').addEventListener('click', () => {
@@ -166,6 +177,33 @@ export function renderSettings(app) {
       });
     });
   });
+
+  const copyLogBtn = app.querySelector('[data-action="copy-error-log"]');
+  const logFallback = app.querySelector('#error-log-fallback');
+  copyLogBtn.addEventListener('click', async () => {
+    await copyToClipboard(formatErrorLogText(), {
+      onSuccess: () => { copyLogBtn.textContent = '✅ Copied!'; },
+      onFallback: () => {
+        logFallback.hidden = false;
+        logFallback.focus();
+        logFallback.select();
+        copyLogBtn.textContent = 'Select the text below and copy it';
+      },
+    });
+    setTimeout(() => { copyLogBtn.textContent = '📋 Copy Error Log'; }, 2500);
+  });
+  app.querySelector('[data-action="clear-error-log"]').addEventListener('click', () => {
+    if (!confirm('Clear the error log on this device?')) return;
+    clearErrorLog();
+    renderSettings(app);
+  });
+}
+
+function errorCountText(errorLog) {
+  if (!errorLog.length) return 'No errors logged on this device.';
+  const last = errorLog[errorLog.length - 1];
+  const when = new Date(last.at).toLocaleString();
+  return `${errorLog.length} error${errorLog.length === 1 ? '' : 's'} logged — most recent ${when}.`;
 }
 
 function ruleRow(r) {
