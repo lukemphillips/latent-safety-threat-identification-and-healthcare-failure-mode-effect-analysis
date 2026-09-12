@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Gaffer</title>
   <meta name="description" content="Gaffer — game-day management for youth soccer teams: roster, fixtures, RSVPs, lineup builder, and live substitution tracking." />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚽</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 48 48%22><path d=%22M24 3 L43 9 V22 C43 33 35.5 40.5 24 45 C12.5 40.5 5 33 5 22 V9 Z%22 fill=%22%2316693f%22 stroke=%22%23e6f6ec%22 stroke-width=%222%22/><text x=%2224%22 y=%2230%22 font-family=%22Georgia,serif%22 font-weight=%22700%22 font-size=%2221%22 fill=%22%23ffffff%22 text-anchor=%22middle%22>G</text></svg>" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -13,7 +13,12 @@
     <header class="topbar">
       <div class="topbar-inner">
         <a href="#/" class="brand">
-          <span class="brand-badge">⚽</span>
+          <span class="brand-badge" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="22" height="22">
+              <path d="M24 3 L43 9 V22 C43 33 35.5 40.5 24 45 C12.5 40.5 5 33 5 22 V9 Z" fill="var(--green-500)" stroke="#ffffff" stroke-width="2"/>
+              <text x="24" y="30" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="21" fill="#ffffff" text-anchor="middle">G</text>
+            </svg>
+          </span>
           <span class="brand-text" id="brand-team-name">Gaffer</span>
         </a>
       </div>

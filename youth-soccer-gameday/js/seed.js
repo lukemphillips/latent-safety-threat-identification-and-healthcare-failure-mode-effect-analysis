@@ -15,6 +15,23 @@ export function seedTeam() {
   };
 }
 
+// Real starting point for a coach's own team — sensible defaults, no
+// invented name or demo data. Used for a genuinely fresh install; the demo
+// ("Thunder FC") data above is only loaded on request via "Reload Sample Data".
+export function emptyTeam() {
+  return {
+    name: '',
+    ageGroup: '',
+    squadFormat: 7,
+    periodMinutes: 25,
+    numPeriods: 2,
+    equalPlayingTimePolicy: true,
+    minStintMinutes: 4,
+    enableCards: false,
+    rules: [],
+  };
+}
+
 const NAMES = [
   ['Ava Martinez', ['DEF'], 'A'], ['Liam Chen', ['GK'], 'B'], ['Noah Patel', ['MID', 'DEF'], 'C'],
   ['Mia Johnson', ['FWD'], 'A'], ['Ethan Wright', ['DEF'], 'B'], ['Sofia Rossi', ['MID', 'FWD'], 'A'],

@@ -1,16 +1,23 @@
-import { seedTeam, seedPlayers, seedGames, seedRules } from './seed.js';
+import { seedTeam, seedPlayers, seedGames, seedRules, emptyTeam } from './seed.js';
 
 const STORAGE_KEY = 'ysg-data-v2';
 
 let state = null;
 const listeners = new Set();
 
-function freshData() {
+// The "Thunder FC" demo squad — only loaded on request (Reload Sample Data).
+function sampleData() {
   const team = seedTeam();
   const players = seedPlayers();
   team.rules = seedRules(players);
   const games = seedGames(players, team.squadFormat);
   return { team, players, games };
+}
+
+// A genuinely blank slate — what a coach sees the first time they open the
+// app, and what "Clear All Data" resets to.
+function emptyData() {
+  return { team: emptyTeam(), players: [], games: [] };
 }
 
 function load() {
@@ -30,7 +37,7 @@ function load() {
       console.warn('Corrupt saved data, reseeding.', e);
     }
   }
-  return freshData();
+  return emptyData();
 }
 
 function persist() {
@@ -58,13 +65,13 @@ export function subscribe(fn) {
 }
 
 export function resetToSample() {
-  state = freshData();
+  state = sampleData();
   persist();
   listeners.forEach((fn) => fn(state));
 }
 
 export function clearAllData() {
-  state = { team: seedTeam(), players: [], games: [] };
+  state = emptyData();
   persist();
   listeners.forEach((fn) => fn(state));
 }
