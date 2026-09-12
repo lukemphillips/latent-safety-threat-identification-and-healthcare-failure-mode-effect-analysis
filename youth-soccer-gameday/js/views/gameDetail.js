@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions } from '../util.js';
+import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions } from '../util.js';
 import { formationFor } from '../formations.js';
 import { openModal, closeModal } from '../modal.js';
 import { openGameForm } from './schedule.js';
@@ -231,9 +231,12 @@ function renderSquadTab(container, game) {
 
     <div class="spread" style="margin:16px 0 10px;">
       <span class="muted small">${formation.label} · ${filledCount}/${formation.slots.length} filled</span>
-      <button class="btn ghost sm" data-action="clear-lineup">Clear Lineup</button>
+      <div class="row" style="gap:8px;">
+        <button class="btn secondary sm" data-action="auto-fill-lineup" ${present.length && filledCount < formation.slots.length ? '' : 'disabled'}>⚡ Auto-Fill</button>
+        <button class="btn ghost sm" data-action="clear-lineup">Clear Lineup</button>
+      </div>
     </div>
-    <div class="banner info">Tap an open spot on the pitch, then tap a player to place them. The GK spot sets your ${periodLabel(team, 1)} keeper.</div>
+    <div class="banner info">Tap an open spot on the pitch, then tap a player to place them — or use "Auto-Fill" to place everyone present by their preferred position, then adjust from there. The GK spot sets your ${periodLabel(team, 1)} keeper.</div>
     <div class="pitch-wrap">
       <div class="pitch">
         ${formation.slots.map((slot) => pitchSlotHtml(slot, slots[slot.id] ? byId[slots[slot.id]] : null)).join('')}
@@ -284,6 +287,18 @@ function renderSquadTab(container, game) {
       Object.keys(g.lineup.slots).forEach((sid) => { g.lineup.slots[sid] = null; });
     });
   });
+
+  const autoFillBtn = container.querySelector('[data-action="auto-fill-lineup"]');
+  if (autoFillBtn) {
+    autoFillBtn.addEventListener('click', () => {
+      selectingSlotId = null;
+      update((state) => {
+        const g = state.games.find((x) => x.id === game.id);
+        const presentPlayers = state.players.filter((p) => p.active && (g.presentIds || []).includes(p.id));
+        g.lineup.slots = autoFillLineup(formation, presentPlayers, g.lineup.slots);
+      });
+    });
+  }
 
   container.querySelectorAll('[data-pitch-slot]').forEach((el) => {
     el.addEventListener('click', () => {
@@ -422,6 +437,40 @@ function matchDayCarryover(games, game) {
       });
     });
   return carryover;
+}
+
+function shuffle(list) {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Fills only the empty slots, leaving any manual picks alone. Present
+// players are matched to a slot's role by their preferred position(s)
+// first (GK slots filled before anything else, so a keeper-tagged player
+// isn't used to plug an outfield gap); leftovers fill whatever's left.
+function autoFillLineup(formation, presentPlayers, currentSlots) {
+  const slots = { ...currentSlots };
+  const assignedIds = new Set(Object.values(slots).filter(Boolean));
+  const unassigned = shuffle(presentPlayers.filter((p) => !assignedIds.has(p.id)));
+
+  const emptySlots = formation.slots.filter((s) => !slots[s.id]);
+  const orderedSlots = [...emptySlots.filter((s) => s.role === 'GK'), ...emptySlots.filter((s) => s.role !== 'GK')];
+
+  orderedSlots.forEach((slot) => {
+    const idx = unassigned.findIndex((p) => playerPositions(p).includes(slot.role));
+    if (idx === -1) return;
+    slots[slot.id] = unassigned[idx].id;
+    unassigned.splice(idx, 1);
+  });
+  orderedSlots.forEach((slot) => {
+    if (slots[slot.id] || !unassigned.length) return;
+    slots[slot.id] = unassigned.shift().id;
+  });
+  return slots;
 }
 
 function startGame(game) {

@@ -74,10 +74,14 @@ see everything working immediately. Reset or clear that data any time from
   match-day squad selection works independently of this tab.
 - **Squad tab** — fast, on-the-fly match-day squad building: tap players
   present today (or "Mark All Present" in one tap), then place them on a
-  pitch formation (5/7/9/11-a-side based on your team's settings). The GK
-  spot sets your 1st-half keeper. Once the match is live, this tab switches
-  to a quick "add a late arrival" view — mark them present and they show up
-  on the live bench immediately, no need to touch the pitch again.
+  pitch formation (5/7/9/11-a-side based on your team's settings) — or tap
+  "⚡ Auto-Fill" to place everyone present by their preferred position in
+  one go (goalkeeper slot filled from GK-tagged players first) and just
+  adjust from there; it only fills empty spots, so it's also a quick way to
+  plug remaining gaps after placing a few players yourself. The GK spot
+  sets your 1st-half keeper. Once the match is live, this tab switches to a
+  quick "add a late arrival" view — mark them present and they show up on
+  the live bench immediately, no need to touch the pitch again.
 - **Live game day**:
   - A match clock that keeps running in real time no matter what screen
     you're on — step away to the Squad tab, Roster, wherever, and it's
