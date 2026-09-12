@@ -486,16 +486,22 @@ function renderCompletedSquadTab(container, present, absent) {
 // Same-date games (a "match day") share fair-play minutes: a player's
 // running total carries from one match into the next rather than each
 // match starting everyone back at zero, so equal-playing-time suggestions
-// stay honest across the whole day, not just the current match.
+// stay honest across the whole day, not just the current match. Each
+// sibling's own playingTime is already cumulative (it was seeded from
+// whatever came before it), so for a 3+ match day we take the value from
+// only the chronologically-latest sibling per player rather than summing
+// every sibling — summing would count earlier matches' minutes again for
+// every match after them.
 function matchDayCarryover(games, game) {
-  const carryover = {};
-  games
+  const siblings = games
     .filter((g) => g.id !== game.id && g.date === game.date && g.live)
-    .forEach((g) => {
-      Object.entries(g.live.playingTime || {}).forEach(([playerId, seconds]) => {
-        carryover[playerId] = (carryover[playerId] || 0) + seconds;
-      });
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  const carryover = {};
+  siblings.forEach((g) => {
+    Object.entries(g.live.playingTime || {}).forEach(([playerId, seconds]) => {
+      carryover[playerId] = seconds;
     });
+  });
   return carryover;
 }
 
@@ -579,6 +585,10 @@ async function startGame(game) {
       gkByPeriod: { 1: gkId },
       sentOff: [],
       playingTime,
+      // Snapshot of what playingTime started at, so Stats can tell how many
+      // of this game's final minutes were actually played in THIS match vs
+      // carried over from an earlier match the same day (see stats.js).
+      carryoverSeconds: carryover,
       stintStart,
       subLog: [],
     };

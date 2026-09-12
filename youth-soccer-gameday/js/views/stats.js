@@ -28,7 +28,16 @@ function computeLeaderRows() {
   return active.map((p) => {
     let minutes = 0, goals = 0, assists = 0, saves = 0, apps = 0, yellows = 0, reds = 0, potm = 0, captaincies = 0;
     completed.forEach((g) => {
-      const secs = g.live?.playingTime?.[p.id] || 0;
+      // On a match-day with more than one game, playingTime is seeded from
+      // the earlier match(es) so the live fair-play banner can compare
+      // minutes across the whole day (see matchDayCarryover in
+      // gameDetail.js) — it is NOT this game's own minutes. Subtract the
+      // carryover baseline back out so a player's season totals/apps count
+      // what they actually played in this game, not what they'd already
+      // played before it started.
+      const total = g.live?.playingTime?.[p.id] || 0;
+      const carriedIn = g.live?.carryoverSeconds?.[p.id] || 0;
+      const secs = Math.max(0, total - carriedIn);
       if (secs > 0) apps += 1;
       minutes += secs;
       if (g.playerOfMatchId === p.id) potm += 1;

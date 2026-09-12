@@ -160,6 +160,13 @@ see everything working immediately. Reset or clear that data any time from
 - **Stats** — a sortable leaderboard (appearances, minutes, goals, assists,
   saves, cards when enabled, Player-of-the-Match awards, times captained,
   attendance %), full match history, and head-to-head records per opponent.
+  On a match day with more than one game, each player's minutes and
+  appearances count only what they actually played in that specific game —
+  the running day-total that the live fair-play banner shows (so it can
+  balance minutes across a whole match day, not just one game) is not
+  re-summed on top of it, so a player's season minutes don't double-count
+  a match day, and a player who sat out the second match of a day doesn't
+  pick up a phantom appearance just because their minutes carried over.
 - **Settings** — team name, age group, squad format, default match length
   (minutes per period + number of periods — each game can still set its
   own when scheduled), minimum stint length, the equal-playing-time
