@@ -102,6 +102,13 @@ see everything working immediately. Reset or clear that data any time from
 - **Captain & Player of the Match** — set per game from that game's page
   (pulled from whoever's marked present, or the full roster if attendance
   isn't set yet). Both show up as season totals in Stats.
+- **Player of the Week** — a separate award from Player of the Match, set
+  from Stats once a Monday-to-Sunday week's matches are done (it groups
+  completed games into weeks and gives each one a Set/Change button —
+  handles a weekend with two fixtures the same as a single midweek game).
+  Picked from whoever was marked present across that week's games; season
+  totals show up in the Stats leaderboard's 🏅 column alongside Player of
+  the Match and captaincies.
 - **RSVP** — optional advance-availability tracker (In/Maybe/Out), for teams
   that want it. If your club already collects RSVPs elsewhere, skip it —
   the Squad tab's attendance still works on its own without it. Where the
@@ -152,6 +159,11 @@ see everything working immediately. Reset or clear that data any time from
     tab, and only once per time it becomes due rather than repeating every
     second. Vibration only works on browsers that support it (notably not
     iOS Safari); the on-screen banner is always there either way.
+  - A "🔜 Coming up" bar previews the next couple of players approaching a
+    fair-play sub — not just the one that's due right now — so you can tell
+    a player to get ready before the swap actually comes up. It's a forward
+    projection off the same rule as the suggestion above (updates live as
+    the clock ticks), so it stays consistent with what actually fires.
   - Squad rules — configure pairs of players who should never both be on
     the bench at once (e.g. your only two keeper-capable defenders); the
     app warns (but never blocks) a substitution that would break this.

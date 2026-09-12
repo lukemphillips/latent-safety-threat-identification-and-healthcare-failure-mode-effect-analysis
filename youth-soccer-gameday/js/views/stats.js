@@ -1,5 +1,6 @@
-import { getState } from '../store.js';
-import { escapeHtml, formatDate, formatMinutes, formatPercent, formatPositions, matchTypeBadgeHtml, sortByDateTime } from '../util.js';
+import { getState, update } from '../store.js';
+import { escapeHtml, formatDate, formatMinutes, formatPercent, formatPositions, matchTypeBadgeHtml, sortByDateTime, startOfWeekIso, weekLabel, uid } from '../util.js';
+import { openModal, closeModal, alertDialog } from '../modal.js';
 
 function sortColumns(team) {
   const cols = [
@@ -12,7 +13,10 @@ function sortColumns(team) {
   if (team.enableCards) {
     cols.push({ key: 'yellows', label: 'Y' }, { key: 'reds', label: 'R' });
   }
-  cols.push({ key: 'potm', label: '⭐' }, { key: 'captaincies', label: '🅲' }, { key: 'attendance', label: 'Att%' });
+  cols.push(
+    { key: 'potm', label: '⭐' }, { key: 'captaincies', label: '🅲' },
+    { key: 'weeklyAwards', label: '🏅' }, { key: 'attendance', label: 'Att%' },
+  );
   return cols;
 }
 
@@ -20,10 +24,11 @@ let sortKey = 'goals';
 let sortDir = 'desc';
 
 function computeLeaderRows() {
-  const { players, games } = getState();
+  const { players, games, team } = getState();
   const active = players.filter((p) => p.active);
   const completed = games.filter((g) => g.status === 'completed');
   const trackedForAttendance = games.filter((g) => (g.presentIds || []).length > 0);
+  const weeklyAwards = team.weeklyAwards || [];
 
   return active.map((p) => {
     let minutes = 0, goals = 0, assists = 0, saves = 0, apps = 0, yellows = 0, reds = 0, potm = 0, captaincies = 0;
@@ -52,7 +57,8 @@ function computeLeaderRows() {
     });
     const presentCount = trackedForAttendance.filter((g) => (g.presentIds || []).includes(p.id)).length;
     const attendance = trackedForAttendance.length ? presentCount / trackedForAttendance.length : null;
-    return { player: p, apps, minutes, goals, assists, saves, yellows, reds, potm, captaincies, attendance };
+    const weeklyAwardCount = weeklyAwards.filter((a) => a.playerId === p.id).length;
+    return { player: p, apps, minutes, goals, assists, saves, yellows, reds, potm, captaincies, weeklyAwards: weeklyAwardCount, attendance };
   });
 }
 
@@ -64,6 +70,29 @@ function sortRows(rows) {
     if (av === bv) return a.player.name.localeCompare(b.player.name);
     return (av - bv) * dir;
   });
+}
+
+// Groups completed games into Monday-anchored weeks so a coach can name a
+// Player of the Week once that week's matches are done, rather than only
+// having a per-match "Player of the Match" — separate honors most youth
+// leagues track side by side.
+function weeksWithGames() {
+  const { games, team } = getState();
+  const completed = games.filter((g) => g.status === 'completed');
+  const byWeek = {};
+  completed.forEach((g) => {
+    const weekStart = startOfWeekIso(g.date);
+    byWeek[weekStart] = byWeek[weekStart] || [];
+    byWeek[weekStart].push(g);
+  });
+  return Object.entries(byWeek)
+    .map(([weekStart, gamesInWeek]) => {
+      const presentIds = new Set();
+      gamesInWeek.forEach((g) => (g.presentIds || []).forEach((id) => presentIds.add(id)));
+      const award = (team.weeklyAwards || []).find((a) => a.weekStart === weekStart) || null;
+      return { weekStart, games: sortByDateTime(gamesInWeek), presentIds: [...presentIds], award };
+    })
+    .sort((a, b) => b.weekStart.localeCompare(a.weekStart));
 }
 
 function headToHead() {
@@ -92,6 +121,7 @@ export function renderStats(app) {
   const history = sortByDateTime(games).reverse();
   const h2h = headToHead();
   const columns = sortColumns(team);
+  const weeks = weeksWithGames();
 
   app.innerHTML = `
     <div class="page-title">
@@ -100,6 +130,11 @@ export function renderStats(app) {
         <div class="sub">${completedCount} match${completedCount === 1 ? '' : 'es'} played</div>
       </div>
     </div>
+
+    ${weeks.length ? `
+      <div class="section-title">🏅 Player of the Week</div>
+      ${weeks.map(weekRowHtml).join('')}
+    ` : ''}
 
     <div class="section-title">Leaders</div>
     <div class="card" style="overflow-x:auto;">
@@ -137,6 +172,76 @@ export function renderStats(app) {
       renderStats(app);
     });
   });
+
+  app.querySelectorAll('[data-action="set-week-award"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const week = weeks.find((w) => w.weekStart === btn.dataset.week);
+      if (week) openWeekAwardModal(week, () => renderStats(app));
+    });
+  });
+}
+
+function weekRowHtml(week) {
+  const { players } = getState();
+  const winner = week.award ? players.find((p) => p.id === week.award.playerId) : null;
+  return `
+    <div class="card">
+      <div class="card-row">
+        <div>
+          <div style="font-weight:700;">${escapeHtml(weekLabel(week.weekStart))}</div>
+          <div class="muted small">${week.games.map((g) => `${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)}`).join(', ')}</div>
+        </div>
+        <button class="btn ghost sm" data-action="set-week-award" data-week="${week.weekStart}">${week.award ? 'Change' : 'Set'}</button>
+      </div>
+      <div class="small" style="margin-top:8px;">⭐ ${winner ? `<strong>${escapeHtml(winner.name)}</strong>` : '<span class="muted">Not set</span>'}</div>
+    </div>
+  `;
+}
+
+function openWeekAwardModal(week, onSaved) {
+  const { players } = getState();
+  const active = players.filter((p) => p.active);
+  const present = active.filter((p) => week.presentIds.includes(p.id));
+  const pool = present.length ? present : active;
+  if (!pool.length) {
+    alertDialog('No active players to choose from yet.');
+    return;
+  }
+  openModal({
+    title: 'Player of the Week',
+    bodyHtml: `
+      <p class="muted small mt-0">${escapeHtml(weekLabel(week.weekStart))} — ${week.games.map((g) => `${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)}`).join(', ')}</p>
+      <form id="week-award-form" class="stack">
+        <div class="field">
+          <label>Player of the Week</label>
+          <select name="player">
+            <option value="">— none —</option>
+            ${pool.map((p) => `<option value="${p.id}" ${week.award?.playerId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button type="submit" class="btn block">Save</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#week-award-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const playerId = new FormData(e.target).get('player') || null;
+        update((state) => {
+          state.team.weeklyAwards = state.team.weeklyAwards || [];
+          const existing = state.team.weeklyAwards.find((a) => a.weekStart === week.weekStart);
+          if (!playerId) {
+            state.team.weeklyAwards = state.team.weeklyAwards.filter((a) => a.weekStart !== week.weekStart);
+          } else if (existing) {
+            existing.playerId = playerId;
+          } else {
+            state.team.weeklyAwards.push({ id: uid(), weekStart: week.weekStart, playerId });
+          }
+        });
+        closeModal();
+        onSaved();
+      });
+    },
+  });
 }
 
 function leaderRowHtml(row, columns) {
@@ -150,6 +255,7 @@ function leaderRowHtml(row, columns) {
     reds: row.reds,
     potm: row.potm,
     captaincies: row.captaincies,
+    weeklyAwards: row.weeklyAwards,
     attendance: row.attendance == null ? '—' : formatPercent(row.attendance),
   };
   return `

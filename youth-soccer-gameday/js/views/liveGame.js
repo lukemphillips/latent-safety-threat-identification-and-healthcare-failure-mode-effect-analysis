@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes } from '../util.js';
+import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs } from '../util.js';
 import { outfieldTargetCount } from '../formations.js';
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -109,6 +109,7 @@ export function renderLiveGame(app, gameId) {
     ${goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted)}
 
     ${!isCompleted ? fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) : ''}
+    ${!isCompleted ? upcomingSubsHtml(team, live, bench, onFieldOutfield) : ''}
 
     ${!isCompleted && selectingInboundId ? `
       <div class="banner info spread">
@@ -370,6 +371,30 @@ function fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) {
         <span>⚖️ Fair-play suggestion: bring on <strong>${escapeHtml(leastOnBench.name)}</strong> (${formatClock(time(leastOnBench))}) for <strong>${escapeHtml(mostOnField.name)}</strong> (${formatClock(time(mostOnField))})</span>
       </div>
       <button class="btn sm secondary" style="margin-top:8px;" data-action="use-suggestion" data-in-id="${leastOnBench.id}" data-out-id="${mostOnField.id}">Use Suggestion</button>
+    </div>
+  `;
+}
+
+// A forward-looking companion to the fair-play banner above: instead of
+// only firing when a swap is actually due, this previews the next couple
+// of players approaching that point so the coach can tell them to warm up
+// before the whistle-moment suggestion appears.
+function upcomingSubsHtml(team, live, bench, onFieldOutfield) {
+  if (!team.equalPlayingTimePolicy) return '';
+  if (!bench.length || !onFieldOutfield.length) return '';
+
+  const byIdLocal = Object.fromEntries([...bench, ...onFieldOutfield].map((p) => [p.id, p]));
+  const upcoming = upcomingSubs(team, live, bench.map((p) => p.id), onFieldOutfield.map((p) => p.id));
+  if (!upcoming.length) return '';
+
+  return `
+    <div class="card" style="margin-bottom:10px;">
+      <div class="muted small" style="margin-bottom:8px;">🔜 Coming up — give these players a heads-up</div>
+      <div class="row" style="flex-wrap:wrap; gap:6px;">
+        ${upcoming.map(({ id, dueInSeconds }) => `
+          <span class="badge ${dueInSeconds <= 0 ? 'live' : 'pending'}">${escapeHtml(byIdLocal[id]?.name || '')} · ${dueInSeconds <= 0 ? 'due now' : 'in ~' + formatClock(dueInSeconds)}</span>
+        `).join('')}
+      </div>
     </div>
   `;
 }

@@ -13,6 +13,7 @@ export function seedTeam() {
     enableCards: false,
     subAlertsEnabled: true,
     rules: [],
+    weeklyAwards: [],
   };
 }
 
@@ -31,6 +32,7 @@ export function emptyTeam() {
     enableCards: false,
     subAlertsEnabled: true,
     rules: [],
+    weeklyAwards: [],
   };
 }
 

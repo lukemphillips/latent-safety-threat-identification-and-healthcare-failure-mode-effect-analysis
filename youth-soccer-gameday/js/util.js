@@ -15,6 +15,21 @@ export function formatDate(isoDate) {
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+// Monday-anchored week start for a given ISO date, as an ISO date string —
+// used to group games into "match weeks" for the Player of the Week award,
+// so a Saturday and Sunday fixture the same weekend land in the same week.
+export function startOfWeekIso(isoDate) {
+  const d = new Date(isoDate + 'T00:00:00');
+  const day = d.getDay(); // 0=Sun..6=Sat
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diffToMonday);
+  return d.toISOString().slice(0, 10);
+}
+
+export function weekLabel(weekStartIso) {
+  return `Week of ${formatDate(weekStartIso)}`;
+}
+
 export function formatTime(hhmm) {
   if (!hhmm) return '';
   const [h, m] = hhmm.split(':').map(Number);
@@ -128,4 +143,35 @@ export function isSubDue(team, live, benchIds, onFieldOutfieldIds) {
   const leastBenchTime = Math.min(...benchIds.map(timeOf));
   const mostFieldTime = Math.max(...restEligible.map(timeOf));
   return (mostFieldTime - leastBenchTime) > 60;
+}
+
+// A forward-looking preview of isSubDue(), for a "coming up" bar so a coach
+// can give a player a heads-up before the swap is actually due (rather than
+// only finding out the moment it fires). For each on-field outfield player,
+// projects how many seconds until they'd trip the same ">60s ahead of the
+// least-rested bench player" threshold isSubDue uses, assuming nobody else
+// gets subbed in the meantime — a running estimate, not a promise.
+export function upcomingSubs(team, live, benchIds, onFieldOutfieldIds, count = 3) {
+  if (!team.equalPlayingTimePolicy) return [];
+  if (!benchIds.length || !onFieldOutfieldIds.length) return [];
+
+  const minStintSeconds = (team.minStintMinutes ?? 4) * 60;
+  const stintOf = (id) => Math.max(0, live.elapsedSeconds - ((live.stintStart || {})[id] ?? 0));
+  const timeOf = (id) => live.playingTime[id] || 0;
+  const leastBenchTime = Math.min(...benchIds.map(timeOf));
+
+  return onFieldOutfieldIds
+    .map((id) => {
+      // Seconds until this player clears the minimum-stint gate...
+      const untilEligible = Math.max(0, minStintSeconds - stintOf(id));
+      // ...plus, if the fair-play gap wouldn't yet be past 60s by then,
+      // however many more seconds of play (at 1s of gap per 1s on the
+      // pitch, since the bench player they'd be compared against isn't
+      // gaining any) it'd take to get there.
+      const gapAtEligible = (timeOf(id) - leastBenchTime) + untilEligible;
+      const dueInSeconds = untilEligible + Math.max(0, 61 - gapAtEligible);
+      return { id, dueInSeconds };
+    })
+    .sort((a, b) => a.dueInSeconds - b.dueInSeconds)
+    .slice(0, count);
 }
