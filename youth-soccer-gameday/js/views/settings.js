@@ -17,12 +17,12 @@ export function renderSettings(app) {
 
     <div class="card stack">
       ${fileSaveSupported ? `
-        <p class="muted small mt-0">🗂️ A dated backup file downloads automatically after every match (see Data, below). This is instead for one single file, at a location you pick, that keeps overwriting itself with the latest data — so there's always exactly one current file rather than a growing pile. Only works in this browser (Chrome/Edge).</p>
+        <p class="muted small mt-0">🗂️ A dated backup file downloads automatically after every match (see Data, below). This is instead for one single file, at a location you pick, that keeps overwriting itself with the latest data — so there's always exactly one current file rather than a growing pile. Desktop/laptop Chrome or Edge only — doesn't work on iPhone or iPad, even in Chrome there (see note below if that's what you're on).</p>
         <div id="autosave-file-status" class="small">Checking…</div>
         <button class="btn secondary block" data-action="choose-autosave-file">🗂️ Choose File Location</button>
         <button class="btn ghost block" data-action="clear-autosave-file" hidden id="clear-autosave-btn">Turn Off</button>
       ` : `
-        <p class="muted small mt-0">🗂️ A single self-updating backup file at a location you pick isn't available in this browser (needs Chrome or Edge). The dated backup file that downloads after every match (see Data, below) still works here.</p>
+        <p class="muted small mt-0">🗂️ A single self-updating backup file at a location you pick isn't available on this device. It needs a desktop or laptop browser (Chrome or Edge) — it doesn't work on iPhone or iPad in any browser, including Chrome there, since Apple requires every browser on iOS to use the same underlying engine, which doesn't support this. The dated backup file that downloads after every match (see Data, below) still works here, on any device.</p>
       `}
     </div>
 
