@@ -76,3 +76,15 @@ export function streamBadgeHtml(stream) {
   if (!stream) return '<span class="badge stream-none">Unclassified</span>';
   return `<span class="badge stream-${stream.toLowerCase()}">Stream ${stream}</span>`;
 }
+
+// Reads the new `positions` array, falling back to an older single
+// `position` string for data saved before multi-position support existed.
+export function playerPositions(p) {
+  if (Array.isArray(p.positions) && p.positions.length) return p.positions;
+  if (p.position) return [p.position];
+  return [];
+}
+
+export function formatPositions(p) {
+  return playerPositions(p).join('/');
+}

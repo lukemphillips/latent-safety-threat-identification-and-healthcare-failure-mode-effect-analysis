@@ -28,9 +28,10 @@ see everything working immediately. Reset or clear that data any time from
 
 ## Features
 
-- **Roster** — players with jersey number, preferred position, guardian
-  contact, active/inactive status, and a streaming classification (A/B/C/D)
-  you assign per player to keep team-building fair.
+- **Roster** — players with jersey number, one or more preferred positions
+  (a versatile player can be both DEF and MID, say), guardian contact,
+  active/inactive status, and a streaming classification (A/B/C/D) you
+  assign per player to keep team-building fair.
 - **Balance Teams** — pick who's involved (defaults to the whole active
   roster), then randomly split them into two teams. The split balances each
   streaming classification separately (so it's not just an even head count

@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel } from '../util.js';
+import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions } from '../util.js';
 import { formationFor } from '../formations.js';
 import { openModal, closeModal } from '../modal.js';
 import { openGameForm } from './schedule.js';
@@ -185,7 +185,7 @@ function rsvpRow(game, p) {
       <div class="jersey">${p.jerseyNumber ?? '-'}</div>
       <div class="player-meta">
         <div class="player-name">${escapeHtml(p.name)}</div>
-        <div class="player-sub">${p.position || ''}</div>
+        <div class="player-sub">${formatPositions(p)}</div>
       </div>
       <div class="rsvp-group">
         ${RSVP_OPTIONS.map((opt) => `

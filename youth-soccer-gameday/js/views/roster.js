@@ -1,5 +1,5 @@
 import { getState, update, findPlayer } from '../store.js';
-import { uid, escapeHtml, streamBadgeHtml } from '../util.js';
+import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions } from '../util.js';
 import { openModal, closeModal } from '../modal.js';
 
 const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'];
@@ -40,7 +40,7 @@ function playerRow(p) {
       <div class="jersey">${p.jerseyNumber ?? '-'}</div>
       <div class="player-meta">
         <div class="player-name ${p.active ? '' : 'inactive'}">${escapeHtml(p.name)}</div>
-        <div class="player-sub">${p.position || ''}${p.guardianName ? ' · ' + escapeHtml(p.guardianName) : ''}</div>
+        <div class="player-sub">${formatPositions(p)}${p.guardianName ? ' · ' + escapeHtml(p.guardianName) : ''}</div>
       </div>
       ${streamBadgeHtml(p.skillStream)}
       ${p.active ? '' : '<span class="badge pending">inactive</span>'}
@@ -50,7 +50,8 @@ function playerRow(p) {
 
 function openPlayerForm(playerId) {
   const existing = playerId ? findPlayer(playerId) : null;
-  const p = existing || { name: '', jerseyNumber: '', position: 'MID', skillStream: '', guardianName: '', guardianPhone: '', active: true };
+  const p = existing || { name: '', jerseyNumber: '', positions: [], skillStream: '', guardianName: '', guardianPhone: '', active: true };
+  const currentPositions = playerPositions(p);
 
   const dlg = openModal({
     title: existing ? 'Edit Player' : 'Add Player',
@@ -60,16 +61,19 @@ function openPlayerForm(playerId) {
           <label>Player name</label>
           <input type="text" name="name" required value="${escapeHtml(p.name)}" placeholder="e.g. Ava Martinez" />
         </div>
-        <div class="field-row">
-          <div class="field">
-            <label>Jersey #</label>
-            <input type="number" name="jerseyNumber" min="0" max="99" value="${p.jerseyNumber ?? ''}" />
-          </div>
-          <div class="field">
-            <label>Position</label>
-            <select name="position">
-              ${POSITIONS.map((pos) => `<option value="${pos}" ${p.position === pos ? 'selected' : ''}>${pos}</option>`).join('')}
-            </select>
+        <div class="field">
+          <label>Jersey #</label>
+          <input type="number" name="jerseyNumber" min="0" max="99" value="${p.jerseyNumber ?? ''}" style="max-width:120px;" />
+        </div>
+        <div class="field">
+          <label>Preferred position(s)</label>
+          <div class="chip-list">
+            ${POSITIONS.map((pos) => `
+              <label class="checkbox-row" style="border:1px solid var(--line); border-radius:999px; padding:6px 12px; margin:0;">
+                <input type="checkbox" name="positions" value="${pos}" ${currentPositions.includes(pos) ? 'checked' : ''} />
+                ${pos}
+              </label>
+            `).join('')}
           </div>
         </div>
         <div class="field">
@@ -105,7 +109,7 @@ function openPlayerForm(playerId) {
         const data = {
           name: (fd.get('name') || '').trim(),
           jerseyNumber: fd.get('jerseyNumber') ? Number(fd.get('jerseyNumber')) : null,
-          position: fd.get('position'),
+          positions: fd.getAll('positions'),
           skillStream: fd.get('skillStream') || null,
           guardianName: (fd.get('guardianName') || '').trim(),
           guardianPhone: (fd.get('guardianPhone') || '').trim(),

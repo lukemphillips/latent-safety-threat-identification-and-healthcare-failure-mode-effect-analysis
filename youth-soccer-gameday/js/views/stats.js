@@ -1,5 +1,5 @@
 import { getState } from '../store.js';
-import { escapeHtml, formatDate, formatMinutes, formatPercent, matchTypeBadgeHtml, sortByDateTime } from '../util.js';
+import { escapeHtml, formatDate, formatMinutes, formatPercent, formatPositions, matchTypeBadgeHtml, sortByDateTime } from '../util.js';
 
 function sortColumns(team) {
   const cols = [
@@ -147,7 +147,7 @@ function leaderRowHtml(row, columns) {
     <tr style="border-top:1px solid var(--line);">
       <td style="padding:6px 8px;">
         <div style="font-weight:600;">${escapeHtml(row.player.name)}</div>
-        <div class="muted" style="font-size:11px;">${row.player.position || ''}</div>
+        <div class="muted" style="font-size:11px;">${formatPositions(row.player)}</div>
       </td>
       ${columns.map((c) => `<td style="text-align:right; padding:6px 8px;">${cellFor[c.key]}</td>`).join('')}
     </tr>

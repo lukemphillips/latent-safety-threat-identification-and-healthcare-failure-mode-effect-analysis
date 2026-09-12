@@ -1,5 +1,5 @@
 import { getState } from '../store.js';
-import { escapeHtml, streamBadgeHtml } from '../util.js';
+import { escapeHtml, streamBadgeHtml, formatPositions } from '../util.js';
 
 const STREAM_ORDER = ['A', 'B', 'C', 'D', null];
 
@@ -138,7 +138,7 @@ function teamCardHtml(label, team) {
             <div class="jersey">${p.jerseyNumber ?? '-'}</div>
             <div class="player-meta">
               <div class="player-name">${escapeHtml(p.name)}</div>
-              <div class="player-sub">${p.position || ''}</div>
+              <div class="player-sub">${formatPositions(p)}</div>
             </div>
             ${streamBadgeHtml(p.skillStream)}
           </div>
