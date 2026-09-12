@@ -41,10 +41,16 @@ see everything working immediately. Reset or clear that data any time from
   guessing, and defaults to skipping any name that's already on the roster
   (you can still check it to import anyway).
 - **Balance Teams** — pick who's involved (defaults to the whole active
-  roster), then randomly split them into two teams. The split balances each
+  roster), then randomly split them into 2–4 teams. The split balances each
   streaming classification separately (so it's not just an even head count
-  but an even mix of A/B/C/D on both sides), and "Shuffle Again" re-rolls
-  without losing your squad selection.
+  but an even mix of A/B/C/D across every team), and "Shuffle Again" re-rolls
+  without losing your squad selection. For junior squads (U9 and under),
+  where DDSL/FAI mini-soccer is 4v4/5v5, it nudges you toward splitting into
+  several small teams for parallel games rather than one team with subs.
+  Once split, "Copy to Share" copies a plain-text team list you can paste
+  into a text/WhatsApp message to other coaches, and on phones that support
+  it there's also a native "Text / Share…" button that opens the share
+  sheet directly.
 - **Schedule** — League / Friendly / Tournament fixtures (tournament games
   carry a tournament name + stage, e.g. "Summer Cup · Final"). Games on the
   same date are grouped under a "Match Day" heading, and a game's page has

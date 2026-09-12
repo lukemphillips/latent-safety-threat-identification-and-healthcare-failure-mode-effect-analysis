@@ -1,9 +1,13 @@
 import { getState } from '../store.js';
-import { escapeHtml, streamBadgeHtml, formatPositions } from '../util.js';
+import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard } from '../util.js';
+import { isJuniorAgeGroup } from '../ageFormats.js';
 
 const STREAM_ORDER = ['A', 'B', 'C', 'D', null];
+const MIN_TEAMS = 2;
+const MAX_TEAMS = 4;
 
 let includedIds = null;
+let teamCount = 2;
 let split = null;
 
 function shuffle(list) {
@@ -15,23 +19,23 @@ function shuffle(list) {
   return arr;
 }
 
-function splitBalancedTeams(players) {
+function splitBalancedTeams(players, count) {
   const buckets = new Map(STREAM_ORDER.map((s) => [s, []]));
   players.forEach((p) => {
     const key = STREAM_ORDER.includes(p.skillStream) ? p.skillStream : null;
     buckets.get(key).push(p);
   });
 
-  const team1 = [];
-  const team2 = [];
+  const teams = Array.from({ length: count }, () => []);
   STREAM_ORDER.forEach((key) => {
     shuffle(buckets.get(key)).forEach((p) => {
-      if (team1.length < team2.length) team1.push(p);
-      else if (team2.length < team1.length) team2.push(p);
-      else (Math.random() < 0.5 ? team1 : team2).push(p);
+      const minLen = Math.min(...teams.map((t) => t.length));
+      const smallest = teams.map((t, i) => i).filter((i) => teams[i].length === minLen);
+      const idx = smallest[Math.floor(Math.random() * smallest.length)];
+      teams[idx].push(p);
     });
   });
-  return { team1, team2 };
+  return teams;
 }
 
 function streamCounts(team) {
@@ -42,27 +46,50 @@ function streamCounts(team) {
   return counts;
 }
 
+function formatSplitForShare(teams, teamName) {
+  const lines = [`${teamName || 'Squad'} — Team Split`, ''];
+  teams.forEach((team, i) => {
+    lines.push(`Team ${i + 1} (${team.length}):`);
+    team.forEach((p) => lines.push(`  #${p.jerseyNumber ?? '-'} ${p.name}`));
+    lines.push('');
+  });
+  return lines.join('\n').trim();
+}
+
 export function renderBalanceTeams(app) {
-  const { players } = getState();
+  const { players, team } = getState();
   const active = players.filter((p) => p.active);
+  const junior = isJuniorAgeGroup(team.ageGroup);
 
   if (!includedIds) includedIds = new Set(active.map((p) => p.id));
   // Drop anyone no longer active/present in the roster.
   includedIds = new Set([...includedIds].filter((id) => active.some((p) => p.id === id)));
 
   const included = active.filter((p) => includedIds.has(p.id));
+  const canSplit = included.length >= teamCount * 2;
 
   app.innerHTML = `
     <div class="page-title">
       <div>
         <h1>Balance Teams</h1>
-        <div class="sub">Randomly split a squad into two fair teams by streaming classification</div>
+        <div class="sub">Randomly split a squad into fair teams by streaming classification</div>
       </div>
     </div>
 
-    <div class="banner info">Pick who's involved, then split. Each streaming classification is divided as evenly as possible between the two teams — not just the head count.</div>
+    <div class="banner info">
+      ${junior
+        ? 'Junior squads (U9 and under) often split a training group into several small teams for parallel mini-soccer games rather than one team with subs. Choose how many teams below — each streaming classification is divided as evenly as possible across all of them.'
+        : "Pick who's involved, then split. Each streaming classification is divided as evenly as possible between the teams — not just the head count."}
+    </div>
 
-    <div class="section-title" style="margin-top:0;">Squad (${included.length}/${active.length})</div>
+    <div class="section-title" style="margin-top:0;">Number of teams</div>
+    <div class="tabs" style="max-width:320px;">
+      ${Array.from({ length: MAX_TEAMS - MIN_TEAMS + 1 }, (_, i) => i + MIN_TEAMS).map((n) => `
+        <div class="tab ${n === teamCount ? 'active' : ''}" data-team-count="${n}">${n} teams</div>
+      `).join('')}
+    </div>
+
+    <div class="section-title">Squad (${included.length}/${active.length})</div>
     <div class="card">
       <div class="spread" style="margin-bottom:10px;">
         <button class="btn ghost sm" data-action="select-all">Select All</button>
@@ -73,9 +100,20 @@ export function renderBalanceTeams(app) {
       </div>
     </div>
 
-    <button class="btn big block" data-action="split" style="margin:16px 0;" ${included.length < 2 ? 'disabled' : ''}>🎲 ${split ? 'Shuffle Again' : 'Random Split'}</button>
+    <button class="btn big block" data-action="split" style="margin:16px 0;" ${canSplit ? '' : 'disabled'}>🎲 ${split ? 'Shuffle Again' : 'Random Split'}</button>
+    ${!canSplit ? `<div class="muted small" style="margin-top:-10px; margin-bottom:16px;">Pick at least ${teamCount * 2} players to split into ${teamCount} teams.</div>` : ''}
 
-    ${split ? teamsHtml(split) : ''}
+    ${split ? `
+      <div class="spread" style="margin-bottom:10px;">
+        <div class="section-title" style="margin:0;">Teams</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn secondary sm" data-action="copy-split">📋 Copy to Share</button>
+          <button class="btn secondary sm" data-action="share-split" hidden>📤 Text / Share…</button>
+        </div>
+      </div>
+      <textarea id="split-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:12px; padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px;">${escapeHtml(formatSplitForShare(split, team.name))}</textarea>
+      ${teamsHtml(split)}
+    ` : ''}
   `;
 
   app.querySelector('[data-action="select-all"]').addEventListener('click', () => {
@@ -86,6 +124,14 @@ export function renderBalanceTeams(app) {
     includedIds = new Set();
     split = null;
     renderBalanceTeams(app);
+  });
+
+  app.querySelectorAll('[data-team-count]').forEach((el) => {
+    el.addEventListener('click', () => {
+      teamCount = Number(el.dataset.teamCount);
+      split = null;
+      renderBalanceTeams(app);
+    });
   });
 
   app.querySelectorAll('[data-squad-toggle]').forEach((el) => {
@@ -101,8 +147,36 @@ export function renderBalanceTeams(app) {
   const splitBtn = app.querySelector('[data-action="split"]');
   if (splitBtn) {
     splitBtn.addEventListener('click', () => {
-      split = splitBalancedTeams(active.filter((p) => includedIds.has(p.id)));
+      split = splitBalancedTeams(active.filter((p) => includedIds.has(p.id)), teamCount);
       renderBalanceTeams(app);
+    });
+  }
+
+  const copyBtn = app.querySelector('[data-action="copy-split"]');
+  const shareBtn = app.querySelector('[data-action="share-split"]');
+  const fallbackEl = app.querySelector('#split-fallback');
+  if (copyBtn) {
+    if (typeof navigator.share === 'function') shareBtn.hidden = false;
+
+    copyBtn.addEventListener('click', async () => {
+      await copyToClipboard(formatSplitForShare(split, team.name), {
+        onSuccess: () => { copyBtn.textContent = '✅ Copied!'; },
+        onFallback: () => {
+          fallbackEl.hidden = false;
+          fallbackEl.focus();
+          fallbackEl.select();
+          copyBtn.textContent = 'Select the text below and copy it';
+        },
+      });
+      setTimeout(() => { copyBtn.textContent = '📋 Copy to Share'; }, 2500);
+    });
+
+    shareBtn.addEventListener('click', async () => {
+      try {
+        await navigator.share({ title: `${team.name || 'Squad'} — Team Split`, text: formatSplitForShare(split, team.name) });
+      } catch {
+        // User cancelled the share sheet, or it's unsupported here — Copy above always works.
+      }
     });
   }
 }
@@ -116,12 +190,10 @@ function squadChipHtml(p, isIncluded) {
   `;
 }
 
-function teamsHtml({ team1, team2 }) {
+function teamsHtml(teams) {
   return `
-    <div class="section-title">Teams</div>
     <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
-      ${teamCardHtml('Team 1', team1)}
-      ${teamCardHtml('Team 2', team2)}
+      ${teams.map((team, i) => teamCardHtml(`Team ${i + 1}`, team)).join('')}
     </div>
   `;
 }

@@ -43,3 +43,12 @@ export function suggestFormatForAgeGroup(ageGroupText) {
   const age = Number(match[1]);
   return AGE_FORMATS.find((band) => age >= band.minAge && age <= band.maxAge) || null;
 }
+
+// U7–U9 play 4v4/5v5 mini-soccer, so a training squad is often split into
+// several small teams to play in parallel rather than rotated through subs
+// on one team — Balance Teams uses this to steer its default guidance.
+export function isJuniorAgeGroup(ageGroupText) {
+  const match = String(ageGroupText || '').match(/(\d{1,2})/);
+  if (!match) return false;
+  return Number(match[1]) <= 9;
+}
