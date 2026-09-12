@@ -37,9 +37,17 @@ export function renderSettings(app) {
           <input type="number" name="numPeriods" min="1" max="4" value="${team.numPeriods}" />
         </div>
       </div>
+      <div class="field">
+        <label>Minimum minutes on the pitch before a sub</label>
+        <input type="number" name="minStintMinutes" min="0" max="30" step="1" value="${team.minStintMinutes ?? 4}" />
+      </div>
       <label class="checkbox-row">
         <input type="checkbox" name="equalPlayingTimePolicy" ${team.equalPlayingTimePolicy ? 'checked' : ''} />
         Equal playing time policy (show fair-play suggestions during live games)
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" name="enableCards" ${team.enableCards ? 'checked' : ''} />
+        Log yellow/red cards (recommended for older age groups)
       </label>
       <button type="submit" class="btn block">Save Team Settings</button>
     </form>
@@ -84,7 +92,9 @@ export function renderSettings(app) {
       state.team.squadFormat = newFormat;
       state.team.periodMinutes = Number(fd.get('periodMinutes')) || state.team.periodMinutes;
       state.team.numPeriods = Number(fd.get('numPeriods')) || state.team.numPeriods;
+      state.team.minStintMinutes = fd.get('minStintMinutes') === '' ? 0 : Number(fd.get('minStintMinutes'));
       state.team.equalPlayingTimePolicy = fd.get('equalPlayingTimePolicy') === 'on';
+      state.team.enableCards = fd.get('enableCards') === 'on';
       if (formatChanged) {
         state.games.forEach((g) => {
           if (g.status !== 'completed') g.lineup = { slots: emptyLineupSlots(newFormat) };

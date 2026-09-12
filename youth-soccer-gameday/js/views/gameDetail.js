@@ -130,6 +130,9 @@ function renderSquadTab(container, game) {
   const present = active.filter((p) => presentIds.has(p.id));
   const absent = active.filter((p) => !presentIds.has(p.id));
 
+  if (game.status === 'live') return renderLiveSquadTab(container, game, active, present, absent);
+  if (game.status === 'completed') return renderCompletedSquadTab(container, present, absent);
+
   const formation = formationFor(team.squadFormat);
   const slots = game.lineup.slots;
   const assignedIds = new Set(Object.values(slots).filter(Boolean));
@@ -268,6 +271,67 @@ function renderSquadTab(container, game) {
   }
 }
 
+function renderLiveSquadTab(container, game, active, present, absent) {
+  container.innerHTML = `
+    <div class="banner info">Game is live. Mark a late arrival present and they'll show up on the bench in the live view right away — <a href="#/game/${game.id}/live">go to Live Game</a>.</div>
+    <div class="section-title" style="margin-top:0;">On the squad (${present.length})</div>
+    <div class="card">
+      <div class="chip-list">
+        ${present.length ? present.map((p) => `
+          <span class="bench-chip picking">
+            <span class="jersey">${p.jerseyNumber ?? '-'}</span>
+            ${escapeHtml(p.name)} ✅
+          </span>
+        `).join('') : '<span class="muted small">No one marked present yet.</span>'}
+      </div>
+    </div>
+
+    ${absent.length ? `
+      <div class="section-title">Not here yet (${absent.length})</div>
+      <div class="card">
+        <div class="chip-list">
+          ${absent.map((p) => `
+            <button type="button" class="bench-chip" data-attendance-add="${p.id}">
+              <span class="jersey">${p.jerseyNumber ?? '-'}</span>
+              ${escapeHtml(p.name)} — Add
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+  `;
+
+  container.querySelectorAll('[data-attendance-add]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const playerId = el.dataset.attendanceAdd;
+      update((state) => {
+        const g = state.games.find((x) => x.id === game.id);
+        g.presentIds = [...new Set([...(g.presentIds || []), playerId])];
+      });
+    });
+  });
+}
+
+function renderCompletedSquadTab(container, present, absent) {
+  container.innerHTML = `
+    <div class="section-title" style="margin-top:0;">Squad (${present.length})</div>
+    <div class="card">
+      <div class="chip-list">
+        ${present.length ? present.map((p) => `
+          <span class="bench-chip picking">
+            <span class="jersey">${p.jerseyNumber ?? '-'}</span>
+            ${escapeHtml(p.name)}
+          </span>
+        `).join('') : '<span class="muted small">No attendance was recorded for this game.</span>'}
+      </div>
+    </div>
+    ${absent.length ? `
+      <div class="section-title">Not there</div>
+      <div class="muted small">${absent.map((p) => escapeHtml(p.name)).join(', ')}</div>
+    ` : ''}
+  `;
+}
+
 function startGame(game) {
   const { players, team } = getState();
   const active = players.filter((p) => p.active);
@@ -282,6 +346,9 @@ function startGame(game) {
 
   const playingTime = {};
   active.forEach((p) => { playingTime[p.id] = 0; });
+  const stintStart = {};
+  outfieldIds.forEach((id) => { stintStart[id] = 0; });
+  if (gkId) stintStart[gkId] = 0;
 
   update((state) => {
     const g = state.games.find((x) => x.id === game.id);
@@ -296,6 +363,7 @@ function startGame(game) {
       gkByPeriod: { 1: gkId },
       sentOff: [],
       playingTime,
+      stintStart,
       subLog: [],
     };
   });

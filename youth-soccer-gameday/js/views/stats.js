@@ -1,14 +1,20 @@
 import { getState } from '../store.js';
 import { escapeHtml, formatDate, formatMinutes, formatPercent, matchTypeBadgeHtml, sortByDateTime } from '../util.js';
 
-const SORT_COLUMNS = [
-  { key: 'apps', label: 'Apps' },
-  { key: 'minutes', label: 'Min' },
-  { key: 'goals', label: 'G' },
-  { key: 'assists', label: 'A' },
-  { key: 'saves', label: 'Sv' },
-  { key: 'attendance', label: 'Att%' },
-];
+function sortColumns(team) {
+  const cols = [
+    { key: 'apps', label: 'Apps' },
+    { key: 'minutes', label: 'Min' },
+    { key: 'goals', label: 'G' },
+    { key: 'assists', label: 'A' },
+    { key: 'saves', label: 'Sv' },
+  ];
+  if (team.enableCards) {
+    cols.push({ key: 'yellows', label: 'Y' }, { key: 'reds', label: 'R' });
+  }
+  cols.push({ key: 'attendance', label: 'Att%' });
+  return cols;
+}
 
 let sortKey = 'goals';
 let sortDir = 'desc';
@@ -20,7 +26,7 @@ function computeLeaderRows() {
   const trackedForAttendance = games.filter((g) => (g.presentIds || []).length > 0);
 
   return active.map((p) => {
-    let minutes = 0, goals = 0, assists = 0, saves = 0, apps = 0;
+    let minutes = 0, goals = 0, assists = 0, saves = 0, apps = 0, yellows = 0, reds = 0;
     completed.forEach((g) => {
       const secs = g.live?.playingTime?.[p.id] || 0;
       if (secs > 0) apps += 1;
@@ -29,11 +35,13 @@ function computeLeaderRows() {
         if (e.type === 'goal-us' && e.scorerId === p.id) goals += 1;
         if (e.type === 'goal-us' && e.assistId === p.id) assists += 1;
         if (e.type === 'save' && e.playerId === p.id) saves += 1;
+        if (e.type === 'card' && e.playerId === p.id && e.cardType === 'yellow') yellows += 1;
+        if (e.type === 'card' && e.playerId === p.id && e.cardType === 'red') reds += 1;
       });
     });
     const presentCount = trackedForAttendance.filter((g) => (g.presentIds || []).includes(p.id)).length;
     const attendance = trackedForAttendance.length ? presentCount / trackedForAttendance.length : null;
-    return { player: p, apps, minutes, goals, assists, saves, attendance };
+    return { player: p, apps, minutes, goals, assists, saves, yellows, reds, attendance };
   });
 }
 
@@ -67,11 +75,12 @@ function headToHead() {
 }
 
 export function renderStats(app) {
-  const { games } = getState();
+  const { games, team } = getState();
   const completedCount = games.filter((g) => g.status === 'completed').length;
   const rows = sortRows(computeLeaderRows());
   const history = sortByDateTime(games).reverse();
   const h2h = headToHead();
+  const columns = sortColumns(team);
 
   app.innerHTML = `
     <div class="page-title">
@@ -87,7 +96,7 @@ export function renderStats(app) {
         <thead>
           <tr>
             <th style="text-align:left; padding:6px 8px;">Player</th>
-            ${SORT_COLUMNS.map((c) => `
+            ${columns.map((c) => `
               <th data-sort-col="${c.key}" style="text-align:right; padding:6px 8px; cursor:pointer; white-space:nowrap;">
                 ${c.label}${sortKey === c.key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''}
               </th>
@@ -95,7 +104,7 @@ export function renderStats(app) {
           </tr>
         </thead>
         <tbody>
-          ${rows.length ? rows.map(leaderRowHtml).join('') : `<tr><td colspan="${SORT_COLUMNS.length + 1}" class="empty">No players yet.</td></tr>`}
+          ${rows.length ? rows.map((r) => leaderRowHtml(r, columns)).join('') : `<tr><td colspan="${columns.length + 1}" class="empty">No players yet.</td></tr>`}
         </tbody>
       </table>
     </div>
@@ -119,20 +128,24 @@ export function renderStats(app) {
   });
 }
 
-function leaderRowHtml(row) {
-  const { player, apps, minutes, goals, assists, saves, attendance } = row;
+function leaderRowHtml(row, columns) {
+  const cellFor = {
+    apps: row.apps,
+    minutes: formatMinutes(row.minutes),
+    goals: row.goals,
+    assists: row.assists,
+    saves: row.saves,
+    yellows: row.yellows,
+    reds: row.reds,
+    attendance: row.attendance == null ? '—' : formatPercent(row.attendance),
+  };
   return `
     <tr style="border-top:1px solid var(--line);">
       <td style="padding:6px 8px;">
-        <div style="font-weight:600;">${escapeHtml(player.name)}</div>
-        <div class="muted" style="font-size:11px;">${player.position || ''}</div>
+        <div style="font-weight:600;">${escapeHtml(row.player.name)}</div>
+        <div class="muted" style="font-size:11px;">${row.player.position || ''}</div>
       </td>
-      <td style="text-align:right; padding:6px 8px;">${apps}</td>
-      <td style="text-align:right; padding:6px 8px;">${formatMinutes(minutes)}</td>
-      <td style="text-align:right; padding:6px 8px;">${goals}</td>
-      <td style="text-align:right; padding:6px 8px;">${assists}</td>
-      <td style="text-align:right; padding:6px 8px;">${saves}</td>
-      <td style="text-align:right; padding:6px 8px;">${attendance == null ? '—' : formatPercent(attendance)}</td>
+      ${columns.map((c) => `<td style="text-align:right; padding:6px 8px;">${cellFor[c.key]}</td>`).join('')}
     </tr>
   `;
 }

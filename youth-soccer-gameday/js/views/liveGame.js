@@ -47,6 +47,8 @@ export function renderLiveGame(app, gameId) {
       <a class="icon-btn" href="#/game/${game.id}" aria-label="Back to game">✕</a>
     </div>
 
+    ${!isCompleted ? `<a class="btn ghost sm" href="#/game/${game.id}/lineup" style="margin-bottom:12px; display:inline-flex;">👤 Squad tab — add a late arrival</a>` : ''}
+
     <div class="card timer-card">
       <div class="timer-display">${formatClock(live.elapsedSeconds)}</div>
       <div class="muted small">${isCompleted ? 'Full time' : periodLabel(team, live.currentPeriod) + ` · ${team.periodMinutes} min`}</div>
@@ -99,7 +101,7 @@ export function renderLiveGame(app, gameId) {
 
     <div class="section-title">On Field (${onFieldOutfield.length}${isCompleted ? '' : ` / ${targetOutfield} target`})</div>
     <div class="onfield-grid">
-      ${onFieldOutfield.length ? onFieldOutfield.map((p) => fieldCardHtml(p, live, isCompleted, true)).join('') : '<span class="muted small">No one is on the field.</span>'}
+      ${onFieldOutfield.length ? onFieldOutfield.map((p) => fieldCardHtml(p, live, isCompleted, true, team)).join('') : '<span class="muted small">No one is on the field.</span>'}
     </div>
 
     ${!isCompleted ? `
@@ -179,14 +181,19 @@ export function renderLiveGame(app, gameId) {
         const player = byId[playerId];
         if (!confirm(`Send off ${player?.name}? They'll be unavailable for the rest of the match.`)) return;
         update((state) => {
+          removePlayerFromPlay(state, gameId, playerId);
           const g = state.games.find((x) => x.id === gameId);
-          g.live.onField = g.live.onField.filter((id) => id !== playerId);
-          Object.keys(g.live.gkByPeriod).forEach((period) => {
-            if (g.live.gkByPeriod[period] === playerId) g.live.gkByPeriod[period] = null;
-          });
-          g.live.sentOff = [...new Set([...(g.live.sentOff || []), playerId])];
           g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'send-off', playerId, name: player?.name || '' });
         });
+        if (selectingInboundId === playerId) selectingInboundId = null;
+      });
+    });
+
+    app.querySelectorAll('[data-action="log-card"]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const playerId = btn.dataset.playerId;
+        openCardModal(gameId, byId[playerId]);
         if (selectingInboundId === playerId) selectingInboundId = null;
       });
     });
@@ -210,6 +217,8 @@ export function renderLiveGame(app, gameId) {
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
           g.live.onField.push(inId);
+          g.live.stintStart = g.live.stintStart || {};
+          g.live.stintStart[inId] = g.live.elapsedSeconds;
           g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'add', inId, inName });
         });
         selectingInboundId = null;
@@ -224,27 +233,32 @@ export function renderLiveGame(app, gameId) {
     });
   }
 
-  let handle = null;
-  if (!isCompleted && live.running) {
-    handle = setInterval(() => {
-      update((state) => {
-        const g = state.games.find((x) => x.id === gameId);
-        if (!g || !g.live || !g.live.running) return;
-        g.live.elapsedSeconds += 1;
-        const gk = g.live.gkByPeriod[g.live.currentPeriod];
-        g.live.onField.forEach((pid) => {
-          g.live.playingTime[pid] = (g.live.playingTime[pid] || 0) + 1;
-        });
-        if (gk) g.live.playingTime[gk] = (g.live.playingTime[gk] || 0) + 1;
-      });
-    }, 1000);
-  }
+  return undefined;
+}
 
-  return () => { if (handle) clearInterval(handle); };
+function removePlayerFromPlay(state, gameId, playerId) {
+  const g = state.games.find((x) => x.id === gameId);
+  g.live.onField = g.live.onField.filter((id) => id !== playerId);
+  Object.keys(g.live.gkByPeriod).forEach((period) => {
+    if (g.live.gkByPeriod[period] === playerId) g.live.gkByPeriod[period] = null;
+  });
+  g.live.sentOff = [...new Set([...(g.live.sentOff || []), playerId])];
+}
+
+function stintSeconds(live, playerId) {
+  const startedAt = (live.stintStart || {})[playerId] ?? 0;
+  return Math.max(0, live.elapsedSeconds - startedAt);
 }
 
 function applySub(gameId, inId, outId, byId, team) {
   const game = findGame(gameId);
+  const minStintSeconds = (team.minStintMinutes ?? 4) * 60;
+  const outStint = stintSeconds(game.live, outId);
+  if (minStintSeconds > 0 && outStint < minStintSeconds) {
+    const msg = `${byId[outId]?.name} has only been on for ${formatClock(outStint)} this stint (minimum ${team.minStintMinutes ?? 4} min). Sub anyway?`;
+    if (!confirm(msg)) return;
+  }
+
   const currentBench = new Set(
     getState().players.filter((p) => p.active && (game.presentIds || []).includes(p.id)
       && !(game.live.sentOff || []).includes(p.id) && !game.live.onField.includes(p.id)
@@ -265,6 +279,8 @@ function applySub(gameId, inId, outId, byId, team) {
     const g = state.games.find((x) => x.id === gameId);
     g.live.onField = g.live.onField.filter((id) => id !== outId);
     g.live.onField.push(inId);
+    g.live.stintStart = g.live.stintStart || {};
+    g.live.stintStart[inId] = g.live.elapsedSeconds;
     g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'sub', inId, inName, outId, outName });
   });
   selectingInboundId = null;
@@ -272,14 +288,19 @@ function applySub(gameId, inId, outId, byId, team) {
 
 function goalkeeperCardHtml(team, live, currentGk, isCompleted) {
   const periods = Array.from({ length: team.numPeriods }, (_, i) => i + 1);
+  const stint = currentGk ? stintSeconds(live, currentGk.id) : null;
   return `
     <div class="card">
       <div class="spread">
         <div>
           <div class="muted small">Goalkeeper — ${periodLabel(team, live.currentPeriod)}</div>
           <div style="font-weight:700; font-size:15px;">${currentGk ? escapeHtml(currentGk.name) : '⚠️ Not set'}</div>
+          ${currentGk && !isCompleted ? `<div class="muted small">Stint: ${formatClock(stint)}</div>` : ''}
         </div>
-        ${!isCompleted ? `<button class="btn sm ${currentGk ? 'ghost' : ''}" data-action="${currentGk ? 'change-gk' : 'assign-gk'}">${currentGk ? 'Change' : 'Assign'}</button>` : ''}
+        <div class="row">
+          ${!isCompleted && currentGk && team.enableCards ? `<button class="btn danger sm" data-action="log-card" data-player-id="${currentGk.id}">Card</button>` : ''}
+          ${!isCompleted ? `<button class="btn sm ${currentGk ? 'ghost' : ''}" data-action="${currentGk ? 'change-gk' : 'assign-gk'}">${currentGk ? 'Change' : 'Assign'}</button>` : ''}
+        </div>
       </div>
       ${periods.length > 1 ? `<div class="muted small" style="margin-top:8px;">${periods.map((n) => `${periodLabel(team, n)}: ${live.gkByPeriod[n] ? escapeHtml((getState().players.find((p) => p.id === live.gkByPeriod[n]) || {}).name || '?') : '—'}`).join(' · ')}</div>` : ''}
     </div>
@@ -290,9 +311,15 @@ function fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) {
   if (!team.equalPlayingTimePolicy) return '';
   if (!bench.length || !onFieldOutfield.length) return '';
 
+  const minStintSeconds = (team.minStintMinutes ?? 4) * 60;
+  const restEligible = onFieldOutfield.filter((p) => stintSeconds(live, p.id) >= minStintSeconds);
+  if (!restEligible.length) {
+    return `<div class="banner info">⚖️ Everyone on the pitch is still within their minimum ${team.minStintMinutes ?? 4}-min stint.</div>`;
+  }
+
   const time = (p) => live.playingTime[p.id] || 0;
   const leastOnBench = [...bench].sort((a, b) => time(a) - time(b))[0];
-  const mostOnField = [...onFieldOutfield].sort((a, b) => time(b) - time(a))[0];
+  const mostOnField = [...restEligible].sort((a, b) => time(b) - time(a))[0];
   const gap = time(mostOnField) - time(leastOnBench);
 
   if (gap <= 60) {
@@ -309,9 +336,17 @@ function fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) {
   `;
 }
 
-function fieldCardHtml(p, live, isCompleted, isOnField) {
+function fieldCardHtml(p, live, isCompleted, isOnField, team) {
   const seconds = live.playingTime[p.id] || 0;
   const clickable = !isCompleted && selectingInboundId;
+  const stint = isOnField ? stintSeconds(live, p.id) : null;
+  const minStintSeconds = (team?.minStintMinutes ?? 4) * 60;
+  const stintLine = isOnField
+    ? `<div class="pt">${stint < minStintSeconds ? '🔒' : ''} Stint: ${formatClock(stint)}</div>`
+    : '';
+  const cardAction = team?.enableCards
+    ? `<button type="button" class="btn danger sm" style="margin-top:6px;" data-action="log-card" data-player-id="${p.id}">Card / Remove</button>`
+    : `<button type="button" class="btn danger sm" style="margin-top:6px;" data-action="send-off" data-player-id="${p.id}">Send Off</button>`;
   return `
     <div class="field-card ${clickable ? 'subbing' : ''}" ${clickable ? `data-onfield-player="${p.id}" style="cursor:pointer;"` : ''}>
       <div class="row spread">
@@ -320,7 +355,8 @@ function fieldCardHtml(p, live, isCompleted, isOnField) {
       </div>
       <div style="font-weight:700; font-size:13.5px; margin-top:4px;">${escapeHtml(p.name)}</div>
       <div class="pt">⏱ ${formatClock(seconds)}</div>
-      ${!isCompleted ? `<button type="button" class="btn danger sm" style="margin-top:6px;" data-action="send-off" data-player-id="${p.id}">Send Off</button>` : ''}
+      ${stintLine}
+      ${!isCompleted ? cardAction : ''}
     </div>
   `;
 }
@@ -368,7 +404,7 @@ const EVENT_ICONS = {
 };
 
 function eventRowHtml(entry, team) {
-  const icon = EVENT_ICONS[entry.type] || '•';
+  const icon = entry.type === 'card' ? (entry.cardType === 'red' ? '🟥' : '🟨') : (EVENT_ICONS[entry.type] || '•');
   let label = '';
   switch (entry.type) {
     case 'goal-us':
@@ -388,6 +424,9 @@ function eventRowHtml(entry, team) {
       break;
     case 'send-off':
       label = `Sent off: ${escapeHtml(entry.name)}`;
+      break;
+    case 'card':
+      label = `${entry.cardType === 'red' ? 'Red' : 'Yellow'} card: ${escapeHtml(entry.name)}`;
       break;
     case 'period-start':
       label = `${periodLabel(team, entry.period)} started`;
@@ -502,6 +541,46 @@ function openSaveModal(gameId, pool, currentGkId, elapsedSeconds) {
   });
 }
 
+function openCardModal(gameId, player) {
+  if (!player) return;
+  openModal({
+    title: `Card — ${escapeHtml(player.name)}`,
+    bodyHtml: `
+      <form id="card-form" class="stack">
+        <div class="field">
+          <label>What happened?</label>
+          <select name="kind">
+            <option value="yellow">🟨 Yellow card (logged, stays on)</option>
+            <option value="red">🟥 Red card (logged, removed from the match)</option>
+            <option value="other">Removed — other reason (injury, etc.), no card</option>
+          </select>
+        </div>
+        <button type="submit" class="btn block">Log</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#card-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const kind = new FormData(e.target).get('kind');
+        update((state) => {
+          const g = state.games.find((x) => x.id === gameId);
+          if (kind === 'yellow') {
+            g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'card', cardType: 'yellow', playerId: player.id, name: player.name });
+            return;
+          }
+          removePlayerFromPlay(state, gameId, player.id);
+          if (kind === 'red') {
+            g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'card', cardType: 'red', playerId: player.id, name: player.name });
+          } else {
+            g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'send-off', playerId: player.id, name: player.name });
+          }
+        });
+        closeModal();
+      });
+    },
+  });
+}
+
 function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advancePeriod) {
   const game = findGame(gameId);
   const eligible = active.filter((p) => presentIds.has(p.id) && !sentOffIds.has(p.id));
@@ -530,6 +609,18 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
         if (!newGkId) return;
         const newGk = active.find((p) => p.id === newGkId);
 
+        if (!advancePeriod) {
+          const prevGkId = game.live.gkByPeriod[game.live.currentPeriod] || null;
+          if (prevGkId && prevGkId !== newGkId) {
+            const minStintSeconds = (getState().team.minStintMinutes ?? 4) * 60;
+            const prevStint = stintSeconds(game.live, prevGkId);
+            if (minStintSeconds > 0 && prevStint < minStintSeconds) {
+              const prevName = active.find((p) => p.id === prevGkId)?.name;
+              if (!confirm(`${prevName} has only kept goal for ${formatClock(prevStint)} this stint (minimum ${getState().team.minStintMinutes ?? 4} min). Change anyway?`)) return;
+            }
+          }
+        }
+
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
           const prevGkId = g.live.gkByPeriod[g.live.currentPeriod] || null;
@@ -542,6 +633,8 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
           if (newGkId !== prevGkId) {
             g.live.onField = g.live.onField.filter((id) => id !== newGkId);
             g.live.gkByPeriod[targetPeriod] = newGkId;
+            g.live.stintStart = g.live.stintStart || {};
+            g.live.stintStart[newGkId] = g.live.elapsedSeconds;
             g.live.subLog.push({
               atSeconds: g.live.elapsedSeconds, type: 'gk-change', period: targetPeriod,
               inId: newGkId, inName: newGk?.name || '', outId: prevGkId, outName: prevGk?.name || '',

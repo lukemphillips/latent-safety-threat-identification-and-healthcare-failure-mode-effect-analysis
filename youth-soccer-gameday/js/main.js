@@ -1,4 +1,4 @@
-import { getState, subscribe } from './store.js';
+import { getState, update, subscribe } from './store.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderRoster } from './views/roster.js';
 import { renderSchedule } from './views/schedule.js';
@@ -72,3 +72,21 @@ window.addEventListener('DOMContentLoaded', route);
 subscribe(route);
 
 if (document.readyState !== 'loading') route();
+
+// Ticks any running live match once a second, regardless of which screen is
+// showing — so the clock (and playing time) keeps moving while the coach
+// steps away to the Squad tab to add a late arrival, check the roster, etc.
+setInterval(() => {
+  const liveGame = getState().games.find((g) => g.status === 'live' && g.live && g.live.running);
+  if (!liveGame) return;
+  update((state) => {
+    const g = state.games.find((x) => x.id === liveGame.id);
+    if (!g || !g.live || !g.live.running) return;
+    g.live.elapsedSeconds += 1;
+    const gk = g.live.gkByPeriod[g.live.currentPeriod];
+    g.live.onField.forEach((pid) => {
+      g.live.playingTime[pid] = (g.live.playingTime[pid] || 0) + 1;
+    });
+    if (gk) g.live.playingTime[gk] = (g.live.playingTime[gk] || 0) + 1;
+  });
+}, 1000);

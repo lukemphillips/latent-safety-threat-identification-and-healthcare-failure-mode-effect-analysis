@@ -9,6 +9,8 @@ export function seedTeam() {
     periodMinutes: 25,
     numPeriods: 2,
     equalPlayingTimePolicy: true,
+    minStintMinutes: 4,
+    enableCards: false,
     rules: [],
   };
 }

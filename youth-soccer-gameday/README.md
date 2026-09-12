@@ -38,30 +38,43 @@ see everything working immediately. Reset or clear that data any time from
 - **Squad tab** — fast, on-the-fly match-day squad building: tap players
   present today (or "Mark All Present" in one tap), then place them on a
   pitch formation (5/7/9/11-a-side based on your team's settings). The GK
-  spot sets your 1st-half keeper.
+  spot sets your 1st-half keeper. Once the match is live, this tab switches
+  to a quick "add a late arrival" view — mark them present and they show up
+  on the live bench immediately, no need to touch the pitch again.
 - **Live game day**:
-  - Running match clock with period/half tracking (labelled Half, Quarter,
-    or Period depending on your settings).
+  - A match clock that keeps running in real time no matter what screen
+    you're on — step away to the Squad tab, Roster, wherever, and it's
+    still accurate when you come back.
+  - Rolling substitutions: unlimited subs, paired ("who's on, then who's
+    off") with an "add to pitch" option when there's a spare spot.
+  - Minimum-stint protection (default 4 min, adjustable in Settings) — subbing
+    a player off before they've had a fair block of time on the pitch shows
+    a warning naming them and how long they've actually played; you can
+    always override it.
   - Goals logged with scorer + optional assist; opponent goals logged with
     one tap.
   - GK saves logged per player (or "open play"), with an editable minute.
-  - Paired substitutions — tap the player coming on, then the player coming
-    off — plus an "add to pitch" option when there's a spare spot.
-  - Send-off tracking (player is removed from selection for the rest of the
-    match).
+  - Send-off (and, if your team logs cards, yellow/red cards) — a red card
+    or send-off removes the player from selection for the rest of the match.
   - The goalkeeper is selected per period and kept out of the normal
-    substitution rotation; confirm or change it when a new period starts.
+    substitution rotation, with their own stint tracked separately; confirm
+    or change who's in goal at any point, or when a new period starts.
+    Goalkeeping time counts toward that player's overall playing time.
   - Fair-play suggestions (optional, see Settings) that flag which bench
-    player has the least playing time and which on-field player has the
-    most — a nudge, not an enforced rule.
+    player has the least playing time and which eligible on-field player has
+    the most (respecting the minimum-stint rule) — a nudge, not an enforced
+    rule.
   - Squad rules — configure pairs of players who should never both be on
     the bench at once (e.g. your only two keeper-capable defenders); the
     app warns (but never blocks) a substitution that would break this.
+- **Cards** — an opt-in Settings toggle (aimed at older age groups) that adds
+  yellow/red card logging alongside send-offs; card counts show up in Stats.
 - **Stats** — a sortable leaderboard (appearances, minutes, goals, assists,
-  saves, attendance %), full match history, and head-to-head records per
-  opponent.
-- **Settings** — team name, age group, squad format, match length, the
-  equal-playing-time toggle, and squad rules.
+  saves, cards when enabled, attendance %), full match history, and
+  head-to-head records per opponent.
+- **Settings** — team name, age group, squad format, match length, minimum
+  stint length, the equal-playing-time toggle, cards toggle, and squad
+  rules.
 
 ## Project structure
 
@@ -92,7 +105,11 @@ js/
   If you want coaches/parents to share live data, the next step is swapping
   `store.js` for a real backend (Supabase is a natural fit: Postgres +
   auth + realtime).
-- The live match clock only runs while the Live Game screen is open (it's a
-  manual stopwatch, not a wall-clock timer), so pause/resume as needed.
-- Fair-play suggestions and squad rules are both advisory only — the coach
-  can always override them.
+- The clock runs as long as the app is open in your browser (any tab of it),
+  driven by a one-second ticker in `main.js` rather than the Live Game view
+  itself — so it survives you navigating elsewhere. It does *not* survive
+  closing the browser tab entirely; reopening picks up wherever the clock
+  was left.
+- Fair-play suggestions, minimum-stint warnings, and squad rules are all
+  advisory only — the coach can always override them. Subs are rolling
+  (no limit on how many you make).
