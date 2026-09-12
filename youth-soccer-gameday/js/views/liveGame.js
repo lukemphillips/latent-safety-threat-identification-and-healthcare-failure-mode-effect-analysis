@@ -377,8 +377,9 @@ function fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) {
 
 // A forward-looking companion to the fair-play banner above: instead of
 // only firing when a swap is actually due, this previews the next couple
-// of players approaching that point so the coach can tell them to warm up
-// before the whistle-moment suggestion appears.
+// of specific swaps approaching that point — naming who's coming on as
+// well as who's coming off — so the coach can tell both players directly
+// to get ready, rather than just knowing someone needs to come off.
 function upcomingSubsHtml(team, live, bench, onFieldOutfield) {
   if (!team.equalPlayingTimePolicy) return '';
   if (!bench.length || !onFieldOutfield.length) return '';
@@ -391,9 +392,12 @@ function upcomingSubsHtml(team, live, bench, onFieldOutfield) {
     <div class="card" style="margin-bottom:10px;">
       <div class="muted small" style="margin-bottom:8px;">🔜 Coming up — give these players a heads-up</div>
       <div class="row" style="flex-wrap:wrap; gap:6px;">
-        ${upcoming.map(({ id, dueInSeconds }) => `
-          <span class="badge ${dueInSeconds <= 0 ? 'live' : 'pending'}">${escapeHtml(byIdLocal[id]?.name || '')} · ${dueInSeconds <= 0 ? 'due now' : 'in ~' + formatClock(dueInSeconds)}</span>
-        `).join('')}
+        ${upcoming.map(({ outId, inId, dueInSeconds }) => {
+          const outName = escapeHtml(byIdLocal[outId]?.name || '');
+          const inName = inId ? escapeHtml(byIdLocal[inId]?.name || '') : null;
+          const label = inName ? `${inName} on for ${outName}` : outName;
+          return `<span class="badge ${dueInSeconds <= 0 ? 'live' : 'pending'}">${label} · ${dueInSeconds <= 0 ? 'due now' : 'in ~' + formatClock(dueInSeconds)}</span>`;
+        }).join('')}
       </div>
     </div>
   `;

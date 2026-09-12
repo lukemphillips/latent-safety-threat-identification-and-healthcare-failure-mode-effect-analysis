@@ -146,11 +146,14 @@ export function isSubDue(team, live, benchIds, onFieldOutfieldIds) {
 }
 
 // A forward-looking preview of isSubDue(), for a "coming up" bar so a coach
-// can give a player a heads-up before the swap is actually due (rather than
+// can give players a heads-up before a swap is actually due (rather than
 // only finding out the moment it fires). For each on-field outfield player,
 // projects how many seconds until they'd trip the same ">60s ahead of the
 // least-rested bench player" threshold isSubDue uses, assuming nobody else
-// gets subbed in the meantime — a running estimate, not a promise.
+// gets subbed in the meantime — a running estimate, not a promise. Also
+// pairs each one with a specific bench player to bring on (the most-rested
+// bench players go to the soonest-due field players), so the bar can name
+// an actual swap — "Bob on for Alice" — rather than just who's tiring.
 export function upcomingSubs(team, live, benchIds, onFieldOutfieldIds, count = 3) {
   if (!team.equalPlayingTimePolicy) return [];
   if (!benchIds.length || !onFieldOutfieldIds.length) return [];
@@ -160,18 +163,21 @@ export function upcomingSubs(team, live, benchIds, onFieldOutfieldIds, count = 3
   const timeOf = (id) => live.playingTime[id] || 0;
   const leastBenchTime = Math.min(...benchIds.map(timeOf));
 
-  return onFieldOutfieldIds
-    .map((id) => {
+  const dueList = onFieldOutfieldIds
+    .map((outId) => {
       // Seconds until this player clears the minimum-stint gate...
-      const untilEligible = Math.max(0, minStintSeconds - stintOf(id));
+      const untilEligible = Math.max(0, minStintSeconds - stintOf(outId));
       // ...plus, if the fair-play gap wouldn't yet be past 60s by then,
       // however many more seconds of play (at 1s of gap per 1s on the
       // pitch, since the bench player they'd be compared against isn't
       // gaining any) it'd take to get there.
-      const gapAtEligible = (timeOf(id) - leastBenchTime) + untilEligible;
+      const gapAtEligible = (timeOf(outId) - leastBenchTime) + untilEligible;
       const dueInSeconds = untilEligible + Math.max(0, 61 - gapAtEligible);
-      return { id, dueInSeconds };
+      return { outId, dueInSeconds };
     })
     .sort((a, b) => a.dueInSeconds - b.dueInSeconds)
     .slice(0, count);
+
+  const restedBench = [...benchIds].sort((a, b) => timeOf(a) - timeOf(b));
+  return dueList.map((entry, i) => ({ ...entry, inId: restedBench[i] ?? null }));
 }

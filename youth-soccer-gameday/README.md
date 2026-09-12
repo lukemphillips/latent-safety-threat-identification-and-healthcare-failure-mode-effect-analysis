@@ -160,10 +160,11 @@ see everything working immediately. Reset or clear that data any time from
     tab, and only once per time it becomes due rather than repeating every
     second. Vibration only works on browsers that support it (notably not
     iOS Safari); the on-screen banner is always there either way.
-  - A "🔜 Coming up" bar previews the next couple of players approaching a
-    fair-play sub — not just the one that's due right now — so you can tell
-    a player to get ready before the swap actually comes up. It's a forward
-    projection off the same rule as the suggestion above (updates live as
+  - A "🔜 Coming up" bar previews the next couple of specific swaps
+    approaching — naming who's coming on as well as who's coming off (e.g.
+    "Bob on for Alice"), not just the one that's due right now — so you can
+    tell both players to get ready before the swap actually comes up. It's
+    a forward projection off the same rule as the suggestion above (updates live as
     the clock ticks), so it stays consistent with what actually fires.
   - Squad rules — configure pairs of players who should never both be on
     the bench at once (e.g. your only two keeper-capable defenders); the
