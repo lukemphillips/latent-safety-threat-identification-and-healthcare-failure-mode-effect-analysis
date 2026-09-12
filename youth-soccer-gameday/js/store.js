@@ -165,6 +165,11 @@ export function mergeBackup(data) {
 
   persist();
   listeners.forEach((fn) => fn(state));
+  // A merge combines two coaches' otherwise-separate work into something
+  // that doesn't exist anywhere else yet — snapshot it immediately rather
+  // than leaving it unprotected until the next match end or a manual
+  // Backup Team Data tap.
+  if (playersAdded || gamesAdded || gamesUpdated || awardsAdded) saveAutoBackup();
   return { playersAdded, gamesAdded, gamesUpdated, awardsAdded };
 }
 

@@ -257,7 +257,11 @@ see everything working immediately. Reset or clear that data any time from
     live or scheduled one) rather than picking either one blindly. This is
     a periodic, bring-it-together-after-the-fact join, not live sync —
     there's no server in the middle, so nothing updates on the other
-    coach's phone until someone shares a file again.
+    coach's phone until someone shares a file again. A successful merge
+    (one that actually added or updated something) immediately snapshots
+    an automatic on-device backup of the combined result, same as a match
+    ending would — the merged data is protected right away rather than
+    waiting on the next match or a manual Backup Team Data tap.
 
 ## Age-group formats (DDSL / FAI Player Development Plan)
 
