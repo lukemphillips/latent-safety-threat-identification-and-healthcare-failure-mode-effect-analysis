@@ -1,6 +1,7 @@
 import { getState, update, findPlayer } from '../store.js';
 import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions } from '../util.js';
 import { openModal, closeModal } from '../modal.js';
+import { parseRosterFile } from '../importRoster.js';
 
 const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'];
 const STREAMS = ['A', 'B', 'C', 'D'];
@@ -18,8 +19,9 @@ export function renderRoster(app) {
         <h1>Roster</h1>
         <div class="sub">${players.filter((p) => p.active).length} active players</div>
       </div>
-      <div class="row">
+      <div class="row" style="flex-wrap:wrap;">
         <a class="btn ghost sm" href="#/balance">🎲 Balance</a>
+        <button class="btn ghost sm" data-action="import-roster">📥 Import</button>
         <button class="btn" data-action="add-player">+ Add</button>
       </div>
     </div>
@@ -29,6 +31,7 @@ export function renderRoster(app) {
   `;
 
   app.querySelector('[data-action="add-player"]').addEventListener('click', () => openPlayerForm());
+  app.querySelector('[data-action="import-roster"]').addEventListener('click', () => openImportModal());
   app.querySelectorAll('[data-action="edit-player"]').forEach((el) => {
     el.addEventListener('click', () => openPlayerForm(el.dataset.id));
   });
@@ -161,4 +164,112 @@ function openPlayerForm(playerId) {
     },
   });
   return dlg;
+}
+
+function openImportModal() {
+  openModal({
+    title: 'Import Roster',
+    bodyHtml: `
+      <div class="stack">
+        <p class="muted small mt-0">Import from a .csv or .xlsx file. The first row should have headers — we'll match common ones like Name, Jersey #, Position(s), Stream, Guardian Name, Guardian Phone. Only "Name" is required.</p>
+        <div class="field">
+          <label>File</label>
+          <input type="file" name="file" accept=".csv,.xlsx,.xls" />
+        </div>
+        <div id="import-status" class="muted small"></div>
+        <div id="import-preview"></div>
+      </div>
+    `,
+    onMount: (modalEl) => {
+      const fileInput = modalEl.querySelector('input[name="file"]');
+      const statusEl = modalEl.querySelector('#import-status');
+      const previewEl = modalEl.querySelector('#import-preview');
+      let parsedRows = [];
+
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files[0];
+        previewEl.innerHTML = '';
+        if (!file) return;
+        statusEl.textContent = 'Reading file…';
+        const { rows, error } = await parseRosterFile(file);
+        if (error) {
+          statusEl.textContent = error;
+          parsedRows = [];
+          return;
+        }
+        parsedRows = rows;
+        const validCount = rows.filter((r) => r.name).length;
+        const skipped = rows.length - validCount;
+        statusEl.textContent = `Found ${validCount} player${validCount === 1 ? '' : 's'}` +
+          (skipped ? ` (${skipped} row${skipped === 1 ? '' : 's'} skipped — no name).` : '.');
+        renderPreview();
+      });
+
+      function renderPreview() {
+        const { players } = getState();
+        const existingNames = new Set(players.map((p) => p.name.trim().toLowerCase()));
+        const validRows = parsedRows.filter((r) => r.name);
+        if (!validRows.length) {
+          previewEl.innerHTML = '';
+          return;
+        }
+        previewEl.innerHTML = `
+          <div style="overflow-x:auto; margin-top:10px;">
+            <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+              <thead>
+                <tr>
+                  <th style="padding:5px 6px;"></th>
+                  <th style="text-align:left; padding:5px 6px;">Name</th>
+                  <th style="text-align:left; padding:5px 6px;">#</th>
+                  <th style="text-align:left; padding:5px 6px;">Position</th>
+                  <th style="text-align:left; padding:5px 6px;">Stream</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${validRows.map((r, i) => {
+                  const isDup = existingNames.has(r.name.trim().toLowerCase());
+                  const unrecognizedPos = r.positionsRaw && !r.positions.length;
+                  const unrecognizedStream = r.streamRaw && !r.skillStream;
+                  return `
+                    <tr style="border-top:1px solid var(--line);">
+                      <td style="padding:5px 6px;"><input type="checkbox" data-import-row="${i}" ${isDup ? '' : 'checked'} /></td>
+                      <td style="padding:5px 6px;">${escapeHtml(r.name)}${isDup ? ' <span class="muted">(already on roster)</span>' : ''}</td>
+                      <td style="padding:5px 6px;">${r.jerseyNumber ?? ''}</td>
+                      <td style="padding:5px 6px;">${escapeHtml(r.positions.join('/'))}${unrecognizedPos ? ` <span class="muted">(unrecognized: ${escapeHtml(r.positionsRaw)})</span>` : ''}</td>
+                      <td style="padding:5px 6px;">${r.skillStream ?? ''}${unrecognizedStream ? ` <span class="muted">(unrecognized: ${escapeHtml(r.streamRaw)})</span>` : ''}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" class="btn block" data-action="commit-import" style="margin-top:12px;">Import Selected Players</button>
+        `;
+
+        previewEl.querySelector('[data-action="commit-import"]').addEventListener('click', () => {
+          const checked = [...previewEl.querySelectorAll('[data-import-row]:checked')]
+            .map((el) => validRows[Number(el.dataset.importRow)]);
+          if (!checked.length) {
+            alert('No players selected to import.');
+            return;
+          }
+          update((state) => {
+            checked.forEach((r) => {
+              state.players.push({
+                id: uid(),
+                name: r.name,
+                jerseyNumber: r.jerseyNumber,
+                positions: r.positions,
+                skillStream: r.skillStream,
+                guardianName: r.guardianName,
+                guardianPhone: r.guardianPhone,
+                active: true,
+              });
+            });
+          });
+          closeModal();
+        });
+      }
+    },
+  });
 }

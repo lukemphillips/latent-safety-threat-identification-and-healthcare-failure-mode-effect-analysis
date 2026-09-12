@@ -31,7 +31,15 @@ see everything working immediately. Reset or clear that data any time from
 - **Roster** — players with jersey number, one or more preferred positions
   (a versatile player can be both DEF and MID, say), guardian contact,
   active/inactive status, and a streaming classification (A/B/C/D) you
-  assign per player to keep team-building fair.
+  assign per player to keep team-building fair. **Import** lets you bulk-add
+  players from a .csv or .xlsx file instead of typing each one in — the
+  first row should be headers, and common variants (Name/Player, Jersey/
+  Number/#, Position/Pos, Stream/Group/Classification, Guardian/Parent,
+  Phone/Mobile/Contact) are matched automatically. Only "Name" is required.
+  It previews every row before importing, skips rows with no name, flags
+  values it doesn't recognize (an odd position or stream) instead of
+  guessing, and defaults to skipping any name that's already on the roster
+  (you can still check it to import anyway).
 - **Balance Teams** — pick who's involved (defaults to the whole active
   roster), then randomly split them into two teams. The split balances each
   streaming classification separately (so it's not just an even head count
@@ -120,6 +128,7 @@ js/
   seed.js          sample data
   formations.js    pitch formation templates per squad size
   ageFormats.js    DDSL/FAI age-group format reference + suggestion logic
+  importRoster.js  CSV/Excel parsing + header-alias mapping for bulk import
   rules.js         "keep at least one on the pitch" pair-rule checking
   modal.js         small <dialog>-based modal helper
   util.js          formatting/id helpers
@@ -148,3 +157,11 @@ js/
 - Fair-play suggestions, minimum-stint warnings, and squad rules are all
   advisory only — the coach can always override them. Subs are rolling
   (no limit on how many you make).
+- Roster import: CSV parsing is hand-rolled with no dependency. Excel
+  (.xlsx/.xls) parsing lazy-loads [SheetJS](https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js)
+  from cdnjs the first time you pick an Excel file, so it needs an internet
+  connection at that moment (CSV never does). This session's network
+  policy blocked cdnjs from the sandbox, so the Excel path is implemented
+  against SheetJS's well-established API but wasn't executable here to
+  verify live — it's the CSV path that's been thoroughly tested. If an
+  .xlsx import doesn't behave, try re-saving as CSV, or tell me and I'll fix it.
