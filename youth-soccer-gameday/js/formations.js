@@ -75,3 +75,16 @@ export function emptyLineupSlots(squadFormat) {
 export function outfieldTargetCount(squadFormat) {
   return formationFor(squadFormat).slots.filter((s) => s.role !== 'GK').length;
 }
+
+// Carries a lineup over to a new squad format without losing anyone: slot
+// ids that exist in both formations (e.g. gk, d1, m1) keep their player;
+// anyone whose slot doesn't exist in the new formation (e.g. m3 when
+// dropping from 7-a-side to 5-a-side) simply falls back to the bench
+// instead of being silently reset or left stranded in an orphaned slot.
+export function remapLineupToFormat(oldSlots, squadFormat) {
+  const newSlots = emptyLineupSlots(squadFormat);
+  Object.keys(newSlots).forEach((slotId) => {
+    if (oldSlots && oldSlots[slotId]) newSlots[slotId] = oldSlots[slotId];
+  });
+  return newSlots;
+}

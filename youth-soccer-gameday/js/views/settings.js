@@ -1,5 +1,5 @@
 import { getState, update, resetToSample, clearAllData, findPlayer } from '../store.js';
-import { FORMATIONS, emptyLineupSlots } from '../formations.js';
+import { FORMATIONS, remapLineupToFormat } from '../formations.js';
 import { escapeHtml, uid, copyToClipboard } from '../util.js';
 import { openModal, closeModal } from '../modal.js';
 import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
@@ -134,29 +134,35 @@ export function renderSettings(app) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const newFormat = Number(fd.get('squadFormat'));
-    const formatChanged = newFormat !== team.squadFormat;
+    const formatRequested = newFormat !== team.squadFormat;
 
-    if (formatChanged) {
-      const hasLineups = getState().games.some(
-        (g) => g.status !== 'completed' && Object.values(g.lineup?.slots || {}).some(Boolean)
-      );
-      if (hasLineups && !confirm('Changing the squad format will reset lineups for upcoming games. Continue?')) {
-        return;
-      }
+    // A live game's on-field target count reads the format live, but the
+    // players actually out there don't move themselves — changing format
+    // mid-match would desync "on field" from "target" with no sane fix.
+    // Block just this field; everything else in the form still saves below.
+    const liveGameExists = getState().games.some((g) => g.status === 'live');
+    if (formatRequested && liveGameExists) {
+      alert("Can't change the squad format while a match is live — finish or end that match first. Your other changes here will still be saved.");
     }
+    const applyFormat = formatRequested && !liveGameExists;
 
     update((state) => {
       state.team.name = (fd.get('name') || '').trim() || state.team.name;
       state.team.ageGroup = (fd.get('ageGroup') || '').trim();
-      state.team.squadFormat = newFormat;
+      if (applyFormat) state.team.squadFormat = newFormat;
       state.team.periodMinutes = Number(fd.get('periodMinutes')) || state.team.periodMinutes;
       state.team.numPeriods = Number(fd.get('numPeriods')) || state.team.numPeriods;
       state.team.minStintMinutes = fd.get('minStintMinutes') === '' ? 0 : Number(fd.get('minStintMinutes'));
       state.team.equalPlayingTimePolicy = fd.get('equalPlayingTimePolicy') === 'on';
       state.team.enableCards = fd.get('enableCards') === 'on';
-      if (formatChanged) {
+      if (applyFormat) {
+        // Reshapes each lineup to the new formation instead of wiping it —
+        // slots the new formation still has (gk, d1, m1, ...) keep their
+        // player; anyone whose slot no longer exists just moves to the
+        // bench, so nobody is silently dropped or stranded in a slot the
+        // pitch no longer renders.
         state.games.forEach((g) => {
-          if (g.status !== 'completed') g.lineup = { slots: emptyLineupSlots(newFormat) };
+          if (g.status !== 'completed') g.lineup = { slots: remapLineupToFormat(g.lineup?.slots, newFormat) };
         });
       }
     });

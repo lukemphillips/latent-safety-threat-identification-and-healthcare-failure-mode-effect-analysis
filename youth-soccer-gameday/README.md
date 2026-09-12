@@ -133,7 +133,13 @@ see everything working immediately. Reset or clear that data any time from
   stint length, the equal-playing-time toggle, cards toggle, squad rules,
   and a collapsible age-group format guide (see below) with a one-tap
   "Suggest format" button that reads your age group and fills in the
-  squad format + match length for you.
+  squad format + match length for you. Changing squad format (e.g.
+  7-a-side to 5-a-side) reshapes every upcoming lineup to fit — spots the
+  new formation still has keep their player, anyone whose spot no longer
+  exists just moves to the bench, so nobody's silently dropped and nothing
+  else on the form is lost in the process. It can't be changed while a
+  match is live, since the players actually on the pitch don't resize
+  themselves — finish or end that match first.
 - **Diagnostics** — since there's no server to phone home to, uncaught
   errors are captured automatically into a small on-device log (Settings)
   instead of just vanishing. If the app misbehaves for you or another
