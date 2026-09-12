@@ -76,7 +76,12 @@ see everything working immediately. Reset or clear that data any time from
   setting up the next one — score and clock start fresh, but each player's
   fair-play minutes carry over from the earlier match(es) that day, so
   playing-time suggestions in match two stay honest about the whole day, not
-  just what's happened since kickoff.
+  just what's happened since kickoff. A scheduled game (one that hasn't
+  started yet) also gets a 🗑 icon next to Edit on its page for a quick,
+  one-tap delete — handy for a fixture added by mistake or a cancelled
+  match. Once a game is live or completed, deleting it moves to Edit
+  Game's Delete button instead, so match history and stats aren't one
+  accidental tap away.
 - **Captain & Player of the Match** — set per game from that game's page
   (pulled from whoever's marked present, or the full roster if attendance
   isn't set yet). Both show up as season totals in Stats.

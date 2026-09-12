@@ -79,7 +79,10 @@ export function renderGameDetail(app, gameId, tab) {
         ${game.matchType === 'tournament' && game.tournamentName ? `<div class="sub">${escapeHtml(game.tournamentName)}${game.stage ? ' · ' + escapeHtml(game.stage) : ''}</div>` : ''}
         <div style="margin-top:6px;">${matchTypeBadgeHtml(game)}</div>
       </div>
-      <button class="icon-btn" data-action="edit-game" aria-label="Edit game">✏️</button>
+      <div class="row" style="gap:4px;">
+        <button class="icon-btn" data-action="edit-game" aria-label="Edit game">✏️</button>
+        ${game.status === 'scheduled' ? `<button class="icon-btn" data-action="delete-game-quick" aria-label="Delete game">🗑</button>` : ''}
+      </div>
     </div>
 
     <div class="card">
@@ -106,6 +109,8 @@ export function renderGameDetail(app, gameId, tab) {
   `;
 
   app.querySelector('[data-action="edit-game"]').addEventListener('click', () => openEditGameForm(game));
+  const quickDeleteBtn = app.querySelector('[data-action="delete-game-quick"]');
+  if (quickDeleteBtn) quickDeleteBtn.addEventListener('click', () => deleteGame(game));
   app.querySelector('[data-action="add-matchday-opponent"]').addEventListener('click', () => openGameForm({
     date: game.date, location: game.location, isHome: game.isHome, matchType: game.matchType,
   }));
@@ -439,6 +444,19 @@ function matchDayCarryover(games, game) {
   return carryover;
 }
 
+// Shared by the quick delete icon (scheduled games only) and the Delete
+// button inside Edit Game (any status). Navigates back to Schedule and
+// returns whether the delete went ahead, so callers can decide what else
+// to do (e.g. also close a modal) only on success.
+function deleteGame(game) {
+  if (!confirm(`Delete the game vs ${game.opponent}? This can't be undone.`)) return false;
+  update((state) => {
+    state.games = state.games.filter((g) => g.id !== game.id);
+  });
+  location.hash = '#/schedule';
+  return true;
+}
+
 function shuffle(list) {
   const arr = [...list];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -593,12 +611,8 @@ function openEditGameForm(game) {
         closeModal();
       });
       modalEl.querySelector('[data-action="delete-game"]').addEventListener('click', () => {
-        if (!confirm(`Delete the game vs ${game.opponent}?`)) return;
-        update((state) => {
-          state.games = state.games.filter((g) => g.id !== game.id);
-        });
+        if (!deleteGame(game)) return;
         closeModal();
-        location.hash = '#/schedule';
       });
     },
   });
