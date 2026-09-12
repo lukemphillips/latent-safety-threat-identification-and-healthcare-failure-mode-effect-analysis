@@ -37,7 +37,15 @@ see everything working immediately. Reset or clear that data any time from
   but an even mix of A/B/C/D on both sides), and "Shuffle Again" re-rolls
   without losing your squad selection.
 - **Schedule** — League / Friendly / Tournament fixtures (tournament games
-  carry a tournament name + stage, e.g. "Summer Cup · Final").
+  carry a tournament name + stage, e.g. "Summer Cup · Final"). Games on the
+  same date are grouped under a "Match Day" heading, and a game's page has
+  a one-tap "+ Add Match Day Opponent" for the (very common in some
+  leagues) case of playing two matches against two different opposition
+  teams on the same day — it carries over the date/location/match type,
+  you just add the new opponent.
+- **Captain & Player of the Match** — set per game from that game's page
+  (pulled from whoever's marked present, or the full roster if attendance
+  isn't set yet). Both show up as season totals in Stats.
 - **RSVP** — optional advance-availability tracker (In/Maybe/Out), for teams
   that want it. If your club already collects RSVPs elsewhere, skip it —
   match-day squad selection works independently of this tab.
@@ -76,11 +84,29 @@ see everything working immediately. Reset or clear that data any time from
 - **Cards** — an opt-in Settings toggle (aimed at older age groups) that adds
   yellow/red card logging alongside send-offs; card counts show up in Stats.
 - **Stats** — a sortable leaderboard (appearances, minutes, goals, assists,
-  saves, cards when enabled, attendance %), full match history, and
-  head-to-head records per opponent.
+  saves, cards when enabled, Player-of-the-Match awards, times captained,
+  attendance %), full match history, and head-to-head records per opponent.
 - **Settings** — team name, age group, squad format, match length, minimum
-  stint length, the equal-playing-time toggle, cards toggle, and squad
-  rules.
+  stint length, the equal-playing-time toggle, cards toggle, squad rules,
+  and a collapsible age-group format guide (see below) with a one-tap
+  "Suggest format" button that reads your age group and fills in the
+  squad format + match length for you.
+
+## Age-group formats (DDSL / FAI Player Development Plan)
+
+Settings includes a reference table of playing formats by age group, based
+on the FAI Player Development Plan that DDSL and most Irish schoolboy/
+schoolgirl leagues build their own rules on: 4v4 (no keeper) at U7, 5-a-side
+at U8–U9, 7-a-side at U10–U11, 9-a-side at U12, and 11-a-side from U13 up,
+each with its own match length and pitch size.
+
+Worth knowing: this session's network policy blocked direct access to
+ddsl.ie, so the table is sourced from the public FAI plan and reporting
+about DDSL rather than DDSL's own rule book (which is linked from
+[ddsl.ie](https://ddsl.ie/) if you want to check the current one directly)
+— DDSL has in the past run U11/U12 differently from the standard FAI
+format, so it's worth confirming your age group's exact rules with your
+league before relying on the suggestion.
 
 ## Project structure
 
@@ -92,6 +118,7 @@ js/
   store.js         in-memory state + localStorage persistence + pub/sub
   seed.js          sample data
   formations.js    pitch formation templates per squad size
+  ageFormats.js    DDSL/FAI age-group format reference + suggestion logic
   rules.js         "keep at least one on the pitch" pair-rule checking
   modal.js         small <dialog>-based modal helper
   util.js          formatting/id helpers

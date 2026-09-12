@@ -12,7 +12,7 @@ function sortColumns(team) {
   if (team.enableCards) {
     cols.push({ key: 'yellows', label: 'Y' }, { key: 'reds', label: 'R' });
   }
-  cols.push({ key: 'attendance', label: 'Att%' });
+  cols.push({ key: 'potm', label: '⭐' }, { key: 'captaincies', label: '🅲' }, { key: 'attendance', label: 'Att%' });
   return cols;
 }
 
@@ -26,11 +26,13 @@ function computeLeaderRows() {
   const trackedForAttendance = games.filter((g) => (g.presentIds || []).length > 0);
 
   return active.map((p) => {
-    let minutes = 0, goals = 0, assists = 0, saves = 0, apps = 0, yellows = 0, reds = 0;
+    let minutes = 0, goals = 0, assists = 0, saves = 0, apps = 0, yellows = 0, reds = 0, potm = 0, captaincies = 0;
     completed.forEach((g) => {
       const secs = g.live?.playingTime?.[p.id] || 0;
       if (secs > 0) apps += 1;
       minutes += secs;
+      if (g.playerOfMatchId === p.id) potm += 1;
+      if (g.captainId === p.id) captaincies += 1;
       (g.live?.subLog || []).forEach((e) => {
         if (e.type === 'goal-us' && e.scorerId === p.id) goals += 1;
         if (e.type === 'goal-us' && e.assistId === p.id) assists += 1;
@@ -41,7 +43,7 @@ function computeLeaderRows() {
     });
     const presentCount = trackedForAttendance.filter((g) => (g.presentIds || []).includes(p.id)).length;
     const attendance = trackedForAttendance.length ? presentCount / trackedForAttendance.length : null;
-    return { player: p, apps, minutes, goals, assists, saves, yellows, reds, attendance };
+    return { player: p, apps, minutes, goals, assists, saves, yellows, reds, potm, captaincies, attendance };
   });
 }
 
@@ -137,6 +139,8 @@ function leaderRowHtml(row, columns) {
     saves: row.saves,
     yellows: row.yellows,
     reds: row.reds,
+    potm: row.potm,
+    captaincies: row.captaincies,
     attendance: row.attendance == null ? '—' : formatPercent(row.attendance),
   };
   return `

@@ -2,6 +2,7 @@ import { getState, update, resetToSample, clearAllData, findPlayer } from '../st
 import { FORMATIONS, emptyLineupSlots } from '../formations.js';
 import { escapeHtml, uid } from '../util.js';
 import { openModal, closeModal } from '../modal.js';
+import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
 
 export function renderSettings(app) {
   const { team, players } = getState();
@@ -27,6 +28,7 @@ export function renderSettings(app) {
           </select>
         </div>
       </div>
+      <button type="button" class="btn ghost sm" data-action="suggest-format">Suggest format for this age group</button>
       <div class="field-row">
         <div class="field">
           <label>Minutes per period</label>
@@ -52,6 +54,34 @@ export function renderSettings(app) {
       <button type="submit" class="btn block">Save Team Settings</button>
     </form>
 
+    <details class="card">
+      <summary style="cursor:pointer; font-weight:700;">Age-group format guide (FAI Player Development Plan)</summary>
+      <p class="muted small">The framework DDSL and most Irish schoolboy/schoolgirl leagues build their own rules on. Always confirm against your own league's current rule book — leagues sometimes vary, especially at U11/U12.</p>
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+          <thead>
+            <tr>
+              <th style="text-align:left; padding:5px 6px;">Age</th>
+              <th style="text-align:left; padding:5px 6px;">Format</th>
+              <th style="text-align:left; padding:5px 6px;">Duration</th>
+              <th style="text-align:left; padding:5px 6px;">Pitch</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${AGE_FORMATS.map((b) => `
+              <tr style="border-top:1px solid var(--line);">
+                <td style="padding:5px 6px; font-weight:600;">${b.label}</td>
+                <td style="padding:5px 6px;">${b.squadFormat ? b.squadFormat + '-a-side' : '4v4 (no GK)'}</td>
+                <td style="padding:5px 6px;">${b.numPeriods} × ${b.periodMinutes} min</td>
+                <td style="padding:5px 6px;">${escapeHtml(b.pitch)}</td>
+              </tr>
+              ${b.notes ? `<tr><td colspan="4" class="muted" style="padding:0 6px 6px;">${escapeHtml(b.notes)}</td></tr>` : ''}
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </details>
+
     <div class="section-title">Squad Rules</div>
     <div class="card">
       <p class="muted small mt-0">Pairs of players who should never both be off the pitch at the same time (e.g. only one confident goalkeeper cover). Advisory only — you can always override.</p>
@@ -70,6 +100,24 @@ export function renderSettings(app) {
       <button class="btn danger block" data-action="clear-data">Clear All Data</button>
     </div>
   `;
+
+  app.querySelector('[data-action="suggest-format"]').addEventListener('click', () => {
+    const form = app.querySelector('#team-form');
+    const ageGroupValue = form.querySelector('[name="ageGroup"]').value;
+    const band = suggestFormatForAgeGroup(ageGroupValue);
+    if (!band) {
+      alert('Enter an age group with a number in it (e.g. "U10") to get a suggestion.');
+      return;
+    }
+    if (!band.squadFormat) {
+      alert(`${band.label}: ${band.notes}`);
+      return;
+    }
+    form.querySelector('[name="squadFormat"]').value = String(band.squadFormat);
+    form.querySelector('[name="periodMinutes"]').value = String(band.periodMinutes);
+    form.querySelector('[name="numPeriods"]').value = String(band.numPeriods);
+    alert(`Suggested ${band.label} format applied: ${band.squadFormat}-a-side, ${band.numPeriods} × ${band.periodMinutes} min.${band.notes ? ' ' + band.notes : ''} Review and hit Save Team Settings to keep it.`);
+  });
 
   app.querySelector('#team-form').addEventListener('submit', (e) => {
     e.preventDefault();

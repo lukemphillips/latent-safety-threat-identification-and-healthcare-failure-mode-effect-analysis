@@ -15,15 +15,30 @@ export function renderSchedule(app) {
     </div>
 
     <div class="section-title">Upcoming</div>
-    ${upcoming.length ? upcoming.map(gameCard).join('') : '<div class="card empty">No upcoming games.</div>'}
+    ${upcoming.length ? matchDayGroups(upcoming) : '<div class="card empty">No upcoming games.</div>'}
 
     ${past.length ? `
       <div class="section-title">Past</div>
-      ${past.map(gameCard).join('')}
+      ${matchDayGroups(past, true)}
     ` : ''}
   `;
 
-  app.querySelector('[data-action="add-game"]').addEventListener('click', openGameForm);
+  app.querySelector('[data-action="add-game"]').addEventListener('click', () => openGameForm());
+}
+
+function matchDayGroups(games, preserveOrder) {
+  const byDate = [];
+  games.forEach((g) => {
+    let group = byDate.find((x) => x.date === g.date);
+    if (!group) { group = { date: g.date, games: [] }; byDate.push(group); }
+    group.games.push(g);
+  });
+  if (!preserveOrder) byDate.sort((a, b) => a.date.localeCompare(b.date));
+
+  return byDate.map((group) => `
+    ${group.games.length > 1 ? `<div class="muted small" style="margin:10px 0 4px; font-weight:700;">${formatDate(group.date)} — Match Day (${group.games.length} matches)</div>` : ''}
+    ${group.games.map(gameCard).join('')}
+  `).join('');
 }
 
 function gameCard(game) {
@@ -50,27 +65,28 @@ function gameCard(game) {
   `;
 }
 
-function openGameForm() {
+export function openGameForm(prefill) {
+  const pf = prefill || {};
   openModal({
-    title: 'Add Game',
+    title: pf.date ? 'Add Match Day Opponent' : 'Add Game',
     bodyHtml: `
       <form id="game-form" class="stack">
         <div class="field">
           <label>Match type</label>
           <select name="matchType">
-            <option value="league" selected>League</option>
-            <option value="friendly">Friendly</option>
-            <option value="tournament">Tournament</option>
+            <option value="league" ${(!pf.matchType || pf.matchType === 'league') ? 'selected' : ''}>League</option>
+            <option value="friendly" ${pf.matchType === 'friendly' ? 'selected' : ''}>Friendly</option>
+            <option value="tournament" ${pf.matchType === 'tournament' ? 'selected' : ''}>Tournament</option>
           </select>
         </div>
-        <div class="field-row" data-tournament-fields hidden>
+        <div class="field-row" data-tournament-fields ${pf.matchType === 'tournament' ? '' : 'hidden'}>
           <div class="field">
             <label>Tournament name</label>
-            <input type="text" name="tournamentName" placeholder="e.g. Summer Cup" />
+            <input type="text" name="tournamentName" value="${escapeHtml(pf.tournamentName || '')}" placeholder="e.g. Summer Cup" />
           </div>
           <div class="field">
             <label>Stage</label>
-            <input type="text" name="stage" placeholder="e.g. Group Stage" />
+            <input type="text" name="stage" value="${escapeHtml(pf.stage || '')}" placeholder="e.g. Group Stage" />
           </div>
         </div>
         <div class="field">
@@ -80,22 +96,22 @@ function openGameForm() {
         <div class="field-row">
           <div class="field">
             <label>Date</label>
-            <input type="date" name="date" value="${todayIso()}" required />
+            <input type="date" name="date" value="${pf.date || todayIso()}" required />
           </div>
           <div class="field">
             <label>Time</label>
-            <input type="time" name="time" value="${nowHHMM()}" required />
+            <input type="time" name="time" value="${pf.time || nowHHMM()}" required />
           </div>
         </div>
         <div class="field">
           <label>Location</label>
-          <input type="text" name="location" placeholder="Field / address" />
+          <input type="text" name="location" value="${escapeHtml(pf.location || '')}" placeholder="Field / address" />
         </div>
         <label class="checkbox-row">
-          <input type="checkbox" name="isHome" checked />
+          <input type="checkbox" name="isHome" ${pf.isHome === false ? '' : 'checked'} />
           Home game
         </label>
-        <button type="submit" class="btn block">Add Game</button>
+        <button type="submit" class="btn block">${pf.date ? 'Add Match' : 'Add Game'}</button>
       </form>
     `,
     onMount: (modalEl) => {
@@ -127,6 +143,8 @@ function openGameForm() {
             status: 'scheduled',
             rsvps,
             presentIds: [],
+            captainId: null,
+            playerOfMatchId: null,
             lineup: { slots: emptyLineupSlots(state.team.squadFormat) },
             live: null,
             notes: '',

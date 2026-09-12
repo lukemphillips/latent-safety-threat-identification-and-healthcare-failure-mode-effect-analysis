@@ -2,6 +2,7 @@ import { getState, update, findGame } from '../store.js';
 import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel } from '../util.js';
 import { formationFor } from '../formations.js';
 import { openModal, closeModal } from '../modal.js';
+import { openGameForm } from './schedule.js';
 
 let selectingSlotId = null;
 
@@ -10,6 +11,57 @@ const RSVP_OPTIONS = [
   { key: 'maybe', label: 'Maybe', icon: '❓' },
   { key: 'no', label: 'Out', icon: '❌' },
 ];
+
+function captainName(game) {
+  const { players } = getState();
+  return game.captainId ? players.find((p) => p.id === game.captainId)?.name : null;
+}
+
+function potmName(game) {
+  const { players } = getState();
+  return game.playerOfMatchId ? players.find((p) => p.id === game.playerOfMatchId)?.name : null;
+}
+
+function honoreePool(game) {
+  const { players } = getState();
+  const active = players.filter((p) => p.active);
+  const present = active.filter((p) => (game.presentIds || []).includes(p.id));
+  return present.length ? present : active;
+}
+
+function openHonoreeModal(game, { field, title, label }) {
+  const pool = honoreePool(game);
+  if (!pool.length) {
+    alert('No active players to choose from yet.');
+    return;
+  }
+  openModal({
+    title,
+    bodyHtml: `
+      <form id="honoree-form" class="stack">
+        <div class="field">
+          <label>${label}</label>
+          <select name="player">
+            <option value="">— none —</option>
+            ${pool.map((p) => `<option value="${p.id}" ${game[field] === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button type="submit" class="btn block">Save</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#honoree-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const playerId = new FormData(e.target).get('player') || null;
+        update((state) => {
+          const g = state.games.find((x) => x.id === game.id);
+          g[field] = playerId;
+        });
+        closeModal();
+      });
+    },
+  });
+}
 
 export function renderGameDetail(app, gameId, tab) {
   const game = findGame(gameId);
@@ -30,6 +82,19 @@ export function renderGameDetail(app, gameId, tab) {
       <button class="icon-btn" data-action="edit-game" aria-label="Edit game">✏️</button>
     </div>
 
+    <div class="card">
+      <div class="card-row">
+        <span class="small">🅲 Captain: <strong>${captainName(game) || 'Not set'}</strong></span>
+        <button class="btn ghost sm" data-action="set-captain">${game.captainId ? 'Change' : 'Set'}</button>
+      </div>
+      <div class="card-row" style="margin-top:8px;">
+        <span class="small">⭐ Player of the Match: <strong>${potmName(game) || 'Not set'}</strong></span>
+        <button class="btn ghost sm" data-action="set-potm">${game.playerOfMatchId ? 'Change' : 'Set'}</button>
+      </div>
+    </div>
+
+    <button class="btn ghost sm" data-action="add-matchday-opponent" style="margin-bottom:12px;">+ Add Match Day Opponent</button>
+
     ${statusBanner(game)}
 
     <div class="tabs">
@@ -41,6 +106,15 @@ export function renderGameDetail(app, gameId, tab) {
   `;
 
   app.querySelector('[data-action="edit-game"]').addEventListener('click', () => openEditGameForm(game));
+  app.querySelector('[data-action="add-matchday-opponent"]').addEventListener('click', () => openGameForm({
+    date: game.date, location: game.location, isHome: game.isHome, matchType: game.matchType,
+  }));
+  app.querySelector('[data-action="set-captain"]').addEventListener('click', () => openHonoreeModal(game, {
+    field: 'captainId', title: 'Set Captain', label: 'Captain',
+  }));
+  app.querySelector('[data-action="set-potm"]').addEventListener('click', () => openHonoreeModal(game, {
+    field: 'playerOfMatchId', title: 'Player of the Match', label: 'Player of the Match',
+  }));
 
   const startBtn = app.querySelector('[data-action="start-game"]');
   if (startBtn) startBtn.addEventListener('click', () => startGame(game));

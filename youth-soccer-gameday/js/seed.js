@@ -74,6 +74,8 @@ export function seedGames(players = [], squadFormat = 7) {
       status: 'scheduled',
       rsvps: rsvpFor(ids, 'pending'),
       presentIds: [],
+      captainId: null,
+      playerOfMatchId: null,
       lineup: { slots: emptyLineupSlots(squadFormat) },
       live: null,
       notes: '',
@@ -91,6 +93,8 @@ export function seedGames(players = [], squadFormat = 7) {
       status: 'completed',
       rsvps: rsvpFor(ids, 'yes'),
       presentIds: ids.slice(),
+      captainId: ava,
+      playerOfMatchId: mia,
       lineup: { slots: { ...emptyLineupSlots(squadFormat), gk: liam, d1: ava, d2: ethan, m1: noah, m2: sofia, m3: oliver, f1: mia } },
       live: {
         running: false,
@@ -135,6 +139,8 @@ export function seedGames(players = [], squadFormat = 7) {
       status: 'completed',
       rsvps: rsvpFor(ids, 'yes'),
       presentIds: ids.slice(),
+      captainId: zoe,
+      playerOfMatchId: lucas,
       lineup: { slots: { ...emptyLineupSlots(squadFormat), gk: jack, d1: zoe, d2: emma, m1: isla, m2: oliver, m3: noah, f1: lucas } },
       live: {
         running: false,
