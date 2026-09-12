@@ -26,6 +26,13 @@ export function renderLiveGame(app, gameId) {
   const isCompleted = game.status === 'completed';
   const targetOutfield = outfieldTargetCount(team.squadFormat);
   const nextMatch = games.find((g) => g.date === game.date && g.id !== game.id && g.status === 'scheduled');
+  // A sibling that exists but isn't "scheduled" (already live, or already
+  // finished) still means a match day opponent WAS added — worth saying so
+  // explicitly, rather than showing the same "add one" hint as when none
+  // exists at all, which reads as if the earlier addition didn't register.
+  const otherMatchDaySibling = !nextMatch
+    ? games.find((g) => g.date === game.date && g.id !== game.id && g.status !== 'scheduled')
+    : null;
   const hasCarryover = games.some((g) => g.id !== game.id && g.date === game.date && g.live);
 
   const presentIds = new Set(game.presentIds || []);
@@ -83,7 +90,10 @@ export function renderLiveGame(app, gameId) {
           <button class="btn danger" data-action="end-game">End Game</button>
           ${nextMatch ? `<button class="btn secondary" data-action="next-match">🏁 End &amp; Next: ${escapeHtml(nextMatch.opponent)}</button>` : ''}
         </div>
-        ${!nextMatch ? `<div class="muted small" style="margin-top:4px;">Playing a second match today? <a href="#/game/${game.id}">Add a match day opponent</a> to get an "End &amp; Next" button here.</div>` : ''}
+        ${!nextMatch ? (otherMatchDaySibling
+          ? `<div class="muted small" style="margin-top:4px;">${otherMatchDaySibling.isHome ? 'vs' : '@'} ${escapeHtml(otherMatchDaySibling.opponent)} is also on this date but is ${otherMatchDaySibling.status === 'live' ? 'already live' : 'already finished'} — <a href="#/game/${otherMatchDaySibling.id}${otherMatchDaySibling.status === 'live' ? '/live' : ''}">open it</a> directly instead of using End &amp; Next.</div>`
+          : `<div class="muted small" style="margin-top:4px;">Playing a second match today? <a href="#/game/${game.id}">Add a match day opponent</a> to get an "End &amp; Next" button here.</div>`
+        ) : ''}
       `}
     </div>
 

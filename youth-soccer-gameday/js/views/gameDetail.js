@@ -24,6 +24,30 @@ function rsvpBadgeHtml(status) {
   return `<span class="badge ${b.cls}" title="${b.label}">${b.icon}</span>`;
 }
 
+// Other games on the same date — used to confirm a match day opponent
+// was actually added (rather than the coach just seeing the same "+ Add"
+// button again with no sign anything happened) and to show its status.
+function matchDaySiblings(game) {
+  const { games } = getState();
+  return games.filter((g) => g.date === game.date && g.id !== game.id);
+}
+
+function matchDaySiblingsHtml(game) {
+  const siblings = matchDaySiblings(game);
+  if (!siblings.length) return '';
+  return `
+    <div class="card">
+      <div class="muted small" style="margin-bottom:6px;">Also on this date:</div>
+      ${siblings.map((g) => `
+        <div class="card-row" style="margin-bottom:4px;">
+          <span class="small">${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)} — <span class="badge ${g.status}">${g.status === 'live' ? 'LIVE' : g.status}</span></span>
+          <a class="btn ghost sm" href="#/game/${g.id}${g.status === 'live' ? '/live' : ''}">Open</a>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
 function captainName(game) {
   const { players } = getState();
   return game.captainId ? players.find((p) => p.id === game.captainId)?.name : null;
@@ -108,7 +132,8 @@ export function renderGameDetail(app, gameId, tab) {
       </div>
     </div>
 
-    <button class="btn ghost sm" data-action="add-matchday-opponent" style="margin-bottom:12px;">+ Add Match Day Opponent</button>
+    ${matchDaySiblingsHtml(game)}
+    <button class="btn ghost sm" data-action="add-matchday-opponent" style="margin-bottom:12px;">+ Add ${matchDaySiblings(game).length ? 'Another' : ''} Match Day Opponent</button>
 
     ${statusBanner(game)}
 

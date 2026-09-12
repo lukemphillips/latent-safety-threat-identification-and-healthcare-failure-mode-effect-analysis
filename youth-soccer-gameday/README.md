@@ -71,15 +71,20 @@ see everything working immediately. Reset or clear that data any time from
   a one-tap "+ Add Match Day Opponent" for the (very common at junior ages)
   case of playing two matches against two different opposition teams on the
   same day — it carries over the date/location/match type, you just add the
-  new opponent. During a live game, if a same-date game is still scheduled,
-  an "🏁 End & Next" button ends the current match and jumps straight into
+  new opponent. Once one exists, the game's page lists it under "Also on
+  this date" with its current status, and the button relabels itself
+  "+ Add Another Match Day Opponent" — so adding one is never in doubt.
+  During a live game, if a same-date game is still scheduled, an
+  "🏁 End & Next" button ends the current match and jumps straight into
   setting up the next one — score and clock start fresh, but each player's
   fair-play minutes carry over from the earlier match(es) that day, so
   playing-time suggestions in match two stay honest about the whole day, not
-  just what's happened since kickoff. If that button isn't showing up, it's
-  because there's no second scheduled game on the same date yet — the live
-  view shows a hint pointing to "+ Add Match Day Opponent" in that case,
-  which is on the game's own page (not the live view). A scheduled game (one that hasn't
+  just what's happened since kickoff. If that button isn't showing up, the
+  live view explains why: no second game on that date yet (with a link to
+  "+ Add Match Day Opponent", on the game's own page, not the live view),
+  or one exists but is already live or finished (with a link straight to
+  it) — either way it never just goes quiet as if nothing had been added.
+  A scheduled game (one that hasn't
   started yet) also gets a 🗑 icon next to Edit on its page for a quick,
   one-tap delete — handy for a fixture added by mistake or a cancelled
   match. Once a game is live or completed, deleting it moves to Edit
