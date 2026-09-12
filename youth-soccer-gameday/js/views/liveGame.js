@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs } from '../util.js';
+import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing } from '../util.js';
 import { outfieldTargetCount } from '../formations.js';
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -357,13 +357,22 @@ function fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) {
   }
 
   const time = (p) => live.playingTime[p.id] || 0;
-  const leastOnBench = [...bench].sort((a, b) => time(a) - time(b))[0];
-  const mostOnField = [...restEligible].sort((a, b) => time(b) - time(a))[0];
-  const gap = time(mostOnField) - time(leastOnBench);
+  const timeOf = (id) => live.playingTime[id] || 0;
+  const streamOf = (id) => byId[id]?.skillStream || null;
 
-  if (gap <= 60) {
+  // Due-ness itself stays a straight fairness comparison (same rule as
+  // isSubDue, so this banner and the vibrate alert never disagree) — only
+  // WHICH specific pair gets named below considers skill stream.
+  const mostFieldTime = Math.max(...restEligible.map(time));
+  const leastBenchTime = Math.min(...bench.map(time));
+  if (mostFieldTime - leastBenchTime <= 60) {
     return `<div class="banner info">⚖️ Playing time looks balanced right now.</div>`;
   }
+
+  const outId = pickOutgoing(restEligible.map((p) => p.id), bench.map((p) => p.id), timeOf, streamOf);
+  const inId = pickIncoming(outId, bench.map((p) => p.id), timeOf, streamOf);
+  const mostOnField = byId[outId];
+  const leastOnBench = byId[inId];
 
   return `
     <div class="banner warn">
@@ -385,7 +394,8 @@ function upcomingSubsHtml(team, live, bench, onFieldOutfield) {
   if (!bench.length || !onFieldOutfield.length) return '';
 
   const byIdLocal = Object.fromEntries([...bench, ...onFieldOutfield].map((p) => [p.id, p]));
-  const upcoming = upcomingSubs(team, live, bench.map((p) => p.id), onFieldOutfield.map((p) => p.id));
+  const streamOf = (id) => byIdLocal[id]?.skillStream || null;
+  const upcoming = upcomingSubs(team, live, bench.map((p) => p.id), onFieldOutfield.map((p) => p.id), 3, streamOf);
   if (!upcoming.length) return '';
 
   return `

@@ -145,16 +145,49 @@ export function isSubDue(team, live, benchIds, onFieldOutfieldIds) {
   return (mostFieldTime - leastBenchTime) > 60;
 }
 
+// Given a specific outgoing player, chooses the best incoming candidate
+// from the still-available bench pool: a same-skill-stream match ("like
+// for like") where the bench has one, falling back to whoever's rested
+// longest otherwise. Removes its pick from `availableBenchIds` so a caller
+// matching several swaps in one pass never offers the same player twice.
+export function pickIncoming(outId, availableBenchIds, timeOf, streamOf) {
+  if (!availableBenchIds.length) return null;
+  availableBenchIds.sort((a, b) => timeOf(a) - timeOf(b));
+  const outStream = streamOf(outId);
+  let idx = 0;
+  if (outStream) {
+    const sameStreamIdx = availableBenchIds.findIndex((id) => streamOf(id) === outStream);
+    if (sameStreamIdx !== -1) idx = sameStreamIdx;
+  }
+  return availableBenchIds.splice(idx, 1)[0];
+}
+
+// Among several on-field players who could equally be named as the one
+// due for a rest, prefers one whose skill stream ISN'T already resting on
+// the bench — so a suggestion doesn't quietly leave two players from the
+// same stream (most visibly, two "A"s) off the pitch together. Best-effort:
+// falls back to the most-rested candidate regardless of stream when every
+// eligible player would clash with someone already benched.
+export function pickOutgoing(restEligibleIds, benchIds, timeOf, streamOf) {
+  const benchStreams = new Set(benchIds.map(streamOf).filter(Boolean));
+  const sorted = [...restEligibleIds].sort((a, b) => timeOf(b) - timeOf(a));
+  const safe = sorted.find((id) => {
+    const s = streamOf(id);
+    return !(s && benchStreams.has(s));
+  });
+  return safe ?? sorted[0];
+}
+
 // A forward-looking preview of isSubDue(), for a "coming up" bar so a coach
 // can give players a heads-up before a swap is actually due (rather than
 // only finding out the moment it fires). For each on-field outfield player,
 // projects how many seconds until they'd trip the same ">60s ahead of the
 // least-rested bench player" threshold isSubDue uses, assuming nobody else
 // gets subbed in the meantime — a running estimate, not a promise. Also
-// pairs each one with a specific bench player to bring on (the most-rested
-// bench players go to the soonest-due field players), so the bar can name
-// an actual swap — "Bob on for Alice" — rather than just who's tiring.
-export function upcomingSubs(team, live, benchIds, onFieldOutfieldIds, count = 3) {
+// pairs each one with a specific bench player to bring on, preferring a
+// same-skill-stream match (see pickIncoming) and never offering the same
+// bench player twice across the list.
+export function upcomingSubs(team, live, benchIds, onFieldOutfieldIds, count = 3, streamOf = () => null) {
   if (!team.equalPlayingTimePolicy) return [];
   if (!benchIds.length || !onFieldOutfieldIds.length) return [];
 
@@ -178,6 +211,6 @@ export function upcomingSubs(team, live, benchIds, onFieldOutfieldIds, count = 3
     .sort((a, b) => a.dueInSeconds - b.dueInSeconds)
     .slice(0, count);
 
-  const restedBench = [...benchIds].sort((a, b) => timeOf(a) - timeOf(b));
-  return dueList.map((entry, i) => ({ ...entry, inId: restedBench[i] ?? null }));
+  const available = [...benchIds];
+  return dueList.map((entry) => ({ ...entry, inId: pickIncoming(entry.outId, available, timeOf, streamOf) }));
 }

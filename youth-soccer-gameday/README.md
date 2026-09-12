@@ -154,7 +154,13 @@ see everything working immediately. Reset or clear that data any time from
   - Fair-play suggestions (optional, see Settings) that flag which bench
     player has the least playing time and which eligible on-field player has
     the most (respecting the minimum-stint rule) — a nudge, not an enforced
-    rule. A substitution newly becoming due also triggers a vibrate + two-tone
+    rule. Where the roster has skill streams (A/B/C/D) set, the suggested
+    incoming player matches the outgoing one's stream where the bench has a
+    like-for-like option, and the outgoing player itself is chosen to avoid
+    leaving two players from the same stream (most visibly, two "A"s)
+    resting on the bench together when a fairness-comparable alternative
+    exists — both best-effort, not guaranteed when the bench doesn't allow
+    it. A substitution newly becoming due also triggers a vibrate + two-tone
     chime (🔔 toggle in Settings, on by default) — driven by the same global
     ticker as the clock, so it fires even if you've stepped away to another
     tab, and only once per time it becomes due rather than repeating every
