@@ -1,4 +1,4 @@
-import { getState, update, resetToSample, clearAllData, findPlayer } from '../store.js';
+import { getState, update, resetToSample, clearAllData, restoreFromBackup, findPlayer } from '../store.js';
 import { FORMATIONS, remapLineupToFormat } from '../formations.js';
 import { escapeHtml, uid, copyToClipboard } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -103,7 +103,13 @@ export function renderSettings(app) {
 
     <div class="section-title">Data</div>
     <div class="card stack">
-      <p class="muted small mt-0">All data is stored only in this browser (no account, no server). Use these to demo the app or start fresh.</p>
+      <p class="muted small mt-0">Everything here is stored only in this browser — no account, no server. That also means a private/incognito window, a device clearing site data, or opening this on a different browser or device starts from empty, sometimes with no warning. Back up your team from time to time, and definitely before a big change.</p>
+      <button class="btn secondary block" data-action="backup-data">💾 Backup Team Data</button>
+      <textarea id="backup-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;"></textarea>
+      <button class="btn ghost block" data-action="restore-data">📥 Restore from Backup</button>
+    </div>
+    <div class="card stack">
+      <p class="muted small mt-0">Use these to demo the app or start fresh.</p>
       <button class="btn secondary block" data-action="reset-sample">Reload Sample Data</button>
       <button class="btn danger block" data-action="clear-data">Clear All Data</button>
     </div>
@@ -182,6 +188,24 @@ export function renderSettings(app) {
     if (await confirmDialog('Clear all players and games? This cannot be undone.', { okLabel: 'Clear All', danger: true })) clearAllData();
   });
 
+  const backupBtn = app.querySelector('[data-action="backup-data"]');
+  const backupFallback = app.querySelector('#backup-fallback');
+  backupBtn.addEventListener('click', async () => {
+    const json = JSON.stringify(getState(), null, 2);
+    backupFallback.value = json;
+    await copyToClipboard(json, {
+      onSuccess: () => { backupBtn.textContent = '✅ Copied! Paste it somewhere safe.'; },
+      onFallback: () => {
+        backupFallback.hidden = false;
+        backupFallback.focus();
+        backupFallback.select();
+        backupBtn.textContent = 'Select the text below and copy it';
+      },
+    });
+    setTimeout(() => { backupBtn.textContent = '💾 Backup Team Data'; }, 3000);
+  });
+  app.querySelector('[data-action="restore-data"]').addEventListener('click', () => openRestoreModal());
+
   app.querySelector('[data-action="add-rule"]').addEventListener('click', () => openRuleForm(players));
   app.querySelectorAll('[data-action="remove-rule"]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -228,6 +252,47 @@ function ruleRow(r) {
       <button class="icon-btn" data-action="remove-rule" data-id="${r.id}" aria-label="Remove rule">✕</button>
     </div>
   `;
+}
+
+function openRestoreModal() {
+  openModal({
+    title: 'Restore from Backup',
+    bodyHtml: `
+      <p class="muted small mt-0">Paste a backup you copied earlier with "Backup Team Data". This replaces everything currently in the app on this device.</p>
+      <form id="restore-form" class="stack">
+        <textarea name="backup" required style="width:100%; min-height:160px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;" placeholder="Paste backup JSON here"></textarea>
+        <div id="restore-error" class="small" style="color:var(--red);" hidden></div>
+        <button type="submit" class="btn danger block">Restore (replaces current data)</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      const errorEl = modalEl.querySelector('#restore-error');
+      // Shown inline rather than via alertDialog() — that would close this
+      // very modal to show itself (only one modal at a time), losing
+      // whatever the coach pasted right when they need to fix a typo.
+      const showError = (msg) => { errorEl.textContent = msg; errorEl.hidden = false; };
+
+      modalEl.querySelector('#restore-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorEl.hidden = true;
+        const raw = new FormData(e.target).get('backup');
+        let parsed;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          showError("That text isn't valid JSON — make sure you copied the whole backup.");
+          return;
+        }
+        if (!parsed || !parsed.team || !Array.isArray(parsed.players) || !Array.isArray(parsed.games)) {
+          showError("That doesn't look like a Gaffer backup — expected an object with team, players, and games.");
+          return;
+        }
+        if (!(await confirmDialog('Restore this backup? It replaces everything currently in the app on this device.', { okLabel: 'Restore', danger: true }))) return;
+        restoreFromBackup(parsed);
+        closeModal();
+      });
+    },
+  });
 }
 
 function openRuleForm(players) {

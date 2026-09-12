@@ -76,6 +76,21 @@ export function clearAllData() {
   listeners.forEach((fn) => fn(state));
 }
 
+// Restores a previously-copied backup (see Settings > Data). Storage in
+// this app is local-only by design, and some browser contexts (private
+// windows, a device wiping site data, or a hosting environment's storage
+// rules) can clear it out from under a coach with no warning — a manual
+// backup/restore is the safety net for that, independent of whatever the
+// underlying cause was.
+export function restoreFromBackup(data) {
+  if (!data || !data.team || !Array.isArray(data.players) || !Array.isArray(data.games)) {
+    throw new Error('That doesn\'t look like a Gaffer backup — expected an object with team, players, and games.');
+  }
+  state = data;
+  persist();
+  listeners.forEach((fn) => fn(state));
+}
+
 export function findPlayer(id) {
   return getState().players.find((p) => p.id === id) || null;
 }

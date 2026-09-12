@@ -178,6 +178,18 @@ see everything working immediately. Reset or clear that data any time from
   instead of just vanishing. If the app misbehaves for you or another
   coach, "Copy Error Log" grabs the details (what broke, when, on which
   screen) to paste into a message to whoever maintains the app.
+- **Backup / Restore** — since everything lives only in this browser's
+  `localStorage`, a private/incognito window, a device clearing site data,
+  or an embedding environment enforcing its own storage limits can wipe a
+  team's data with no warning, independent of anything the app itself does.
+  Settings > Data has a "Backup Team Data" button that copies the entire
+  team (roster, games, settings) as JSON to the clipboard (falling back to
+  a select-and-copy text box if clipboard access is blocked), and a
+  "Restore from Backup" button that pastes it back in, validates the shape
+  before touching anything, and asks for confirmation since it replaces
+  everything currently on the device. Get in the habit of backing up before
+  a big change, and any time you're not sure the data will still be there
+  next time you open the app.
 
 ## Age-group formats (DDSL / FAI Player Development Plan)
 
