@@ -109,6 +109,30 @@ export async function copyToClipboard(text, { onSuccess, onFallback } = {}) {
   }
 }
 
+// Best-effort: triggers a browser download of `text` as a named file —
+// used for the automatic post-match backup (see liveGame.js). Works on a
+// normal page, but a sandboxed embedding (like the Claude Artifact viewer)
+// blocks a page from starting its own downloads, so this silently does
+// nothing there. The automatic localStorage snapshot (store.js) and the
+// manual Backup button in Settings are the mechanisms guaranteed to work
+// in that context — this is a bonus when it's not blocked, not the only
+// safety net.
+export function tryDownloadFile(filename, text) {
+  try {
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    console.warn('Automatic backup file download not available here', e);
+  }
+}
+
 export function streamBadgeHtml(stream) {
   if (!stream) return '<span class="badge stream-none">Unclassified</span>';
   return `<span class="badge stream-${stream.toLowerCase()}">Stream ${stream}</span>`;

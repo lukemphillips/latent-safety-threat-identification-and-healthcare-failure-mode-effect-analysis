@@ -1,6 +1,14 @@
 import { seedTeam, seedPlayers, seedGames, seedRules, emptyTeam } from './seed.js';
+import { uid } from './util.js';
 
 const STORAGE_KEY = 'ysg-data-v2';
+// A second, independent key for automatic backups (see saveAutoBackup) —
+// kept separate from STORAGE_KEY so a bad edit or accidental Clear All
+// Data still has something to recover from, without touching the manual
+// Backup/Restore flow in Settings.
+const AUTO_BACKUP_KEY = 'ysg-auto-backups-v1';
+const AUTO_BACKUP_DISMISS_KEY = 'ysg-auto-backup-dismissed-id';
+const MAX_AUTO_BACKUPS = 5;
 
 let state = null;
 const listeners = new Set();
@@ -89,6 +97,73 @@ export function restoreFromBackup(data) {
   state = data;
   persist();
   listeners.forEach((fn) => fn(state));
+}
+
+function loadAutoBackups() {
+  try {
+    const raw = localStorage.getItem(AUTO_BACKUP_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    console.warn('Could not read automatic backups', e);
+    return [];
+  }
+}
+
+// Snapshots the full current state (same shape a manual backup uses) into
+// a rolling local history, called whenever a match finishes (see
+// liveGame.js) so a coach is never more than one completed match away
+// from something to recover from. Keeps only the most recent few.
+export function saveAutoBackup() {
+  if (!state) return;
+  try {
+    const list = loadAutoBackups();
+    list.push({ id: uid(), at: new Date().toISOString(), data: state });
+    while (list.length > MAX_AUTO_BACKUPS) list.shift();
+    localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.warn('Could not save automatic backup', e);
+  }
+}
+
+// Most recent first, for listing in Settings.
+export function getAutoBackups() {
+  return loadAutoBackups().reverse();
+}
+
+export function restoreAutoBackupById(id) {
+  const entry = loadAutoBackups().find((b) => b.id === id);
+  if (!entry) throw new Error('That automatic backup could not be found.');
+  restoreFromBackup(entry.data);
+}
+
+// Whether the Dashboard's "restore your last backup?" prompt should show:
+// there's no team set up yet AND at least one automatic backup exists AND
+// the coach hasn't already dismissed this exact one (so choosing to start
+// fresh doesn't get nagged at on every reload after).
+export function shouldOfferAutoBackupRestore() {
+  const s = getState();
+  const isEmpty = !s.team?.name && !s.players.length && !s.games.length;
+  if (!isEmpty) return false;
+  const backups = loadAutoBackups();
+  if (!backups.length) return false;
+  let dismissedId = null;
+  try {
+    dismissedId = localStorage.getItem(AUTO_BACKUP_DISMISS_KEY);
+  } catch (e) {
+    console.warn('Could not read auto-backup dismissal', e);
+  }
+  return dismissedId !== backups[backups.length - 1].id;
+}
+
+export function dismissAutoBackupPrompt() {
+  const backups = loadAutoBackups();
+  if (!backups.length) return;
+  try {
+    localStorage.setItem(AUTO_BACKUP_DISMISS_KEY, backups[backups.length - 1].id);
+  } catch (e) {
+    console.warn('Could not save auto-backup dismissal', e);
+  }
 }
 
 export function findPlayer(id) {

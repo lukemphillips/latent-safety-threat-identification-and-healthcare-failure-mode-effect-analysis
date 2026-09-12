@@ -1,5 +1,5 @@
-import { getState, update, findGame } from '../store.js';
-import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing } from '../util.js';
+import { getState, update, findGame, saveAutoBackup } from '../store.js';
+import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile } from '../util.js';
 import { outfieldTargetCount } from '../formations.js';
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -186,6 +186,7 @@ export function renderLiveGame(app, gameId) {
         g.status = 'completed';
         g.live.running = false;
       });
+      runPostMatchBackup(game);
     });
 
     const nextMatchBtn = app.querySelector('[data-action="next-match"]');
@@ -202,6 +203,7 @@ export function renderLiveGame(app, gameId) {
             next.lineup = { slots: { ...g.lineup.slots } };
           }
         });
+        runPostMatchBackup(game);
         location.hash = `#/game/${nextMatch.id}/lineup`;
       });
     }
@@ -344,6 +346,20 @@ function goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted) {
       ${periods.length > 1 ? `<div class="muted small" style="margin-top:8px;">${periods.map((n) => `${periodLabel(numPeriods, n)}: ${live.gkByPeriod[n] ? escapeHtml((getState().players.find((p) => p.id === live.gkByPeriod[n]) || {}).name || '?') : '—'}`).join(' · ')}</div>` : ''}
     </div>
   `;
+}
+
+// Fires whenever a match finishes (End Game or End & Next). Snapshots an
+// automatic local backup (survives a bad edit or accidental Clear All
+// Data — see saveAutoBackup) and, best-effort, offers the browser a file
+// to download too. The download only actually happens on a normal page;
+// a sandboxed embedding like the Claude Artifact viewer blocks a page from
+// starting its own downloads, so it silently no-ops there — the automatic
+// local snapshot and the manual Backup button in Settings are what's
+// guaranteed to work in that context.
+function runPostMatchBackup(game) {
+  saveAutoBackup();
+  const filename = `gaffer-backup-${game.date}-${game.opponent.replace(/[^a-z0-9]+/gi, '-')}.json`;
+  tryDownloadFile(filename, JSON.stringify(getState(), null, 2));
 }
 
 function fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) {

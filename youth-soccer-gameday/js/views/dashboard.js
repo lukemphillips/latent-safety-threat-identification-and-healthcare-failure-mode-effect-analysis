@@ -1,4 +1,4 @@
-import { getState } from '../store.js';
+import { getState, shouldOfferAutoBackupRestore, getAutoBackups, restoreAutoBackupById, dismissAutoBackupPrompt } from '../store.js';
 import { formatDate, formatTime, sortByDateTime, escapeHtml as escape } from '../util.js';
 
 function rsvpCounts(game, activePlayers) {
@@ -16,6 +16,8 @@ export function renderDashboard(app) {
   const upcoming = sortByDateTime(games.filter((g) => g.status !== 'completed'));
   const nextGame = upcoming[0] || null;
   const recentCompleted = sortByDateTime(games.filter((g) => g.status === 'completed')).reverse()[0] || null;
+  const offerRestore = shouldOfferAutoBackupRestore();
+  const latestBackup = offerRestore ? getAutoBackups()[0] : null;
 
   app.innerHTML = `
     <div class="page-title">
@@ -24,6 +26,16 @@ export function renderDashboard(app) {
         <div class="sub">${team.ageGroup ? team.ageGroup + ' · ' : ''}${team.squadFormat}-a-side</div>
       </div>
     </div>
+
+    ${latestBackup ? `
+      <div class="banner warn" style="margin-bottom:14px;">
+        💾 No team set up here yet, but an automatic backup from ${new Date(latestBackup.at).toLocaleString()} was found on this device.
+      </div>
+      <div class="fab-row" style="margin-bottom:14px;">
+        <button class="btn secondary block" data-action="restore-auto-backup">Restore Backup</button>
+        <button class="btn ghost block" data-action="dismiss-auto-backup">Start Fresh</button>
+      </div>
+    ` : ''}
 
     <div class="section-title">Next Game</div>
     ${nextGame ? nextGameCard(nextGame, activePlayers) : `<div class="card empty">No games scheduled yet.<div style="margin-top:10px;"><a class="btn secondary sm" href="#/schedule">Add a game</a></div></div>`}
@@ -39,6 +51,21 @@ export function renderDashboard(app) {
       <a class="btn secondary block" href="#/schedule">📅 Schedule (${upcoming.length})</a>
     </div>
   `;
+
+  const restoreBtn = app.querySelector('[data-action="restore-auto-backup"]');
+  if (restoreBtn) {
+    restoreBtn.addEventListener('click', () => {
+      if (latestBackup) restoreAutoBackupById(latestBackup.id);
+      renderDashboard(app);
+    });
+  }
+  const dismissBtn = app.querySelector('[data-action="dismiss-auto-backup"]');
+  if (dismissBtn) {
+    dismissBtn.addEventListener('click', () => {
+      dismissAutoBackupPrompt();
+      renderDashboard(app);
+    });
+  }
 }
 
 function nextGameCard(game, activePlayers) {

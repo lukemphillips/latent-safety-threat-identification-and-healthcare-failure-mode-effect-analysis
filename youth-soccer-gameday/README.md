@@ -217,6 +217,21 @@ see everything working immediately. Reset or clear that data any time from
   everything currently on the device. Get in the habit of backing up before
   a big change, and any time you're not sure the data will still be there
   next time you open the app.
+  - **Automatic backups** — on top of the manual button, Gaffer snapshots a
+    backup by itself every time a match finishes (End Game or End & Next),
+    with no action needed. It's kept as a second, independent copy on the
+    same device (not sent anywhere — everything here stays local), so a bad
+    edit or an accidental Clear All Data still has something to fall back
+    to; the 5 most recent are listed in Settings > Data with a one-tap
+    Restore each. If the app is ever opened and finds no team set up but an
+    automatic backup exists on that device, the Dashboard offers to restore
+    it before you start from scratch. Where the page isn't sandboxed (a
+    normal hosted tab, not the embedded Claude Artifact viewer), it also
+    tries to save the same backup as a downloaded file for an extra, fully
+    offline copy — inside the Artifact viewer that part is silently skipped
+    (the sandbox blocks a page from starting its own downloads), so the
+    automatic on-device snapshot and the manual Backup button are what's
+    guaranteed to work there.
 
 ## Age-group formats (DDSL / FAI Player Development Plan)
 

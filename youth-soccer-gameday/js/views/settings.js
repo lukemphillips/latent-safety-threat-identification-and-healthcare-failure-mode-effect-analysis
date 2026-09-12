@@ -1,4 +1,4 @@
-import { getState, update, resetToSample, clearAllData, restoreFromBackup, findPlayer } from '../store.js';
+import { getState, update, resetToSample, clearAllData, restoreFromBackup, findPlayer, getAutoBackups, restoreAutoBackupById } from '../store.js';
 import { FORMATIONS, remapLineupToFormat } from '../formations.js';
 import { escapeHtml, uid, copyToClipboard } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -8,6 +8,7 @@ import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
 export function renderSettings(app) {
   const { team, players } = getState();
   const errorLog = getErrorLog();
+  const autoBackups = getAutoBackups();
 
   app.innerHTML = `
     <div class="page-title"><h1>Settings</h1></div>
@@ -109,6 +110,10 @@ export function renderSettings(app) {
       <button class="btn ghost block" data-action="restore-data">📥 Restore from Backup</button>
     </div>
     <div class="card stack">
+      <p class="muted small mt-0">Gaffer also snapshots a backup automatically on this device every time a match finishes — no need to remember to do it yourself. Keeps the 5 most recent.</p>
+      ${autoBackups.length ? autoBackups.map(autoBackupRow).join('') : '<p class="muted small">None yet — one is saved the first time a match finishes.</p>'}
+    </div>
+    <div class="card stack">
       <p class="muted small mt-0">Use these to demo the app or start fresh.</p>
       <button class="btn secondary block" data-action="reset-sample">Reload Sample Data</button>
       <button class="btn danger block" data-action="clear-data">Clear All Data</button>
@@ -205,6 +210,13 @@ export function renderSettings(app) {
     setTimeout(() => { backupBtn.textContent = '💾 Backup Team Data'; }, 3000);
   });
   app.querySelector('[data-action="restore-data"]').addEventListener('click', () => openRestoreModal());
+  app.querySelectorAll('[data-action="restore-auto-backup"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!(await confirmDialog('Restore this automatic backup? It replaces everything currently in the app on this device.', { okLabel: 'Restore', danger: true }))) return;
+      restoreAutoBackupById(btn.dataset.id);
+      renderSettings(app);
+    });
+  });
 
   app.querySelector('[data-action="add-rule"]').addEventListener('click', () => openRuleForm(players));
   app.querySelectorAll('[data-action="remove-rule"]').forEach((btn) => {
@@ -234,6 +246,18 @@ export function renderSettings(app) {
     clearErrorLog();
     renderSettings(app);
   });
+}
+
+function autoBackupRow(backup) {
+  const d = backup.data || {};
+  const when = new Date(backup.at).toLocaleString();
+  const summary = `${escapeHtml(d.team?.name || 'Unnamed team')} · ${(d.players || []).length} players · ${(d.games || []).length} games`;
+  return `
+    <div class="card-row">
+      <span class="small">${when}<br /><span class="muted">${summary}</span></span>
+      <button class="btn ghost sm" data-action="restore-auto-backup" data-id="${backup.id}">Restore</button>
+    </div>
+  `;
 }
 
 function errorCountText(errorLog) {
