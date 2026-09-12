@@ -1,7 +1,7 @@
 import { getState, update, findPlayer } from '../store.js';
 import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions } from '../util.js';
 import { openModal, closeModal } from '../modal.js';
-import { parseRosterFile } from '../importRoster.js';
+import { parseRosterFile, TEMPLATE_CSV } from '../importRoster.js';
 
 const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'];
 const STREAMS = ['A', 'B', 'C', 'D'];
@@ -172,6 +172,11 @@ function openImportModal() {
     bodyHtml: `
       <div class="stack">
         <p class="muted small mt-0">Import from a .csv or .xlsx file. The first row should have headers — we'll match common ones like Name, Jersey #, Position(s), Stream, Guardian Name, Guardian Phone. Only "Name" is required.</p>
+        <div class="card-row" style="background:var(--green-100); border-radius:10px; padding:10px 12px;">
+          <span class="small">New to this? Start from a template.</span>
+          <button type="button" class="btn secondary sm" data-action="copy-template">📋 Copy CSV Template</button>
+        </div>
+        <textarea id="import-template-fallback" readonly hidden style="width:100%; min-height:80px; font-family:monospace; font-size:11.5px; padding:8px; border:1px solid var(--line); border-radius:8px;">${escapeHtml(TEMPLATE_CSV)}</textarea>
         <div class="field">
           <label>File</label>
           <input type="file" name="file" accept=".csv,.xlsx,.xls" />
@@ -184,7 +189,22 @@ function openImportModal() {
       const fileInput = modalEl.querySelector('input[name="file"]');
       const statusEl = modalEl.querySelector('#import-status');
       const previewEl = modalEl.querySelector('#import-preview');
+      const copyBtn = modalEl.querySelector('[data-action="copy-template"]');
+      const fallbackEl = modalEl.querySelector('#import-template-fallback');
       let parsedRows = [];
+
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(TEMPLATE_CSV);
+          copyBtn.textContent = '✅ Copied!';
+        } catch {
+          fallbackEl.hidden = false;
+          fallbackEl.focus();
+          fallbackEl.select();
+          copyBtn.textContent = 'Select the text below and copy it';
+        }
+        setTimeout(() => { copyBtn.textContent = '📋 Copy CSV Template'; }, 2500);
+      });
 
       fileInput.addEventListener('change', async () => {
         const file = fileInput.files[0];

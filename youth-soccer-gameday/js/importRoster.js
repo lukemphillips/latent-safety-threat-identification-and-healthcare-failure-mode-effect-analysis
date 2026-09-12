@@ -3,6 +3,11 @@
 // against a set of common aliases, so exports from Google Sheets, Excel,
 // or a club's own template all have a decent chance of lining up.
 
+export const TEMPLATE_CSV =
+  'Name,Jersey #,Position,Stream,Guardian Name,Guardian Phone\n' +
+  'Ava Martinez,1,DEF,A,,\n' +
+  'Noah Patel,3,MID/DEF,C,,\n';
+
 const HEADER_ALIASES = {
   name: ['name', 'player', 'playername', 'fullname'],
   jerseyNumber: ['jersey', 'jerseynumber', 'jerseyno', 'number', 'no', 'squadnumber'],
