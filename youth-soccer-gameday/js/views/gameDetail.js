@@ -452,7 +452,7 @@ function shuffle(list) {
 // players are matched to a slot's role by their preferred position(s)
 // first (GK slots filled before anything else, so a keeper-tagged player
 // isn't used to plug an outfield gap); leftovers fill whatever's left.
-function autoFillLineup(formation, presentPlayers, currentSlots) {
+export function autoFillLineup(formation, presentPlayers, currentSlots) {
   const slots = { ...currentSlots };
   const assignedIds = new Set(Object.values(slots).filter(Boolean));
   const unassigned = shuffle(presentPlayers.filter((p) => !assignedIds.has(p.id)));

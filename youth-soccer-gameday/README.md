@@ -54,6 +54,17 @@ see everything working immediately. Reset or clear that data any time from
   paste into a text/WhatsApp message to other coaches, and on phones that
   support it there's also a native "Text / Share…" button that opens the
   share sheet directly.
+  "Send to a scheduled match" turns a selection (or one of the split teams)
+  into the real thing in one tap: pick a scheduled match from the dropdown,
+  hit "→ Set as Match Squad", and it sets who's present for that game and
+  auto-fills their starting lineup — no re-entering attendance by hand. Since
+  it writes straight into that match, it's what to use for the common junior
+  case of splitting one squad into two teams playing two different matches
+  at once: split, send Team 1 to match A, switch the dropdown to match B,
+  send Team 2 there. This is also the fix for an earlier rough edge where
+  a shuffled split could vanish if you navigated away before doing anything
+  with it — now the split itself is safe to leave and come back to, and
+  once you send a team to a match, that choice is saved for good.
 - **Schedule** — League / Friendly / Tournament fixtures (tournament games
   carry a tournament name + stage, e.g. "Summer Cup · Final"). Games on the
   same date are grouped under a "Match Day" heading, and a game's page has
