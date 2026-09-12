@@ -12,6 +12,18 @@ const RSVP_OPTIONS = [
   { key: 'no', label: 'Out', icon: '❌' },
 ];
 
+const RSVP_BADGE = {
+  yes: { cls: 'yes', icon: '✅', label: 'RSVP: In' },
+  maybe: { cls: 'maybe', icon: '❓', label: 'RSVP: Maybe' },
+  no: { cls: 'no', icon: '❌', label: 'RSVP: Out' },
+  pending: { cls: 'pending', icon: '⏳', label: 'RSVP: Pending' },
+};
+
+function rsvpBadgeHtml(status) {
+  const b = RSVP_BADGE[status || 'pending'];
+  return `<span class="badge ${b.cls}" title="${b.label}">${b.icon}</span>`;
+}
+
 function captainName(game) {
   const { players } = getState();
   return game.captainId ? players.find((p) => p.id === game.captainId)?.name : null;
@@ -159,8 +171,10 @@ function renderRsvpTab(container, game) {
   const counts = { yes: 0, no: 0, maybe: 0, pending: 0 };
   active.forEach((p) => { counts[game.rsvps[p.id] || 'pending']++; });
 
+  const presentIds = new Set(game.presentIds || []);
+
   container.innerHTML = `
-    <div class="banner info">Optional — use this if you're collecting availability ahead of time. Match-day squad selection (Squad tab) works independently.</div>
+    <div class="banner info">Optional — use this if you're collecting availability ahead of time. On the Squad tab, "Use RSVP List" marks everyone who's In as present in one tap — attendance still tracks separately, so you can see who actually showed vs. who said they would.</div>
     <div class="rsvp-summary card">
       <span>✅ ${counts.yes} in</span>
       <span>❓ ${counts.maybe} maybe</span>
@@ -168,7 +182,7 @@ function renderRsvpTab(container, game) {
       <span>⏳ ${counts.pending} pending</span>
     </div>
     <div class="card">
-      ${active.length ? active.map((p) => rsvpRow(game, p)).join('') : '<div class="empty">No active players on the roster.</div>'}
+      ${active.length ? active.map((p) => rsvpRow(game, p, presentIds.has(p.id))).join('') : '<div class="empty">No active players on the roster.</div>'}
     </div>
     ${counts.yes ? `<a class="btn ghost sm block" href="#/balance/${game.id}" style="margin-top:12px;">🎲 Balance Teams from RSVPs</a>` : ''}
   `;
@@ -184,14 +198,14 @@ function renderRsvpTab(container, game) {
   });
 }
 
-function rsvpRow(game, p) {
+function rsvpRow(game, p, isPresent) {
   const current = game.rsvps[p.id] || 'pending';
   return `
     <div class="player-row">
       <div class="jersey">${p.jerseyNumber ?? '-'}</div>
       <div class="player-meta">
         <div class="player-name">${escapeHtml(p.name)}</div>
-        <div class="player-sub">${formatPositions(p)}</div>
+        <div class="player-sub">${formatPositions(p)}${isPresent ? ' · ✅ marked present' : ''}</div>
       </div>
       <div class="rsvp-group">
         ${RSVP_OPTIONS.map((opt) => `
@@ -209,6 +223,7 @@ function renderSquadTab(container, game) {
   const presentIds = new Set(game.presentIds || []);
   const present = active.filter((p) => presentIds.has(p.id));
   const absent = active.filter((p) => !presentIds.has(p.id));
+  const rsvpYes = active.filter((p) => game.rsvps?.[p.id] === 'yes');
 
   if (game.status === 'live') return renderLiveSquadTab(container, game, active, present, absent);
   if (game.status === 'completed') return renderCompletedSquadTab(container, present, absent);
@@ -225,11 +240,14 @@ function renderSquadTab(container, game) {
     <div class="section-title" style="margin-top:0;">Who's here today?</div>
     <div class="card">
       <div class="spread" style="margin-bottom:10px;">
-        <span class="muted small">${present.length}/${active.length} present</span>
-        <button class="btn ghost sm" data-action="mark-all-present">Mark All Present</button>
+        <span class="muted small">${present.length}/${active.length} present${rsvpYes.length ? ` · ${rsvpYes.length} RSVP'd In` : ''}</span>
+        <div class="row" style="gap:8px;">
+          <button class="btn secondary sm" data-action="use-rsvp-list" ${rsvpYes.length ? '' : 'disabled'}>✅ Use RSVP List</button>
+          <button class="btn ghost sm" data-action="mark-all-present">Mark All Present</button>
+        </div>
       </div>
       <div class="chip-list">
-        ${active.length ? active.map((p) => attendanceChipHtml(p, presentIds.has(p.id))).join('') : '<span class="muted small">No active players on the roster.</span>'}
+        ${active.length ? active.map((p) => attendanceChipHtml(p, presentIds.has(p.id), game.rsvps?.[p.id])).join('') : '<span class="muted small">No active players on the roster.</span>'}
       </div>
     </div>
     ${present.length ? `<a class="btn ghost sm" href="#/balance/${game.id}" style="margin:10px 0; display:inline-flex;">🎲 Balance Teams from today's squad</a>` : ''}
@@ -264,6 +282,17 @@ function renderSquadTab(container, game) {
       g.presentIds = state.players.filter((p) => p.active).map((p) => p.id);
     });
   });
+
+  const useRsvpBtn = container.querySelector('[data-action="use-rsvp-list"]');
+  if (useRsvpBtn) {
+    useRsvpBtn.addEventListener('click', () => {
+      update((state) => {
+        const g = state.games.find((x) => x.id === game.id);
+        const rsvpYesIds = state.players.filter((p) => p.active && g.rsvps?.[p.id] === 'yes').map((p) => p.id);
+        g.presentIds = [...new Set([...(g.presentIds || []), ...rsvpYesIds])];
+      });
+    });
+  }
 
   container.querySelectorAll('[data-attendance-toggle]').forEach((el) => {
     el.addEventListener('click', () => {
@@ -335,11 +364,11 @@ function renderSquadTab(container, game) {
     });
   });
 
-  function attendanceChipHtml(p, isPresent) {
+  function attendanceChipHtml(p, isPresent, rsvpStatus) {
     return `
       <button type="button" class="bench-chip ${isPresent ? 'picking' : ''}" data-attendance-toggle="${p.id}">
         <span class="jersey">${p.jerseyNumber ?? '-'}</span>
-        ${escapeHtml(p.name)} ${isPresent ? '✅' : '⚪'}
+        ${escapeHtml(p.name)} ${isPresent ? '✅' : '⚪'} ${rsvpStatus && rsvpStatus !== 'pending' ? rsvpBadgeHtml(rsvpStatus) : ''}
       </button>
     `;
   }

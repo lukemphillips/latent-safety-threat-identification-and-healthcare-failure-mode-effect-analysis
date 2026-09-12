@@ -87,14 +87,23 @@ see everything working immediately. Reset or clear that data any time from
   isn't set yet). Both show up as season totals in Stats.
 - **RSVP** — optional advance-availability tracker (In/Maybe/Out), for teams
   that want it. If your club already collects RSVPs elsewhere, skip it —
-  match-day squad selection works independently of this tab.
+  the Squad tab's attendance still works on its own without it. Where the
+  two connect: the Squad tab's "✅ Use RSVP List" adds everyone who RSVP'd
+  In to today's attendance in one tap (it adds to whoever's already marked
+  present rather than replacing them, so a walk-in you added by hand isn't
+  lost), each attendance chip shows a small RSVP badge for anyone who
+  responded Maybe or Out so a "maybe" or "no" showing up as present stands
+  out, and the RSVP tab itself notes who's already been marked present.
+  RSVP and attendance are still tracked separately on purpose, so you can
+  see who actually showed up versus who said they would.
 - **Squad tab** — fast, on-the-fly match-day squad building: tap players
-  present today (or "Mark All Present" in one tap), then place them on a
-  pitch formation (5/7/9/11-a-side based on your team's settings) — or tap
-  "⚡ Auto-Fill" to place everyone present by their preferred position in
-  one go (goalkeeper slot filled from GK-tagged players first) and just
-  adjust from there; it only fills empty spots, so it's also a quick way to
-  plug remaining gaps after placing a few players yourself. The GK spot
+  present today ("✅ Use RSVP List" if you're using RSVPs, or "Mark All
+  Present" in one tap), then place them on a pitch formation (5/7/9/11-a-side
+  based on your team's settings) — or tap "⚡ Auto-Fill" to place everyone
+  present by their preferred position in one go (goalkeeper slot filled
+  from GK-tagged players first) and just adjust from there; it only fills
+  empty spots, so it's also a quick way to plug remaining gaps after
+  placing a few players yourself. The GK spot
   sets your 1st-half keeper. Once the match is live, this tab switches to a
   quick "add a late arrival" view — mark them present and they show up on
   the live bench immediately, no need to touch the pitch again.
