@@ -57,7 +57,7 @@ function route() {
   let result;
   if (parts.length === 0) result = renderDashboard(app);
   else if (parts[0] === 'roster') result = renderRoster(app);
-  else if (parts[0] === 'balance') result = renderBalanceTeams(app);
+  else if (parts[0] === 'balance') result = renderBalanceTeams(app, parts[1] || null);
   else if (parts[0] === 'schedule') result = renderSchedule(app);
   else if (parts[0] === 'stats') result = renderStats(app);
   else if (parts[0] === 'settings') result = renderSettings(app);

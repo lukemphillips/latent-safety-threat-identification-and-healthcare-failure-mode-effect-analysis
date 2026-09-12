@@ -19,12 +19,14 @@ export function renderLiveGame(app, gameId) {
     return undefined;
   }
 
-  const { players, team } = getState();
+  const { players, team, games } = getState();
   const active = players.filter((p) => p.active);
   const byId = Object.fromEntries(active.map((p) => [p.id, p]));
   const live = game.live;
   const isCompleted = game.status === 'completed';
   const targetOutfield = outfieldTargetCount(team.squadFormat);
+  const nextMatch = games.find((g) => g.date === game.date && g.id !== game.id && g.status === 'scheduled');
+  const hasCarryover = games.some((g) => g.id !== game.id && g.date === game.date && g.live);
 
   const presentIds = new Set(game.presentIds || []);
   const sentOffIds = new Set(live.sentOff || []);
@@ -79,6 +81,7 @@ export function renderLiveGame(app, gameId) {
         </div>
         <div class="timer-actions">
           <button class="btn danger" data-action="end-game">End Game</button>
+          ${nextMatch ? `<button class="btn secondary" data-action="next-match">🏁 End &amp; Next: ${escapeHtml(nextMatch.opponent)}</button>` : ''}
         </div>
       `}
     </div>
@@ -117,6 +120,7 @@ export function renderLiveGame(app, gameId) {
     ` : ''}
 
     <div class="section-title">Playing Time</div>
+    ${hasCarryover ? '<div class="muted small" style="margin:-6px 0 8px;">Includes minutes from earlier match(es) today, so fair-play suggestions stay balanced across the whole match day.</div>' : ''}
     <div class="card">
       ${playingTimeRows(active, live, presentIds)}
     </div>
@@ -166,6 +170,24 @@ export function renderLiveGame(app, gameId) {
         g.live.running = false;
       });
     });
+
+    const nextMatchBtn = app.querySelector('[data-action="next-match"]');
+    if (nextMatchBtn) {
+      nextMatchBtn.addEventListener('click', () => {
+        if (!confirm(`End this match and move on to ${nextMatch.opponent}? Final score and playing time will be locked in, and fair-play minutes will carry over into the next match.`)) return;
+        update((state) => {
+          const g = state.games.find((x) => x.id === gameId);
+          g.status = 'completed';
+          g.live.running = false;
+          const next = state.games.find((x) => x.id === nextMatch.id);
+          if (next && !(next.presentIds || []).length) {
+            next.presentIds = [...(g.presentIds || [])];
+            next.lineup = { slots: { ...g.lineup.slots } };
+          }
+        });
+        location.hash = `#/game/${nextMatch.id}/lineup`;
+      });
+    }
 
     const suggestBtn = app.querySelector('[data-action="use-suggestion"]');
     if (suggestBtn) {

@@ -1,5 +1,5 @@
-import { getState } from '../store.js';
-import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard } from '../util.js';
+import { getState, findGame } from '../store.js';
+import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate } from '../util.js';
 import { isJuniorAgeGroup } from '../ageFormats.js';
 
 const STREAM_ORDER = ['A', 'B', 'C', 'D', null];
@@ -9,6 +9,26 @@ const MAX_TEAMS = 4;
 let includedIds = null;
 let teamCount = 2;
 let split = null;
+let lastGameId = null;
+
+// Coming from a specific game, default the squad to who's actually
+// confirmed rather than the whole roster — RSVPs if any are in, otherwise
+// attendance already marked on the Squad tab, otherwise everyone active.
+function defaultIncludedIds(game, active) {
+  if (game) {
+    const rsvpYes = active.filter((p) => game.rsvps?.[p.id] === 'yes');
+    if (rsvpYes.length) return new Set(rsvpYes.map((p) => p.id));
+    if ((game.presentIds || []).length) return new Set(game.presentIds);
+  }
+  return new Set(active.map((p) => p.id));
+}
+
+function includedFromLabel(game, active) {
+  const rsvpYesCount = active.filter((p) => game.rsvps?.[p.id] === 'yes').length;
+  if (rsvpYesCount) return `who RSVP'd "In" (${rsvpYesCount})`;
+  if ((game.presentIds || []).length) return `who's marked present on the Squad tab (${game.presentIds.length})`;
+  return 'the full active roster';
+}
 
 function shuffle(list) {
   const arr = [...list];
@@ -56,12 +76,17 @@ function formatSplitForShare(teams, teamName) {
   return lines.join('\n').trim();
 }
 
-export function renderBalanceTeams(app) {
+export function renderBalanceTeams(app, gameId) {
   const { players, team } = getState();
   const active = players.filter((p) => p.active);
   const junior = isJuniorAgeGroup(team.ageGroup);
+  const game = gameId ? findGame(gameId) : null;
 
-  if (!includedIds) includedIds = new Set(active.map((p) => p.id));
+  if (lastGameId !== (gameId || null)) {
+    includedIds = defaultIncludedIds(game, active);
+    split = null;
+    lastGameId = gameId || null;
+  }
   // Drop anyone no longer active/present in the roster.
   includedIds = new Set([...includedIds].filter((id) => active.some((p) => p.id === id)));
 
@@ -72,14 +97,21 @@ export function renderBalanceTeams(app) {
     <div class="page-title">
       <div>
         <h1>Balance Teams</h1>
-        <div class="sub">Randomly split a squad into fair teams by streaming classification</div>
+        <div class="sub">${game
+          ? `For ${game.isHome ? 'vs' : '@'} ${escapeHtml(game.opponent)} · ${formatDate(game.date)}`
+          : 'Randomly split a squad into fair teams by streaming classification'}</div>
       </div>
     </div>
 
+    ${game ? `<a class="btn ghost sm" href="#/game/${game.id}" style="margin-bottom:12px; display:inline-flex;">← Back to game</a>` : ''}
+
     <div class="banner info">
+      ${game
+        ? `Starting from ${includedFromLabel(game, active)} for this match — untick anyone who won't be involved before you split.`
+        : ''}
       ${junior
-        ? 'Junior squads (U9 and under) often split a training group into several small teams for parallel mini-soccer games rather than one team with subs. Choose how many teams below — each streaming classification is divided as evenly as possible across all of them.'
-        : "Pick who's involved, then split. Each streaming classification is divided as evenly as possible between the teams — not just the head count."}
+        ? ' Junior squads (U9 and under) often split a training group into several small teams for parallel mini-soccer games rather than one team with subs. Choose how many teams below — each streaming classification is divided as evenly as possible across all of them.'
+        : " Pick who's involved, then split. Each streaming classification is divided as evenly as possible between the teams — not just the head count."}
     </div>
 
     <div class="section-title" style="margin-top:0;">Number of teams</div>
@@ -118,19 +150,19 @@ export function renderBalanceTeams(app) {
 
   app.querySelector('[data-action="select-all"]').addEventListener('click', () => {
     includedIds = new Set(active.map((p) => p.id));
-    renderBalanceTeams(app);
+    renderBalanceTeams(app, gameId);
   });
   app.querySelector('[data-action="select-none"]').addEventListener('click', () => {
     includedIds = new Set();
     split = null;
-    renderBalanceTeams(app);
+    renderBalanceTeams(app, gameId);
   });
 
   app.querySelectorAll('[data-team-count]').forEach((el) => {
     el.addEventListener('click', () => {
       teamCount = Number(el.dataset.teamCount);
       split = null;
-      renderBalanceTeams(app);
+      renderBalanceTeams(app, gameId);
     });
   });
 
@@ -140,7 +172,7 @@ export function renderBalanceTeams(app) {
       if (includedIds.has(id)) includedIds.delete(id);
       else includedIds.add(id);
       split = null;
-      renderBalanceTeams(app);
+      renderBalanceTeams(app, gameId);
     });
   });
 
@@ -148,7 +180,7 @@ export function renderBalanceTeams(app) {
   if (splitBtn) {
     splitBtn.addEventListener('click', () => {
       split = splitBalancedTeams(active.filter((p) => includedIds.has(p.id)), teamCount);
-      renderBalanceTeams(app);
+      renderBalanceTeams(app, gameId);
     });
   }
 

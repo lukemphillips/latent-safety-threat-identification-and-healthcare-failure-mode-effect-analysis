@@ -12,8 +12,8 @@ export const AGE_FORMATS = [
   },
   {
     minAge: 8, maxAge: 9, label: 'U8–U9',
-    squadFormat: 5, periodMinutes: 12, numPeriods: 4, pitch: '40–45m x 25m',
-    notes: '',
+    squadFormat: 5, periodMinutes: 12, numPeriods: 2, pitch: '40–45m x 25m',
+    notes: 'Match days are often 2 matches against different opponents, each played as 2 x 12-min halves — use "Add Match Day Opponent" and "Next Match" during a live game to move between them.',
   },
   {
     minAge: 10, maxAge: 11, label: 'U10–U11',

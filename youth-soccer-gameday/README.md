@@ -47,17 +47,25 @@ see everything working immediately. Reset or clear that data any time from
   without losing your squad selection. For junior squads (U9 and under),
   where DDSL/FAI mini-soccer is 4v4/5v5, it nudges you toward splitting into
   several small teams for parallel games rather than one team with subs.
-  Once split, "Copy to Share" copies a plain-text team list you can paste
-  into a text/WhatsApp message to other coaches, and on phones that support
-  it there's also a native "Text / Share…" button that opens the share
-  sheet directly.
+  Launching it from a game's RSVP or Squad tab ("🎲 Balance Teams from
+  RSVPs" / "…from today's squad") starts you off with just that game's
+  confirmed players instead of the whole roster — untick anyone before you
+  split. Once split, "Copy to Share" copies a plain-text team list you can
+  paste into a text/WhatsApp message to other coaches, and on phones that
+  support it there's also a native "Text / Share…" button that opens the
+  share sheet directly.
 - **Schedule** — League / Friendly / Tournament fixtures (tournament games
   carry a tournament name + stage, e.g. "Summer Cup · Final"). Games on the
   same date are grouped under a "Match Day" heading, and a game's page has
-  a one-tap "+ Add Match Day Opponent" for the (very common in some
-  leagues) case of playing two matches against two different opposition
-  teams on the same day — it carries over the date/location/match type,
-  you just add the new opponent.
+  a one-tap "+ Add Match Day Opponent" for the (very common at junior ages)
+  case of playing two matches against two different opposition teams on the
+  same day — it carries over the date/location/match type, you just add the
+  new opponent. During a live game, if a same-date game is still scheduled,
+  an "🏁 End & Next" button ends the current match and jumps straight into
+  setting up the next one — score and clock start fresh, but each player's
+  fair-play minutes carry over from the earlier match(es) that day, so
+  playing-time suggestions in match two stay honest about the whole day, not
+  just what's happened since kickoff.
 - **Captain & Player of the Match** — set per game from that game's page
   (pulled from whoever's marked present, or the full roster if attendance
   isn't set yet). Both show up as season totals in Stats.

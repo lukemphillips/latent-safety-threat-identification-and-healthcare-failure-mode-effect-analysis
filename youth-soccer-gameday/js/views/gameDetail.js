@@ -165,6 +165,7 @@ function renderRsvpTab(container, game) {
     <div class="card">
       ${active.length ? active.map((p) => rsvpRow(game, p)).join('') : '<div class="empty">No active players on the roster.</div>'}
     </div>
+    ${counts.yes ? `<a class="btn ghost sm block" href="#/balance/${game.id}" style="margin-top:12px;">🎲 Balance Teams from RSVPs</a>` : ''}
   `;
 
   container.querySelectorAll('[data-rsvp-btn]').forEach((btn) => {
@@ -226,6 +227,7 @@ function renderSquadTab(container, game) {
         ${active.length ? active.map((p) => attendanceChipHtml(p, presentIds.has(p.id))).join('') : '<span class="muted small">No active players on the roster.</span>'}
       </div>
     </div>
+    ${present.length ? `<a class="btn ghost sm" href="#/balance/${game.id}" style="margin:10px 0; display:inline-flex;">🎲 Balance Teams from today's squad</a>` : ''}
 
     <div class="spread" style="margin:16px 0 10px;">
       <span class="muted small">${formation.label} · ${filledCount}/${formation.slots.length} filled</span>
@@ -406,8 +408,24 @@ function renderCompletedSquadTab(container, present, absent) {
   `;
 }
 
+// Same-date games (a "match day") share fair-play minutes: a player's
+// running total carries from one match into the next rather than each
+// match starting everyone back at zero, so equal-playing-time suggestions
+// stay honest across the whole day, not just the current match.
+function matchDayCarryover(games, game) {
+  const carryover = {};
+  games
+    .filter((g) => g.id !== game.id && g.date === game.date && g.live)
+    .forEach((g) => {
+      Object.entries(g.live.playingTime || {}).forEach(([playerId, seconds]) => {
+        carryover[playerId] = (carryover[playerId] || 0) + seconds;
+      });
+    });
+  return carryover;
+}
+
 function startGame(game) {
-  const { players, team } = getState();
+  const { players, team, games } = getState();
   const active = players.filter((p) => p.active);
   const presentIds = game.presentIds || [];
   const gkId = game.lineup.slots.gk || null;
@@ -418,8 +436,9 @@ function startGame(game) {
   if (!presentIds.length && !confirm('No players marked present yet. Start the game anyway?')) return;
   if (!gkId && !confirm(`No goalkeeper set for the ${periodLabel(team, 1)}. Start anyway?`)) return;
 
+  const carryover = matchDayCarryover(games, game);
   const playingTime = {};
-  active.forEach((p) => { playingTime[p.id] = 0; });
+  active.forEach((p) => { playingTime[p.id] = carryover[p.id] || 0; });
   const stintStart = {};
   outfieldIds.forEach((id) => { stintStart[id] = 0; });
   if (gkId) stintStart[gkId] = 0;
