@@ -403,6 +403,7 @@ function openMergeModal(app) {
         if (summary.gamesUpdated) parts.push(`${summary.gamesUpdated} game${summary.gamesUpdated === 1 ? '' : 's'} updated`);
         if (summary.playersAdded) parts.push(`${summary.playersAdded} player${summary.playersAdded === 1 ? '' : 's'} added`);
         if (summary.awardsAdded) parts.push(`${summary.awardsAdded} weekly award${summary.awardsAdded === 1 ? '' : 's'} added`);
+        if (summary.trainingsAdded) parts.push(`${summary.trainingsAdded} training session${summary.trainingsAdded === 1 ? '' : 's'} added`);
         alertDialog(parts.length ? `Merged: ${parts.join(', ')}. An automatic backup of the combined data was just saved on this device too.` : 'Nothing new to merge in — this device already had everything from that backup.');
         renderSettings(app);
       });

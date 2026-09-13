@@ -34,6 +34,16 @@ export function renderHelp(app) {
       </ul>
     `)}
 
+    ${section('🏃 Training sessions', `
+      <p class="muted small mt-0">The <a href="#/training">Training</a> tab is separate from match day — use it to plan practices.</p>
+      <ul class="stack" style="margin:0; padding-left:18px;">
+        <li><strong>+ Add Training</strong> creates a session with a date, time, and location.</li>
+        <li><strong>Attendance tab</strong> — tap players to mark who's actually shown up, same as a game's Squad tab.</li>
+        <li><strong>Groups tab</strong> — <strong>Auto-Build Groups</strong> clusters players of similar skill stream together (the opposite of Balance Teams, which spreads streams evenly for a fair match). Leave "Number of groups" blank for one group per stream present, or set a number to merge or split streams to fit. If a group ends up too big or small, tap a player to select them, then tap "Move here" on another group to move them across.</li>
+        <li><strong>Plan tab</strong> — build a running order of blocks (warm-up, drills, scrimmage, etc.), each with a duration. A block can be one activity for the whole squad, or a different activity per group, run in parallel. The tab shows a running total time and an estimated finish time. This is a static plan to work from — there's no live countdown clock.</li>
+      </ul>
+    `)}
+
     ${section('⚖️ Fair play &amp; substitutions', `
       <ul class="stack" style="margin:0; padding-left:18px;">
         <li><strong>Equal playing time policy</strong> (Settings) turns on the fair-play banner and suggestions during live games — a nudge, never an enforced rule.</li>

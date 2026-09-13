@@ -1,4 +1,4 @@
-import { seedTeam, seedPlayers, seedGames, seedRules, emptyTeam } from './seed.js';
+import { seedTeam, seedPlayers, seedGames, seedRules, seedTrainings, emptyTeam } from './seed.js';
 import { uid } from './util.js';
 
 const STORAGE_KEY = 'ysg-data-v2';
@@ -19,13 +19,14 @@ function sampleData() {
   const players = seedPlayers();
   team.rules = seedRules(players);
   const games = seedGames(players, team.squadFormat);
-  return { team, players, games };
+  const trainings = seedTrainings(players);
+  return { team, players, games, trainings };
 }
 
 // A genuinely blank slate — what a coach sees the first time they open the
 // app, and what "Clear All Data" resets to.
 function emptyData() {
-  return { team: emptyTeam(), players: [], games: [] };
+  return { team: emptyTeam(), players: [], games: [], trainings: [] };
 }
 
 function load() {
@@ -39,6 +40,9 @@ function load() {
     try {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.team && Array.isArray(parsed.players) && Array.isArray(parsed.games)) {
+        // trainings is newer than the rest of the shape — default it in for
+        // data saved before this existed, rather than rejecting the save.
+        if (!Array.isArray(parsed.trainings)) parsed.trainings = [];
         return parsed;
       }
     } catch (e) {
@@ -94,6 +98,9 @@ export function restoreFromBackup(data) {
   if (!data || !data.team || !Array.isArray(data.players) || !Array.isArray(data.games)) {
     throw new Error('That doesn\'t look like a Boot Room backup — expected an object with team, players, and games.');
   }
+  // trainings is newer than the rest of the backup shape — default it in
+  // for a backup taken before this existed, rather than rejecting it.
+  if (!Array.isArray(data.trainings)) data.trainings = [];
   state = data;
   persist();
   listeners.forEach((fn) => fn(state));
@@ -124,7 +131,7 @@ export function mergeBackup(data) {
     throw new Error('That doesn\'t look like a Boot Room backup — expected an object with team, players, and games.');
   }
   const s = getState();
-  let playersAdded = 0, gamesAdded = 0, gamesUpdated = 0, awardsAdded = 0;
+  let playersAdded = 0, gamesAdded = 0, gamesUpdated = 0, awardsAdded = 0, trainingsAdded = 0;
 
   const localPlayerIds = new Set(s.players.map((p) => p.id));
   data.players.forEach((p) => {
@@ -163,14 +170,31 @@ export function mergeBackup(data) {
     });
   }
 
+  // Training sessions aren't co-edited the way a live match can be (there's
+  // no "further along" to compare), so this is a plain union by id: add
+  // whatever the incoming side has that isn't already here, and otherwise
+  // leave the local copy alone.
+  const incomingTrainings = data.trainings || [];
+  if (incomingTrainings.length) {
+    s.trainings = s.trainings || [];
+    const localTrainingIds = new Set(s.trainings.map((t) => t.id));
+    incomingTrainings.forEach((t) => {
+      if (!localTrainingIds.has(t.id)) {
+        s.trainings.push(t);
+        localTrainingIds.add(t.id);
+        trainingsAdded += 1;
+      }
+    });
+  }
+
   persist();
   listeners.forEach((fn) => fn(state));
   // A merge combines two coaches' otherwise-separate work into something
   // that doesn't exist anywhere else yet — snapshot it immediately rather
   // than leaving it unprotected until the next match end or a manual
   // Backup Team Data tap.
-  if (playersAdded || gamesAdded || gamesUpdated || awardsAdded) saveAutoBackup();
-  return { playersAdded, gamesAdded, gamesUpdated, awardsAdded };
+  if (playersAdded || gamesAdded || gamesUpdated || awardsAdded || trainingsAdded) saveAutoBackup();
+  return { playersAdded, gamesAdded, gamesUpdated, awardsAdded, trainingsAdded };
 }
 
 function loadAutoBackups() {
@@ -246,4 +270,8 @@ export function findPlayer(id) {
 
 export function findGame(id) {
   return getState().games.find((g) => g.id === id) || null;
+}
+
+export function findTraining(id) {
+  return getState().trainings.find((t) => t.id === id) || null;
 }

@@ -99,6 +99,26 @@ see everything working immediately. Reset or clear that data any time from
   match. Once a game is live or completed, deleting it moves to Edit
   Game's Delete button instead, so match history and stats aren't one
   accidental tap away.
+- **Training** — a separate section from Schedule for practices rather than
+  matches. "+ Add Training" creates a session with a date, time, and
+  location; each session has three tabs:
+  - **Attendance** — tap players to mark who's actually shown up, same
+    interaction as a game's Squad tab.
+  - **Groups** — "Auto-Build Groups" clusters players of similar skill
+    stream together, the opposite goal from Balance Teams (which spreads
+    streams evenly for a fair match): here similar-ability players are put
+    together so each group can be coached at its own level. Leave "Number
+    of groups" blank for one group per stream present, or set a specific
+    number — fewer than the streams present merges the smallest adjacent
+    pair, more splits the largest group roughly in half. If an auto-built
+    group ends up too big or too small, tap a player to select them, then
+    tap "Move here" on a different group's card to move them across by hand.
+  - **Plan** — a session planner: an ordered list of timed blocks (warm-up,
+    a drill, a scrimmage, cool-down, etc.), each either one activity for
+    the whole squad or a different activity per group running in parallel.
+    Reorder, edit, or delete blocks; the tab totals up the minutes and shows
+    an estimated finish time. It's a static plan to work from during the
+    session, not a live ticking clock like the match-day tracker.
 - **Captain & Player of the Match** — set per game from that game's page
   (pulled from whoever's marked present, or the full roster if attendance
   isn't set yet). Both show up as season totals in Stats.
@@ -303,6 +323,8 @@ js/
   importRoster.js  CSV/Excel parsing + header-alias mapping for bulk import
   errorLog.js      on-device uncaught-error capture for Settings > Diagnostics
   rules.js         "keep at least one on the pitch" pair-rule checking
+  trainingGroups.js clusters players by skill stream into training groups
+                   (opposite goal from balanceTeams.js's even spread)
   modal.js         small <dialog>-based modal helper, plus confirmDialog()/
                    alertDialog() — used everywhere instead of window.confirm()/
                    alert(), since a page embedded in an iframe (e.g. this app's
@@ -319,8 +341,10 @@ js/
     schedule.js
     gameDetail.js  RSVP tab + Squad (attendance + lineup) tab
     liveGame.js    live match tracker (and read-only summary once completed)
+    training.js    Training list/detail: attendance, groups, session planner
     stats.js       leaderboard, history, head-to-head
     settings.js
+    help.js
 ```
 
 ## Notes / next steps

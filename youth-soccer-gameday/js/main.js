@@ -11,6 +11,7 @@ import { renderSettings } from './views/settings.js';
 import { renderStats } from './views/stats.js';
 import { renderBalanceTeams } from './views/balanceTeams.js';
 import { renderHelp } from './views/help.js';
+import { renderTraining, renderTrainingDetail } from './views/training.js';
 
 initErrorLogging();
 
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { match: (p) => p.length === 0, path: '#/', label: 'Home', icon: '🏠' },
   { match: (p) => p[0] === 'roster' || p[0] === 'balance', path: '#/roster', label: 'Roster', icon: '👥' },
   { match: (p) => p[0] === 'schedule' || p[0] === 'game', path: '#/schedule', label: 'Schedule', icon: '📅' },
+  { match: (p) => p[0] === 'training', path: '#/training', label: 'Training', icon: '🏃' },
   { match: (p) => p[0] === 'stats', path: '#/stats', label: 'Stats', icon: '📊' },
   { match: (p) => p[0] === 'settings', path: '#/settings', label: 'Settings', icon: '⚙️' },
 ];
@@ -76,6 +78,9 @@ function route() {
   else if (parts[0] === 'stats') result = renderStats(app);
   else if (parts[0] === 'settings') result = renderSettings(app);
   else if (parts[0] === 'help') result = renderHelp(app);
+  else if (parts[0] === 'training') {
+    result = parts[1] ? renderTrainingDetail(app, parts[1], parts[2] || 'attendance') : renderTraining(app);
+  }
   else if (parts[0] === 'game' && parts[1]) {
     result = parts[2] === 'live'
       ? renderLiveGame(app, parts[1])

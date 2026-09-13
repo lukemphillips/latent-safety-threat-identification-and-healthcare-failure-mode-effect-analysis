@@ -67,6 +67,30 @@ function addDays(iso, days) {
   return d.toISOString().slice(0, 10);
 }
 
+export function seedTrainings(players = []) {
+  const today = todayIso();
+  const present = players.slice(0, 8).map((p) => p.id);
+  const byStream = (stream) => players.filter((p) => present.includes(p.id) && (p.skillStream || null) === stream).map((p) => p.id);
+  const groups = ['A', 'B', 'C', 'D']
+    .map((s) => ({ id: uid(), name: s, playerIds: byStream(s) }))
+    .filter((g) => g.playerIds.length);
+
+  return [{
+    id: uid(),
+    date: addDays(today, 3),
+    time: '18:00',
+    location: 'Training Ground 2',
+    presentIds: present,
+    groups,
+    blocks: [
+      { id: uid(), minutes: 10, mode: 'whole', activity: 'Warm-up: dynamic stretching + light jog', groupActivities: {} },
+      { id: uid(), minutes: 15, mode: 'grouped', activity: '', groupActivities: Object.fromEntries(groups.map((g, i) => [g.id, i % 2 === 0 ? 'Dribbling through gates' : 'Passing triangles']))},
+      { id: uid(), minutes: 20, mode: 'whole', activity: 'Small-sided games (5v5)', groupActivities: {} },
+      { id: uid(), minutes: 5, mode: 'whole', activity: 'Cool-down + water break', groupActivities: {} },
+    ],
+  }];
+}
+
 export function seedGames(players = [], squadFormat = 7) {
   const today = todayIso();
   const ids = players.map((p) => p.id);
