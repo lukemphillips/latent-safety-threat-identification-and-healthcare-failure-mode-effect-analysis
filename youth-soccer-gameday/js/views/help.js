@@ -52,6 +52,7 @@ export function renderHelp(app) {
         <li>Uploaded images are resized automatically; PDFs are capped at around 1.5MB. Everything here is stored on this device alongside your team data, which has much less room than a normal file system — a weblink costs nothing, so prefer that for anything large or already hosted somewhere.</li>
         <li>If an attachment won't fit, Boot Room tells you rather than silently failing or corrupting other data — remove the attachment and use a link instead, or free up space.</li>
         <li>When building a session's Plan, each activity field can pull a drill's name straight in via its "📚 Fill from Drill Library…" dropdown.</li>
+        <li>A drill with an attachment gets a "📤 Share / Download" button — on a phone that supports it, this opens the native share sheet with the actual image or PDF attached (so it can go straight into WhatsApp or Messages); everywhere else it downloads the file instead so you can attach it manually.</li>
       </ul>
     `)}
 

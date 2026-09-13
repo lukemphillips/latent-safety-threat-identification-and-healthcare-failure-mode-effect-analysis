@@ -140,7 +140,12 @@ see everything working immediately. Reset or clear that data any time from
   fits in storage, and tells the coach plainly if it doesn't rather than
   silently failing or risking other data. Deleting a drill never breaks a
   session's plan, since a plan block only ever copies a drill's name in at
-  the moment it's picked — it's not a live link back to the drill.
+  the moment it's picked — it's not a live link back to the drill. A drill
+  with an attachment also gets a "📤 Share / Download" button: where the
+  browser supports sharing files (most current Android/iOS), it opens the
+  native share sheet with the actual image or PDF attached, ready to send
+  straight into WhatsApp or Messages; everywhere else (most desktop
+  browsers, older iOS) it downloads the file instead.
 - **Captain & Player of the Match** — set per game from that game's page
   (pulled from whoever's marked present, or the full roster if attendance
   isn't set yet). Both show up as season totals in Stats.

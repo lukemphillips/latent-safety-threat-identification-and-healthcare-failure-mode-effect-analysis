@@ -59,6 +59,13 @@ export function renderDrillLibrary(app) {
       if (drill) openDrillForm(drill);
     });
   });
+
+  app.querySelectorAll('[data-action="share-attachment"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const drill = findDrill(el.dataset.drillId);
+      if (drill && drill.attachment) shareOrDownloadAttachment(drill, el);
+    });
+  });
 }
 
 function drillCardHtml(drill) {
@@ -68,15 +75,57 @@ function drillCardHtml(drill) {
         <div>
           <div style="font-weight:700; font-size:15px;">${escapeHtml(drill.name)}</div>
           ${drill.description ? `<div class="muted small" style="margin-top:4px;">${escapeHtml(drill.description)}</div>` : ''}
-          <div class="row" style="gap:12px; margin-top:8px;">
+          <div class="row" style="gap:12px; margin-top:8px; flex-wrap:wrap;">
             ${drill.link ? `<a class="small" href="${escapeHtml(drill.link)}" target="_blank" rel="noopener">🔗 Link</a>` : ''}
             ${drill.attachment ? `<a class="small" href="${drill.attachment.dataUrl}" target="_blank" rel="noopener">📎 ${escapeHtml(drill.attachment.name)}</a>` : ''}
+            ${drill.attachment ? `<button type="button" class="small" data-action="share-attachment" data-drill-id="${drill.id}" style="background:none; border:none; padding:0; color:inherit; cursor:pointer; font:inherit;">📤 Share / Download</button>` : ''}
           </div>
         </div>
         <button class="icon-btn" data-action="edit-drill" data-drill-id="${drill.id}" aria-label="Edit drill">✏️</button>
       </div>
     </div>
   `;
+}
+
+// Turns a stored attachment (a data: URL) back into a real File so it can
+// go through the native share sheet — WhatsApp and Messages both accept a
+// shared file that way, which a plain data: URL link can't offer on its
+// own. Falls back to triggering a browser download wherever file sharing
+// isn't available (most desktop browsers, older iOS), or if canShare()
+// specifically rejects this file (e.g. a type/size the OS share sheet
+// won't take) — but never after the coach has actively picked "Cancel" in
+// the share sheet itself, since silently downloading right after that
+// would be a surprise, not a fallback.
+async function shareOrDownloadAttachment(drill, triggerEl) {
+  const { attachment } = drill;
+  const originalLabel = triggerEl.textContent;
+  try {
+    if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
+      triggerEl.textContent = 'Preparing…';
+      const mime = attachment.type === 'pdf' ? 'application/pdf' : 'image/jpeg';
+      const blob = await (await fetch(attachment.dataUrl)).blob();
+      const file = new File([blob], attachment.name, { type: blob.type || mime });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: drill.name, text: drill.description || drill.name });
+        triggerEl.textContent = originalLabel;
+        return;
+      }
+    }
+  } catch (e) {
+    triggerEl.textContent = originalLabel;
+    if (e && e.name === 'AbortError') return; // coach cancelled the share sheet — don't also start a download
+  }
+  downloadAttachment(attachment);
+  triggerEl.textContent = originalLabel;
+}
+
+function downloadAttachment(attachment) {
+  const a = document.createElement('a');
+  a.href = attachment.dataUrl;
+  a.download = attachment.name || 'drill-attachment';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 // Accepts bare domains ("youtube.com/xyz") by assuming https, but refuses
