@@ -1,5 +1,5 @@
 import { getState, update, findTraining, findDrill } from '../store.js';
-import { uid, escapeHtml, formatDate, formatTime, sortByDateTime, todayIso, nowHHMM } from '../util.js';
+import { uid, escapeHtml, formatDate, formatTime, sortByDateTime, todayIso, nowHHMM, copyToClipboard } from '../util.js';
 import { buildGroupsByStream } from '../trainingGroups.js';
 import { openModal, closeModal, confirmDialog } from '../modal.js';
 
@@ -123,6 +123,9 @@ export function renderTrainingDetail(app, trainingId, tab) {
   selectingPlayerId = null;
   selectingSourceGroupId = null;
 
+  const { players, team } = getState();
+  const shareText = formatTrainingForShare(training, players, team.name);
+
   app.innerHTML = `
     <div class="page-title">
       <div>
@@ -132,6 +135,17 @@ export function renderTrainingDetail(app, trainingId, tab) {
       <div class="row" style="gap:4px;">
         <button class="icon-btn" data-action="edit-training" aria-label="Edit training">✏️</button>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="spread" style="align-items:center;">
+        <span class="small">${(training.presentIds || []).length} attending${(training.groups || []).length ? ` · ${training.groups.length} groups` : ''}${(training.blocks || []).length ? ` · ${training.blocks.length} plan blocks` : ''}</span>
+        <div class="row" style="gap:8px;">
+          <button class="btn secondary sm" data-action="copy-session">📋 Copy to Share</button>
+          <button class="btn secondary sm" data-action="native-share-session" hidden>📤 Text / Share…</button>
+        </div>
+      </div>
+      <textarea id="session-share-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:12px; padding:8px; border:1px solid var(--line); border-radius:8px; margin-top:10px;">${escapeHtml(shareText)}</textarea>
     </div>
 
     <div class="tabs">
@@ -144,6 +158,32 @@ export function renderTrainingDetail(app, trainingId, tab) {
   `;
 
   app.querySelector('[data-action="edit-training"]').addEventListener('click', () => openTrainingForm(training));
+
+  const copyBtn = app.querySelector('[data-action="copy-session"]');
+  const nativeBtn = app.querySelector('[data-action="native-share-session"]');
+  const fallbackEl = app.querySelector('#session-share-fallback');
+  if (typeof navigator.share === 'function') nativeBtn.hidden = false;
+
+  copyBtn.addEventListener('click', async () => {
+    await copyToClipboard(shareText, {
+      onSuccess: () => { copyBtn.textContent = '✅ Copied!'; },
+      onFallback: () => {
+        fallbackEl.hidden = false;
+        fallbackEl.focus();
+        fallbackEl.select();
+        copyBtn.textContent = 'Select the text below and copy it';
+      },
+    });
+    setTimeout(() => { copyBtn.textContent = '📋 Copy to Share'; }, 2500);
+  });
+
+  nativeBtn.addEventListener('click', async () => {
+    try {
+      await navigator.share({ title: `${team.name || 'Boot Room'} Training Session`, text: shareText });
+    } catch {
+      // User cancelled the share sheet, or it's unsupported here — Copy above always works.
+    }
+  });
 
   const content = app.querySelector('#tab-content');
   if (tab === 'groups') renderGroupsTab(content, training);
@@ -326,6 +366,54 @@ function addMinutesToTime(hhmm, minutes) {
   const total = h * 60 + m + minutes;
   const wrapped = ((total % 1440) + 1440) % 1440;
   return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`;
+}
+
+// Plain-text summary of a whole session — attendance, groups, and the full
+// plan — for the Copy to Share / native Share button, so a coach can drop
+// the whole thing into a WhatsApp message or text to another coach without
+// retyping it. Deliberately not HTML: it's meant to be pasted somewhere
+// else entirely, not rendered in this app.
+function formatTrainingForShare(training, players, teamName) {
+  const byId = Object.fromEntries(players.map((p) => [p.id, p]));
+  const groups = training.groups || [];
+  const blocks = training.blocks || [];
+
+  const lines = [
+    `${teamName || 'Boot Room'} — Training`,
+    `${formatDate(training.date)} · ${formatTime(training.time)}${training.location ? ' · ' + training.location : ''}`,
+    '',
+  ];
+
+  const present = (training.presentIds || []).map((id) => byId[id]).filter(Boolean);
+  lines.push(`Attendance (${present.length}):`);
+  lines.push(present.length ? present.map((p) => p.name).join(', ') : '—');
+
+  if (groups.length) {
+    lines.push('', 'Groups:');
+    groups.forEach((g) => {
+      const names = g.playerIds.map((id) => byId[id]?.name).filter(Boolean);
+      lines.push(`  ${g.name} (${names.length}): ${names.join(', ') || '—'}`);
+    });
+  }
+
+  if (blocks.length) {
+    const totalMinutes = blocks.reduce((sum, b) => sum + (b.minutes || 0), 0);
+    const endTime = totalMinutes ? addMinutesToTime(training.time, totalMinutes) : null;
+    lines.push('', `Plan (${totalMinutes} min total${endTime ? `, ends ~${formatTime(endTime)}` : ''}):`);
+    blocks.forEach((b, i) => {
+      if (b.mode === 'grouped') {
+        lines.push(`  ${i + 1}. ${b.minutes} min — per group:`);
+        groups.forEach((g) => {
+          const activity = (b.groupActivities || {})[g.id];
+          if (activity) lines.push(`     ${g.name}: ${activity}`);
+        });
+      } else {
+        lines.push(`  ${i + 1}. ${b.minutes} min — ${b.activity || '—'}`);
+      }
+    });
+  }
+
+  return lines.join('\n').trim();
 }
 
 function renderPlanTab(container, training) {

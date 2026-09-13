@@ -41,6 +41,7 @@ export function renderHelp(app) {
         <li><strong>Attendance tab</strong> — tap players to mark who's actually shown up, same as a game's Squad tab.</li>
         <li><strong>Groups tab</strong> — <strong>Auto-Build Groups</strong> clusters players of similar skill stream together (the opposite of Balance Teams, which spreads streams evenly for a fair match). Leave "Number of groups" blank for one group per stream present, or set a number to merge or split streams to fit. If a group ends up too big or small, tap a player to select them, then tap "Move here" on another group to move them across.</li>
         <li><strong>Plan tab</strong> — build a running order of blocks (warm-up, drills, scrimmage, etc.), each with a duration. A block can be one activity for the whole squad, or a different activity per group, run in parallel. Each activity field has a "📚 Fill from Drill Library…" dropdown to pull in a saved drill by name instead of typing it fresh every time. The tab shows a running total time and an estimated finish time. This is a static plan to work from — there's no live countdown clock.</li>
+        <li><strong>📋 Copy to Share</strong> (top of any training session's page) copies the whole session — attendance, groups, and the full plan — as plain text, ready to paste into a WhatsApp message or text to another coach. On a phone that supports it, "📤 Text / Share…" opens the native share sheet directly instead.</li>
       </ul>
     `)}
 

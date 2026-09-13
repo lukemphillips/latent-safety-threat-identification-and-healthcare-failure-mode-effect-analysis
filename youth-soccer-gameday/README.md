@@ -121,6 +121,12 @@ see everything working immediately. Reset or clear that data any time from
     blocks; the tab totals up the minutes and shows an estimated finish
     time. It's a static plan to work from during the session, not a live
     ticking clock like the match-day tracker.
+  - **Copy to Share / native share** — at the top of any session's page
+    (same pattern as Balance Teams' team split), "📋 Copy to Share" copies
+    the whole session — attendance, groups, and the full plan with timings
+    — as plain text, ready to paste into a WhatsApp message or text to
+    another coach. Where the browser supports it, "📤 Text / Share…" opens
+    the native share sheet directly instead of a manual copy/paste.
 - **Drill Library** — a reusable repository of drills, separate from any
   one session (linked from the top of the Training page). Each drill has a
   name, an optional description, an optional weblink (a video or article),
