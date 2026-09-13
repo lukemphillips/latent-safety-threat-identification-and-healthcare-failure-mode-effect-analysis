@@ -137,7 +137,7 @@ export function tryDownloadFile(filename, text) {
 // maxDim, preserving aspect ratio, and returns it as a PNG data URL — a
 // photo taken straight off a phone can be several MB, which would bloat
 // localStorage badly for what's only ever shown as a small header badge.
-export function resizeImageFile(file, maxDim = 160) {
+export function resizeImageFile(file, maxDim = 160, { mimeType = 'image/png', quality } = {}) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error || new Error('Could not read that file.'));
@@ -152,12 +152,22 @@ export function resizeImageFile(file, maxDim = 160) {
         canvas.width = w;
         canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/png'));
+        resolve(canvas.toDataURL(mimeType, quality));
       };
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
   });
+}
+
+// Human-readable file size for showing an attachment's footprint before a
+// coach commits to saving it — everything here lives in localStorage, which
+// has much less headroom than a normal file system.
+export function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function streamBadgeHtml(stream) {

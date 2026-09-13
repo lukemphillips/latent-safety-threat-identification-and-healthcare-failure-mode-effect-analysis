@@ -1,4 +1,4 @@
-import { getState, update, findTraining } from '../store.js';
+import { getState, update, findTraining, findDrill } from '../store.js';
 import { uid, escapeHtml, formatDate, formatTime, sortByDateTime, todayIso, nowHHMM } from '../util.js';
 import { buildGroupsByStream } from '../trainingGroups.js';
 import { openModal, closeModal, confirmDialog } from '../modal.js';
@@ -14,7 +14,10 @@ export function renderTraining(app) {
   app.innerHTML = `
     <div class="page-title">
       <h1>Training</h1>
-      <button class="btn" data-action="add-training">+ Add Training</button>
+      <div class="row" style="gap:8px;">
+        <a class="btn ghost sm" href="#/drills">📚 Drill Library</a>
+        <button class="btn" data-action="add-training">+ Add Training</button>
+      </div>
     </div>
 
     <div class="section-title" style="margin-top:0;">Upcoming</div>
@@ -406,9 +409,21 @@ function blockCardHtml(block, index, total, groups) {
   `;
 }
 
+function drillFillHtml(fieldName, drills) {
+  if (!drills.length) return '';
+  return `
+    <select data-drill-fill="${fieldName}" style="margin-top:6px;">
+      <option value="">📚 Fill from Drill Library…</option>
+      ${drills.map((d) => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('')}
+    </select>
+  `;
+}
+
 function openBlockForm(training, groups, existing) {
   const pf = existing || { mode: 'whole', minutes: 10, activity: '', groupActivities: {} };
   const hasGroups = groups.length > 0;
+  const { drills } = getState();
+
   openModal({
     title: existing ? 'Edit Block' : 'Add Block',
     bodyHtml: `
@@ -429,6 +444,7 @@ function openBlockForm(training, groups, existing) {
           <div class="field">
             <label>Activity</label>
             <input type="text" name="activity" value="${escapeHtml(pf.activity || '')}" placeholder="e.g. Passing triangles" />
+            ${drillFillHtml('activity', drills)}
           </div>
         </div>
         <div data-grouped-fields ${pf.mode === 'grouped' && hasGroups ? '' : 'hidden'}>
@@ -436,9 +452,11 @@ function openBlockForm(training, groups, existing) {
             <div class="field">
               <label>${escapeHtml(g.name)}</label>
               <input type="text" name="group-${g.id}" value="${escapeHtml((pf.groupActivities || {})[g.id] || '')}" placeholder="Activity for this group" />
+              ${drillFillHtml(`group-${g.id}`, drills)}
             </div>
           `).join('')}
         </div>
+        ${drills.length ? '' : '<div class="muted small">No drills saved yet — <a href="#/drills">add some to the Drill Library</a> to quick-fill activities from here next time.</div>'}
         <button type="submit" class="btn block">${existing ? 'Save' : 'Add Block'}</button>
       </form>
     `,
@@ -454,6 +472,15 @@ function openBlockForm(training, groups, existing) {
           groupedFields.hidden = !grouped;
         });
       }
+
+      form.querySelectorAll('[data-drill-fill]').forEach((select) => {
+        select.addEventListener('change', () => {
+          const drill = findDrill(select.value);
+          const input = form.querySelector(`[name="${select.dataset.drillFill}"]`);
+          if (drill && input) input.value = drill.name;
+          select.value = '';
+        });
+      });
 
       form.addEventListener('submit', (e) => {
         e.preventDefault();

@@ -116,9 +116,25 @@ see everything working immediately. Reset or clear that data any time from
   - **Plan** — a session planner: an ordered list of timed blocks (warm-up,
     a drill, a scrimmage, cool-down, etc.), each either one activity for
     the whole squad or a different activity per group running in parallel.
-    Reorder, edit, or delete blocks; the tab totals up the minutes and shows
-    an estimated finish time. It's a static plan to work from during the
-    session, not a live ticking clock like the match-day tracker.
+    Each activity field has a "📚 Fill from Drill Library…" dropdown to pull
+    in a saved drill instead of retyping it. Reorder, edit, or delete
+    blocks; the tab totals up the minutes and shows an estimated finish
+    time. It's a static plan to work from during the session, not a live
+    ticking clock like the match-day tracker.
+- **Drill Library** — a reusable repository of drills, separate from any
+  one session (linked from the top of the Training page). Each drill has a
+  name, an optional description, an optional weblink (a video or article),
+  and an optional attached PDF or image (a diagram, say). Images are
+  resized automatically; PDFs are capped at roughly 1.5MB, since everything
+  here is stored on-device in the same `localStorage` as the rest of the
+  team's data, which has far less headroom than a normal file system — a
+  weblink is unlimited and costs nothing, so it's the better choice for
+  anything large or already hosted somewhere. Before saving, Boot Room does
+  a real test write to confirm the drill (attachment included) actually
+  fits in storage, and tells the coach plainly if it doesn't rather than
+  silently failing or risking other data. Deleting a drill never breaks a
+  session's plan, since a plan block only ever copies a drill's name in at
+  the moment it's picked — it's not a live link back to the drill.
 - **Captain & Player of the Match** — set per game from that game's page
   (pulled from whoever's marked present, or the full roster if attendance
   isn't set yet). Both show up as season totals in Stats.
@@ -342,6 +358,8 @@ js/
     gameDetail.js  RSVP tab + Squad (attendance + lineup) tab
     liveGame.js    live match tracker (and read-only summary once completed)
     training.js    Training list/detail: attendance, groups, session planner
+    drills.js      Drill Library: CRUD + weblink/PDF/image attachments,
+                   with a storage-quota pre-check before saving
     stats.js       leaderboard, history, head-to-head
     settings.js
     help.js

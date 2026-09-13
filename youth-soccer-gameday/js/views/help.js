@@ -40,7 +40,17 @@ export function renderHelp(app) {
         <li><strong>+ Add Training</strong> creates a session with a date, time, and location.</li>
         <li><strong>Attendance tab</strong> — tap players to mark who's actually shown up, same as a game's Squad tab.</li>
         <li><strong>Groups tab</strong> — <strong>Auto-Build Groups</strong> clusters players of similar skill stream together (the opposite of Balance Teams, which spreads streams evenly for a fair match). Leave "Number of groups" blank for one group per stream present, or set a number to merge or split streams to fit. If a group ends up too big or small, tap a player to select them, then tap "Move here" on another group to move them across.</li>
-        <li><strong>Plan tab</strong> — build a running order of blocks (warm-up, drills, scrimmage, etc.), each with a duration. A block can be one activity for the whole squad, or a different activity per group, run in parallel. The tab shows a running total time and an estimated finish time. This is a static plan to work from — there's no live countdown clock.</li>
+        <li><strong>Plan tab</strong> — build a running order of blocks (warm-up, drills, scrimmage, etc.), each with a duration. A block can be one activity for the whole squad, or a different activity per group, run in parallel. Each activity field has a "📚 Fill from Drill Library…" dropdown to pull in a saved drill by name instead of typing it fresh every time. The tab shows a running total time and an estimated finish time. This is a static plan to work from — there's no live countdown clock.</li>
+      </ul>
+    `)}
+
+    ${section('📚 Drill Library', `
+      <p class="muted small mt-0">A reusable collection of drills, separate from any one session — linked from the top of the Training page.</p>
+      <ul class="stack" style="margin:0; padding-left:18px;">
+        <li><strong>+ Add Drill</strong> — a name, an optional description, an optional weblink (a video or article), and an optional attached PDF or image (a diagram, say).</li>
+        <li>Uploaded images are resized automatically; PDFs are capped at around 1.5MB. Everything here is stored on this device alongside your team data, which has much less room than a normal file system — a weblink costs nothing, so prefer that for anything large or already hosted somewhere.</li>
+        <li>If an attachment won't fit, Boot Room tells you rather than silently failing or corrupting other data — remove the attachment and use a link instead, or free up space.</li>
+        <li>When building a session's Plan, each activity field can pull a drill's name straight in via its "📚 Fill from Drill Library…" dropdown.</li>
       </ul>
     `)}
 
