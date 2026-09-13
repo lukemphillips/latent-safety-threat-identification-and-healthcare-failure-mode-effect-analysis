@@ -101,7 +101,7 @@ see everything working immediately. Reset or clear that data any time from
   accidental tap away.
 - **Training** — a separate section from Schedule for practices rather than
   matches. "+ Add Training" creates a session with a date, time, and
-  location; each session has three tabs:
+  location; each session has four tabs:
   - **Attendance** — tap players to mark who's actually shown up, same
     interaction as a game's Squad tab.
   - **Groups** — "Auto-Build Groups" clusters players of similar skill
@@ -113,6 +113,14 @@ see everything working immediately. Reset or clear that data any time from
     pair, more splits the largest group roughly in half. If an auto-built
     group ends up too big or too small, tap a player to select them, then
     tap "Move here" on a different group's card to move them across by hand.
+  - **Matches** — sets up small-sided scrimmage teams, a separate concept
+    from coaching Groups. Pick a number of teams (2–4) and tap "Build Match
+    Teams"; "Randomize Again" re-rolls it. **Same stream** clusters similar
+    ability onto the same team (good for two matches at different
+    intensities, reusing the Groups clustering algorithm); **Mixed
+    ability** spreads every stream evenly across teams instead, for one
+    fair match (reusing Balance Teams' even-spread algorithm). Match teams
+    are independent of Groups and the Plan, and show up in Copy to Share.
   - **Plan** — a session planner: an ordered list of timed blocks (warm-up,
     a drill, a scrimmage, cool-down, etc.), each either one activity for
     the whole squad or a different activity per group running in parallel.
@@ -122,17 +130,31 @@ see everything working immediately. Reset or clear that data any time from
     becomes "per rotation" — the block's total time, the session running
     total, and the estimated finish time all scale to minutes × number of
     stations automatically, since that's genuinely how long it takes for
-    every group to get through every station. Each activity field has a
-    "📚 Fill from Drill Library…" dropdown to pull in a saved drill instead
-    of retyping it, and "+ Add Drill" is reachable from the Training list
-    and every session's page too, not just the library itself. Reorder,
-    edit, or delete blocks.
+    every group to get through every station. A block can also be marked
+    as a **break** (water/rest stop) — shown with a ☕ marker, skipping the
+    activity-type and group fields entirely, just a duration and an
+    optional note. Each activity field has a "📚 Fill from Drill Library…"
+    dropdown to pull in a saved drill instead of retyping it, and "+ Add
+    Drill" is reachable from the Training list and every session's page
+    too, not just the library itself. Reorder, edit, or delete blocks.
+    "▶ Start Session" turns the static plan into a **live countdown
+    timer**: a big clock counts down the current block, an order-of-play
+    list shows done/current/upcoming blocks, and ⏸ Pause / ▶ Resume, ⏮
+    Previous, and ⏭ Skip controls adjust it on the fly — pausing genuinely
+    freezes the clock (driven by the same global one-second ticker as a
+    live match's clock, so it keeps running even off-screen, and a pause
+    is just `live.running = false` rather than stopping the ticker). A
+    chime/vibration (the same alert used for substitution reminders) fires
+    whenever the timer crosses into a new block. A rotation block's live
+    view shows exactly which station each group is on and counts down that
+    specific leg. "⏹ End Session" stops the timer without touching the
+    saved plan; a live session shows a 🔴 LIVE tag on the Training list.
   - **Copy to Share / native share** — at the top of any session's page
     (same pattern as Balance Teams' team split), "📋 Copy to Share" copies
-    the whole session — attendance, groups, and the full plan with timings
-    — as plain text, ready to paste into a WhatsApp message or text to
-    another coach. Where the browser supports it, "📤 Text / Share…" opens
-    the native share sheet directly instead of a manual copy/paste.
+    the whole session — attendance, groups, match teams, and the full plan
+    with timings — as plain text, ready to paste into a WhatsApp message
+    or text to another coach. Where the browser supports it, "📤 Text /
+    Share…" opens the native share sheet directly instead of copy/paste.
 - **Drill Library** — a reusable repository of drills, separate from any
   one session (linked from the top of the Training page, and reachable
   from any Training screen via "+ Add Drill"). Each drill has a name, an

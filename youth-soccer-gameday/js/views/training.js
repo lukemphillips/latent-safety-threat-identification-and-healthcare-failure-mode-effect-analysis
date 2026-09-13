@@ -1,11 +1,21 @@
 import { getState, update, findTraining, findDrill } from '../store.js';
-import { uid, escapeHtml, formatDate, formatTime, sortByDateTime, todayIso, nowHHMM, copyToClipboard } from '../util.js';
+import { uid, escapeHtml, formatDate, formatTime, formatClock, sortByDateTime, todayIso, nowHHMM, copyToClipboard } from '../util.js';
 import { buildGroupsByStream } from '../trainingGroups.js';
 import { openModal, closeModal, confirmDialog } from '../modal.js';
 import { openDrillForm as openDrillLibraryForm } from './drills.js';
+import { splitBalancedTeams } from './balanceTeams.js';
 
 let selectingPlayerId = null;
 let selectingSourceGroupId = null;
+
+function shuffle(list) {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 export function renderTraining(app) {
   const { trainings } = getState();
@@ -39,10 +49,10 @@ function trainingCard(training) {
   const groupCount = (training.groups || []).length;
   const blockCount = (training.blocks || []).length;
   return `
-    <a class="card" href="#/training/${training.id}/attendance" style="display:block;">
+    <a class="card" href="#/training/${training.id}/${training.live ? 'plan' : 'attendance'}" style="display:block;">
       <div class="card-row">
         <div>
-          <div style="font-weight:700; font-size:15px;">Training</div>
+          <div style="font-weight:700; font-size:15px;">Training${training.live ? ' · <span style="color:var(--red);">🔴 LIVE</span>' : ''}</div>
           <div class="muted small">${formatDate(training.date)} · ${formatTime(training.time)}${training.location ? ' · ' + escapeHtml(training.location) : ''}</div>
           <div class="muted small">${(training.presentIds || []).length} attending${groupCount ? ` · ${groupCount} group${groupCount === 1 ? '' : 's'}` : ''}${blockCount ? ` · ${blockCount} plan block${blockCount === 1 ? '' : 's'}` : ''}</div>
         </div>
@@ -143,7 +153,7 @@ export function renderTrainingDetail(app, trainingId, tab) {
 
     <div class="card">
       <div class="spread" style="align-items:center;">
-        <span class="small">${(training.presentIds || []).length} attending${(training.groups || []).length ? ` · ${training.groups.length} groups` : ''}${(training.blocks || []).length ? ` · ${training.blocks.length} plan blocks` : ''}</span>
+        <span class="small">${(training.presentIds || []).length} attending${(training.groups || []).length ? ` · ${training.groups.length} groups` : ''}${(training.matchTeams || []).length ? ` · ${training.matchTeams.length} match teams` : ''}${(training.blocks || []).length ? ` · ${training.blocks.length} plan blocks` : ''}</span>
         <div class="row" style="gap:8px;">
           <button class="btn secondary sm" data-action="copy-session">📋 Copy to Share</button>
           <button class="btn secondary sm" data-action="native-share-session" hidden>📤 Text / Share…</button>
@@ -155,6 +165,7 @@ export function renderTrainingDetail(app, trainingId, tab) {
     <div class="tabs">
       <a class="tab ${tab === 'attendance' ? 'active' : ''}" href="#/training/${training.id}/attendance">Attendance</a>
       <a class="tab ${tab === 'groups' ? 'active' : ''}" href="#/training/${training.id}/groups">Groups</a>
+      <a class="tab ${tab === 'matches' ? 'active' : ''}" href="#/training/${training.id}/matches">Matches</a>
       <a class="tab ${tab === 'plan' ? 'active' : ''}" href="#/training/${training.id}/plan">Plan</a>
     </div>
 
@@ -192,6 +203,7 @@ export function renderTrainingDetail(app, trainingId, tab) {
 
   const content = app.querySelector('#tab-content');
   if (tab === 'groups') renderGroupsTab(content, training);
+  else if (tab === 'matches') renderMatchesTab(content, training);
   else if (tab === 'plan') renderPlanTab(content, training);
   else renderAttendanceTab(content, training);
 }
@@ -365,6 +377,106 @@ function groupCardHtml(group, byId) {
   `;
 }
 
+const MATCH_MIN_TEAMS = 2;
+const MATCH_MAX_TEAMS = 4;
+
+// Small-sided match teams are a separate concept from coaching Groups: a
+// Group is about running a station at the right ability level, a Match
+// Team is about who plays who. "Same stream" reuses the training-groups
+// clustering algorithm (players of similar ability play each other,
+// useful for running two matches at different intensities); "mixed"
+// reuses Balance Teams' even-spread algorithm (a fair, competitive single
+// match). Shuffling the input first means "Randomize Again" gives a
+// different split even in same-stream mode whenever a stream has to be
+// divided to fit the team count.
+function buildMatchTeams(players, count, mode) {
+  const groups = mode === 'mixed'
+    ? splitBalancedTeams(players, count).map((teamPlayers) => ({ playerIds: teamPlayers.map((p) => p.id) }))
+    : buildGroupsByStream(shuffle(players), count);
+  return groups.map((g, i) => ({ id: uid(), name: `Team ${i + 1}`, playerIds: g.playerIds }));
+}
+
+function renderMatchesTab(container, training) {
+  const { players } = getState();
+  const presentIds = new Set(training.presentIds || []);
+  const present = players.filter((p) => p.active && presentIds.has(p.id));
+  const byId = Object.fromEntries(present.map((p) => [p.id, p]));
+  const teamCount = training.matchTeamCount || MATCH_MIN_TEAMS;
+  const mode = training.matchMode || 'same';
+  const teams = training.matchTeams || [];
+
+  if (!present.length) {
+    container.innerHTML = `<div class="banner info">Mark who's here on the Attendance tab first, then come back to set up small-sided matches.</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="card">
+      <div class="field-row" style="align-items:flex-end;">
+        <div class="field" style="max-width:160px;">
+          <label>Number of teams</label>
+          <input type="number" id="match-team-count" min="${MATCH_MIN_TEAMS}" max="${MATCH_MAX_TEAMS}" value="${teamCount}" />
+        </div>
+        <button class="btn secondary" data-action="build-matches">🎲 ${teams.length ? 'Randomize Again' : 'Build Match Teams'}</button>
+      </div>
+      <div class="tabs" style="margin-top:10px; max-width:360px;">
+        <div class="tab ${mode === 'same' ? 'active' : ''}" data-match-mode="same">Same stream</div>
+        <div class="tab ${mode === 'mixed' ? 'active' : ''}" data-match-mode="mixed">Mixed ability</div>
+      </div>
+      <div class="muted small" style="margin-top:6px;">${mode === 'same'
+        ? 'Groups players of similar ability together — good for running separate matches at different intensities.'
+        : 'Spreads each skill stream evenly across every team — a fair, competitive match.'}</div>
+    </div>
+
+    ${teams.length ? `
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; margin-top:12px;">
+        ${teams.map((t) => matchTeamCardHtml(t, byId)).join('')}
+      </div>
+    ` : '<div class="card empty" style="margin-top:12px;">No match teams yet — tap Build Match Teams above.</div>'}
+  `;
+
+  container.querySelectorAll('[data-match-mode]').forEach((el) => {
+    el.addEventListener('click', () => {
+      update((state) => {
+        const t = state.trainings.find((x) => x.id === training.id);
+        t.matchMode = el.dataset.matchMode;
+      });
+    });
+  });
+
+  container.querySelector('[data-action="build-matches"]').addEventListener('click', () => {
+    const countInput = container.querySelector('#match-team-count');
+    const count = Math.max(MATCH_MIN_TEAMS, Math.min(MATCH_MAX_TEAMS, Number(countInput.value) || MATCH_MIN_TEAMS));
+    const currentMode = training.matchMode || 'same';
+    const newTeams = buildMatchTeams(present, count, currentMode);
+    update((state) => {
+      const t = state.trainings.find((x) => x.id === training.id);
+      t.matchTeamCount = count;
+      t.matchTeams = newTeams;
+    });
+  });
+}
+
+function matchTeamCardHtml(team, byId) {
+  const teamPlayers = team.playerIds.map((id) => byId[id]).filter(Boolean);
+  const counts = { A: 0, B: 0, C: 0, D: 0, none: 0 };
+  teamPlayers.forEach((p) => { counts[p.skillStream && counts[p.skillStream] !== undefined ? p.skillStream : 'none'] += 1; });
+  return `
+    <div class="card" style="flex:1 1 220px;">
+      <div style="font-weight:700; margin-bottom:6px;">${escapeHtml(team.name)} (${teamPlayers.length})</div>
+      <div class="muted small" style="margin-bottom:8px;">A:${counts.A} · B:${counts.B} · C:${counts.C} · D:${counts.D}${counts.none ? ` · Unclassified:${counts.none}` : ''}</div>
+      <div class="stack">
+        ${teamPlayers.length ? teamPlayers.map((p) => `
+          <div class="player-row">
+            <div class="jersey">${p.jerseyNumber ?? '-'}</div>
+            <div class="player-meta"><div class="player-name">${escapeHtml(p.name)}</div></div>
+          </div>
+        `).join('') : '<span class="muted small">No one on this team.</span>'}
+      </div>
+    </div>
+  `;
+}
+
 function addMinutesToTime(hhmm, minutes) {
   if (!hhmm) return '';
   const [h, m] = hhmm.split(':').map(Number);
@@ -390,6 +502,76 @@ function blockEffectiveMinutes(block, groups) {
     return (block.minutes || 0) * rotationStationCount(block, groups);
   }
   return block.minutes || 0;
+}
+
+// Lays the plan out on a single timeline in seconds — each entry's
+// start/end is where that block sits in the overall session once rotation
+// blocks are expanded to their full (minutes × stations) length. The live
+// timer derives "what's happening right now" purely from elapsed seconds
+// against this timeline, rather than tracking a separate block pointer, so
+// skipping/rewinding is just moving a number.
+function planTimeline(training) {
+  const groups = training.groups || [];
+  let cursor = 0;
+  return (training.blocks || []).map((block) => {
+    const effectiveSeconds = blockEffectiveMinutes(block, groups) * 60;
+    const start = cursor;
+    cursor += effectiveSeconds;
+    return { block, startSeconds: start, endSeconds: cursor, effectiveSeconds };
+  });
+}
+
+// Takes an already-computed timeline (not the training object) so callers
+// that also need the array itself — for indexOf, length, etc. — get back
+// an entry that's actually === one of its own elements, rather than a
+// fresh object from a second, separate planTimeline() call.
+function currentTimelineEntry(timeline, elapsedSeconds) {
+  if (!timeline.length) return null;
+  return timeline.find((e) => elapsedSeconds < e.endSeconds) || timeline[timeline.length - 1];
+}
+
+// Within a rotation block, which "leg" (0-indexed rotation) is current and
+// how much of it remains.
+function rotationLegInfo(block, groups, secondsIntoBlock) {
+  const stations = rotationStationCount(block, groups);
+  const legSeconds = Math.max(1, block.minutes || 1) * 60;
+  const legIndex = Math.min(stations - 1, Math.floor(secondsIntoBlock / legSeconds));
+  const secondsIntoLeg = secondsIntoBlock - legIndex * legSeconds;
+  return { legIndex, stations, secondsIntoLeg, legSeconds };
+}
+
+// What each real group is actually doing during a given rotation leg: at
+// leg 0 every group is at its own station; at leg L each group has moved
+// on to the station that was L groups ahead of it, cycling back around —
+// i.e. everyone visits every station exactly once by the last leg.
+function rotationAssignment(block, groups, legIndex) {
+  const activeGroups = groups.filter((g) => ((block.groupActivities || {})[g.id] || '').trim());
+  const n = activeGroups.length;
+  if (!n) return [];
+  return activeGroups.map((g, i) => {
+    const stationGroup = activeGroups[(i + legIndex) % n];
+    return { group: g, activity: (block.groupActivities || {})[stationGroup.id] };
+  });
+}
+
+// Ticks a live session forward by one second (called from main.js's global
+// per-second ticker, same pattern as a live match's clock). Returns true
+// exactly when this tick crosses into a new block, so the caller can fire
+// an attention chime — never on the tick that finishes the whole plan,
+// since there's nothing left to alert about.
+export function advanceTrainingLive(training) {
+  if (!training.live || !training.live.running) return false;
+  const timeline = planTimeline(training);
+  const total = timeline.length ? timeline[timeline.length - 1].endSeconds : 0;
+  const before = currentTimelineEntry(timeline, training.live.elapsedSeconds);
+  training.live.elapsedSeconds += 1;
+  if (training.live.elapsedSeconds >= total) {
+    training.live.running = false;
+    training.live.elapsedSeconds = total;
+    return false;
+  }
+  const after = currentTimelineEntry(timeline, training.live.elapsedSeconds);
+  return !!(before && after && before.block.id !== after.block.id);
 }
 
 // Plain-text summary of a whole session — attendance, groups, and the full
@@ -420,12 +602,23 @@ function formatTrainingForShare(training, players, teamName) {
     });
   }
 
+  const matchTeams = training.matchTeams || [];
+  if (matchTeams.length) {
+    lines.push('', `Match Teams (${training.matchMode === 'mixed' ? 'mixed ability' : 'same stream'}):`);
+    matchTeams.forEach((t) => {
+      const names = t.playerIds.map((id) => byId[id]?.name).filter(Boolean);
+      lines.push(`  ${t.name} (${names.length}): ${names.join(', ') || '—'}`);
+    });
+  }
+
   if (blocks.length) {
     const totalMinutes = blocks.reduce((sum, b) => sum + blockEffectiveMinutes(b, groups), 0);
     const endTime = totalMinutes ? addMinutesToTime(training.time, totalMinutes) : null;
     lines.push('', `Plan (${totalMinutes} min total${endTime ? `, ends ~${formatTime(endTime)}` : ''}):`);
     blocks.forEach((b, i) => {
-      if (b.mode === 'grouped') {
+      if (b.isBreak) {
+        lines.push(`  ${i + 1}. ${b.minutes} min — ☕ Break${b.activity ? ': ' + b.activity : ''}`);
+      } else if (b.mode === 'grouped') {
         if (b.rotate) {
           const stations = rotationStationCount(b, groups);
           lines.push(`  ${i + 1}. ${b.minutes} min × ${stations} rotations (${b.minutes * stations} min) — rotate through:`);
@@ -446,6 +639,11 @@ function formatTrainingForShare(training, players, teamName) {
 }
 
 function renderPlanTab(container, training) {
+  if (training.live) renderLiveTimer(container, training);
+  else renderStaticPlan(container, training);
+}
+
+function renderStaticPlan(container, training) {
   const blocks = training.blocks || [];
   const groups = training.groups || [];
   const totalMinutes = blocks.reduce((sum, b) => sum + blockEffectiveMinutes(b, groups), 0);
@@ -454,7 +652,10 @@ function renderPlanTab(container, training) {
   container.innerHTML = `
     <div class="spread" style="margin-bottom:10px;">
       <span class="muted small">${blocks.length ? `${totalMinutes} min total${endTime ? ` · ends ~${formatTime(endTime)}` : ''}` : 'No plan yet'}</span>
-      <button class="btn secondary sm" data-action="add-block">+ Add Block</button>
+      <div class="row" style="gap:8px;">
+        ${blocks.length ? '<button class="btn sm" data-action="start-live">▶ Start Session</button>' : ''}
+        <button class="btn secondary sm" data-action="add-block">+ Add Block</button>
+      </div>
     </div>
     ${blocks.length ? `
       <div class="stack">
@@ -464,6 +665,16 @@ function renderPlanTab(container, training) {
   `;
 
   container.querySelector('[data-action="add-block"]').addEventListener('click', () => openBlockForm(training, groups));
+
+  const startBtn = container.querySelector('[data-action="start-live"]');
+  if (startBtn) {
+    startBtn.addEventListener('click', () => {
+      update((state) => {
+        const t = state.trainings.find((x) => x.id === training.id);
+        t.live = { running: true, elapsedSeconds: 0 };
+      });
+    });
+  }
 
   container.querySelectorAll('[data-action="edit-block"]').forEach((el) => {
     el.addEventListener('click', () => {
@@ -490,6 +701,111 @@ function renderPlanTab(container, training) {
   });
 }
 
+function renderLiveTimer(container, training) {
+  const groups = training.groups || [];
+  const timeline = planTimeline(training);
+  if (!timeline.length) {
+    container.innerHTML = '<div class="banner info">No plan blocks to run.</div>';
+    return;
+  }
+  const elapsed = training.live.elapsedSeconds;
+  const entry = currentTimelineEntry(timeline, elapsed);
+  const idx = timeline.indexOf(entry);
+  const secondsIntoBlock = elapsed - entry.startSeconds;
+  const secondsLeftInBlock = Math.max(0, entry.effectiveSeconds - secondsIntoBlock);
+  const block = entry.block;
+  const isRotation = block.mode === 'grouped' && block.rotate;
+
+  let activityHtml;
+  if (block.isBreak) {
+    activityHtml = `<div style="text-align:center; font-size:16px; font-weight:700;">☕ Break${block.activity ? ': ' + escapeHtml(block.activity) : ''}</div>`;
+  } else if (block.mode === 'grouped') {
+    if (isRotation) {
+      const { legIndex, stations, secondsIntoLeg, legSeconds } = rotationLegInfo(block, groups, secondsIntoBlock);
+      const assignments = rotationAssignment(block, groups, legIndex);
+      activityHtml = `
+        <div class="muted small" style="text-align:center; margin-bottom:6px;">Rotation ${legIndex + 1} of ${stations} · ${formatClock(Math.max(0, legSeconds - secondsIntoLeg))} left this rotation</div>
+        <div class="stack">
+          ${assignments.map(({ group, activity }) => `<div class="small" style="text-align:center;"><strong>${escapeHtml(group.name)}:</strong> ${escapeHtml(activity || '—')}</div>`).join('')}
+        </div>
+      `;
+    } else {
+      const active = groups.filter((g) => ((block.groupActivities || {})[g.id] || '').trim());
+      activityHtml = `
+        <div class="stack">
+          ${active.map((g) => `<div class="small" style="text-align:center;"><strong>${escapeHtml(g.name)}:</strong> ${escapeHtml((block.groupActivities || {})[g.id])}</div>`).join('') || '<div class="muted small" style="text-align:center;">No group activities set.</div>'}
+        </div>
+      `;
+    }
+  } else {
+    activityHtml = `<div style="text-align:center; font-size:16px; font-weight:600;">${escapeHtml(block.activity || '—')}</div>`;
+  }
+
+  container.innerHTML = `
+    <div class="card" style="text-align:center;">
+      <div class="muted small">Block ${idx + 1} of ${timeline.length}${training.live.running ? '' : ' · Paused'}</div>
+      <div style="font-size:44px; font-weight:800; font-variant-numeric:tabular-nums; margin:6px 0;">${formatClock(secondsLeftInBlock)}</div>
+      ${activityHtml}
+    </div>
+    <div class="row" style="gap:8px; justify-content:center; flex-wrap:wrap; margin:14px 0;">
+      ${training.live.running
+        ? '<button class="btn secondary" data-action="pause-live">⏸ Pause</button>'
+        : '<button class="btn" data-action="resume-live">▶ Resume</button>'}
+      <button class="btn ghost" data-action="prev-block" ${idx === 0 ? 'disabled' : ''}>⏮ Previous</button>
+      <button class="btn ghost" data-action="skip-block">⏭ Skip</button>
+      <button class="btn danger" data-action="end-live">⏹ End Session</button>
+    </div>
+    <div class="section-title" style="margin-top:0;">Session order</div>
+    <div class="card">
+      ${timeline.map((e, i) => `
+        <div class="card-row" style="padding:6px 0; ${i === idx ? 'font-weight:700;' : ''} ${i < idx ? 'opacity:0.55;' : ''}">
+          <span class="small">${i < idx ? '✅' : i === idx ? '▶' : '⏳'} ${e.block.isBreak ? '☕ Break' : (e.block.mode === 'grouped' ? (e.block.rotate ? 'Rotation' : 'Per group') : escapeHtml(e.block.activity || 'Activity'))}</span>
+          <span class="small muted">${Math.round(e.effectiveSeconds / 60)} min</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  const pauseBtn = container.querySelector('[data-action="pause-live"]');
+  if (pauseBtn) pauseBtn.addEventListener('click', () => {
+    update((state) => { const t = state.trainings.find((x) => x.id === training.id); t.live.running = false; });
+  });
+  const resumeBtn = container.querySelector('[data-action="resume-live"]');
+  if (resumeBtn) resumeBtn.addEventListener('click', () => {
+    update((state) => { const t = state.trainings.find((x) => x.id === training.id); t.live.running = true; });
+  });
+  container.querySelector('[data-action="prev-block"]').addEventListener('click', () => {
+    update((state) => {
+      const t = state.trainings.find((x) => x.id === training.id);
+      const tl = planTimeline(t);
+      const cur = currentTimelineEntry(tl, t.live.elapsedSeconds);
+      const i = tl.indexOf(cur);
+      t.live.elapsedSeconds = i > 0 ? tl[i - 1].startSeconds : 0;
+    });
+  });
+  container.querySelector('[data-action="skip-block"]').addEventListener('click', () => {
+    update((state) => {
+      const t = state.trainings.find((x) => x.id === training.id);
+      const tl = planTimeline(t);
+      const cur = currentTimelineEntry(tl, t.live.elapsedSeconds);
+      const i = tl.indexOf(cur);
+      if (i < tl.length - 1) {
+        t.live.elapsedSeconds = tl[i + 1].startSeconds;
+      } else {
+        t.live.elapsedSeconds = tl[i].endSeconds;
+        t.live.running = false;
+      }
+    });
+  });
+  container.querySelector('[data-action="end-live"]').addEventListener('click', async () => {
+    if (!(await confirmDialog('End this live session? The plan itself stays saved — you can start it again later.', { okLabel: 'End Session' }))) return;
+    update((state) => {
+      const t = state.trainings.find((x) => x.id === training.id);
+      t.live = null;
+    });
+  });
+}
+
 function moveBlock(training, blockId, direction) {
   update((state) => {
     const t = state.trainings.find((x) => x.id === training.id);
@@ -507,9 +823,9 @@ function blockCardHtml(block, index, total, groups) {
   const stations = isRotation ? rotationStationCount(block, groups) : null;
   const effectiveMinutes = blockEffectiveMinutes(block, groups);
   return `
-    <div class="card">
+    <div class="card" style="${block.isBreak ? 'border-style:dashed;' : ''}">
       <div class="spread" style="margin-bottom:6px;">
-        <span class="badge">${effectiveMinutes} min${isRotation ? ` (${block.minutes} × ${stations} rotations)` : ''}</span>
+        <span class="badge">${block.isBreak ? '☕ ' : ''}${effectiveMinutes} min${isRotation ? ` (${block.minutes} × ${stations} rotations)` : ''}</span>
         <div class="row" style="gap:2px;">
           <button type="button" class="icon-btn" data-action="move-block-up" data-block-id="${block.id}" aria-label="Move up" ${index === 0 ? 'disabled' : ''}>⬆️</button>
           <button type="button" class="icon-btn" data-action="move-block-down" data-block-id="${block.id}" aria-label="Move down" ${index === total - 1 ? 'disabled' : ''}>⬇️</button>
@@ -517,7 +833,9 @@ function blockCardHtml(block, index, total, groups) {
           <button type="button" class="icon-btn" data-action="delete-block" data-block-id="${block.id}" aria-label="Delete block">🗑</button>
         </div>
       </div>
-      ${block.mode === 'grouped' ? `
+      ${block.isBreak
+        ? `<div class="muted small">Break${block.activity ? ': ' + escapeHtml(block.activity) : ''}</div>`
+        : block.mode === 'grouped' ? `
         <div class="muted small" style="margin-bottom:4px; font-weight:600;">${isRotation ? 'Rotation — every group does each, in turn:' : 'Per group:'}</div>
         <div class="stack">
           ${Object.entries(block.groupActivities || {}).filter(([gid]) => groupsById[gid]).map(([gid, text]) => `
@@ -540,7 +858,7 @@ function drillFillHtml(fieldName, drills) {
 }
 
 function openBlockForm(training, groups, existing) {
-  const pf = existing || { mode: 'whole', minutes: 10, activity: '', groupActivities: {}, rotate: false };
+  const pf = existing || { mode: 'whole', minutes: 10, activity: '', groupActivities: {}, rotate: false, isBreak: false };
   const hasGroups = groups.length > 0;
   const { drills } = getState();
 
@@ -552,7 +870,11 @@ function openBlockForm(training, groups, existing) {
           <label data-minutes-label>Duration (minutes)</label>
           <input type="number" name="minutes" min="1" max="180" value="${pf.minutes}" required />
         </div>
-        <div class="field">
+        <label class="checkbox-row">
+          <input type="checkbox" name="isBreak" ${pf.isBreak ? 'checked' : ''} />
+          ☕ This is a break (water/rest — no activity type or groups)
+        </label>
+        <div data-mode-field class="field" ${pf.isBreak ? 'hidden' : ''}>
           <label>Activity type</label>
           <select name="mode" ${hasGroups ? '' : 'disabled'}>
             <option value="whole" ${pf.mode !== 'grouped' ? 'selected' : ''}>Whole team, one activity</option>
@@ -560,14 +882,14 @@ function openBlockForm(training, groups, existing) {
           </select>
           ${!hasGroups ? '<div class="muted small" style="margin-top:4px;">Build groups on the Groups tab to unlock per-group activities.</div>' : ''}
         </div>
-        <div data-whole-field ${pf.mode === 'grouped' && hasGroups ? 'hidden' : ''}>
+        <div data-whole-field ${pf.mode === 'grouped' && hasGroups && !pf.isBreak ? 'hidden' : ''}>
           <div class="field">
-            <label>Activity</label>
+            <label data-whole-activity-label>${pf.isBreak ? 'Note (optional)' : 'Activity'}</label>
             <input type="text" name="activity" value="${escapeHtml(pf.activity || '')}" placeholder="e.g. Passing triangles" />
             ${drillFillHtml('activity', drills)}
           </div>
         </div>
-        <div data-grouped-fields ${pf.mode === 'grouped' && hasGroups ? '' : 'hidden'}>
+        <div data-grouped-fields ${pf.mode === 'grouped' && hasGroups && !pf.isBreak ? '' : 'hidden'}>
           <label class="checkbox-row">
             <input type="checkbox" name="rotate" ${pf.rotate ? 'checked' : ''} />
             Rotate groups through each activity (a circuit — every group does every station in turn)
@@ -587,8 +909,11 @@ function openBlockForm(training, groups, existing) {
     `,
     onMount: (modalEl) => {
       const form = modalEl.querySelector('#block-form');
+      const isBreakCheckbox = form.querySelector('[name="isBreak"]');
+      const modeField = form.querySelector('[data-mode-field]');
       const modeSelect = form.querySelector('[name="mode"]');
       const wholeField = form.querySelector('[data-whole-field]');
+      const wholeActivityLabel = form.querySelector('[data-whole-activity-label]');
       const groupedFields = form.querySelector('[data-grouped-fields]');
       const minutesInput = form.querySelector('[name="minutes"]');
       const minutesLabel = form.querySelector('[data-minutes-label]');
@@ -601,7 +926,7 @@ function openBlockForm(training, groups, existing) {
       }
 
       function refreshRotateUi() {
-        const grouped = modeSelect.value === 'grouped';
+        const grouped = !isBreakCheckbox.checked && modeSelect.value === 'grouped';
         const rotating = grouped && rotateCheckbox.checked;
         minutesLabel.textContent = rotating ? 'Minutes per rotation' : 'Duration (minutes)';
         if (rotating) {
@@ -612,6 +937,23 @@ function openBlockForm(training, groups, existing) {
           rotateHint.textContent = '';
         }
       }
+
+      function refreshBreakUi() {
+        const isBreak = isBreakCheckbox.checked;
+        modeField.hidden = isBreak;
+        wholeActivityLabel.textContent = isBreak ? 'Note (optional)' : 'Activity';
+        if (isBreak) {
+          wholeField.hidden = false;
+          groupedFields.hidden = true;
+        } else {
+          const grouped = modeSelect.value === 'grouped';
+          wholeField.hidden = grouped;
+          groupedFields.hidden = !grouped;
+        }
+        refreshRotateUi();
+      }
+
+      isBreakCheckbox.addEventListener('change', refreshBreakUi);
 
       if (hasGroups) {
         modeSelect.addEventListener('change', () => {
@@ -626,8 +968,8 @@ function openBlockForm(training, groups, existing) {
           const input = form.querySelector(`[name="group-${g.id}"]`);
           if (input) input.addEventListener('input', refreshRotateUi);
         });
-        refreshRotateUi();
       }
+      refreshBreakUi();
 
       form.querySelectorAll('[data-drill-fill]').forEach((select) => {
         select.addEventListener('change', () => {
@@ -643,11 +985,12 @@ function openBlockForm(training, groups, existing) {
         e.preventDefault();
         const fd = new FormData(form);
         const minutes = Number(fd.get('minutes')) || 1;
-        const mode = hasGroups ? (fd.get('mode') || 'whole') : 'whole';
+        const isBreak = fd.get('isBreak') === 'on';
+        const mode = isBreak ? 'whole' : (hasGroups ? (fd.get('mode') || 'whole') : 'whole');
         const activity = (fd.get('activity') || '').trim();
-        const rotate = mode === 'grouped' && fd.get('rotate') === 'on';
+        const rotate = !isBreak && mode === 'grouped' && fd.get('rotate') === 'on';
         const groupActivities = {};
-        if (mode === 'grouped') {
+        if (!isBreak && mode === 'grouped') {
           groups.forEach((g) => { groupActivities[g.id] = (fd.get(`group-${g.id}`) || '').trim(); });
         }
 
@@ -660,8 +1003,9 @@ function openBlockForm(training, groups, existing) {
             b.activity = activity;
             b.groupActivities = groupActivities;
             b.rotate = rotate;
+            b.isBreak = isBreak;
           } else {
-            t.blocks.push({ id: uid(), minutes, mode, activity, groupActivities, rotate });
+            t.blocks.push({ id: uid(), minutes, mode, activity, groupActivities, rotate, isBreak });
           }
         });
         closeModal();

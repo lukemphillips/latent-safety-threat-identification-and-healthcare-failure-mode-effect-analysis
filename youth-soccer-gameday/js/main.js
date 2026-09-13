@@ -11,7 +11,7 @@ import { renderSettings } from './views/settings.js';
 import { renderStats } from './views/stats.js';
 import { renderBalanceTeams } from './views/balanceTeams.js';
 import { renderHelp } from './views/help.js';
-import { renderTraining, renderTrainingDetail } from './views/training.js';
+import { renderTraining, renderTrainingDetail, advanceTrainingLive } from './views/training.js';
 import { renderDrillLibrary } from './views/drills.js';
 
 initErrorLogging();
@@ -112,27 +112,44 @@ const subDueByGameId = {};
 
 setInterval(() => {
   const liveGame = getState().games.find((g) => g.status === 'live' && g.live && g.live.running);
-  if (!liveGame) return;
-  update((state) => {
-    const g = state.games.find((x) => x.id === liveGame.id);
-    if (!g || !g.live || !g.live.running) return;
-    g.live.elapsedSeconds += 1;
-    const gk = g.live.gkByPeriod[g.live.currentPeriod];
-    g.live.onField.forEach((pid) => {
-      g.live.playingTime[pid] = (g.live.playingTime[pid] || 0) + 1;
-    });
-    if (gk) g.live.playingTime[gk] = (g.live.playingTime[gk] || 0) + 1;
+  if (liveGame) {
+    update((state) => {
+      const g = state.games.find((x) => x.id === liveGame.id);
+      if (!g || !g.live || !g.live.running) return;
+      g.live.elapsedSeconds += 1;
+      const gk = g.live.gkByPeriod[g.live.currentPeriod];
+      g.live.onField.forEach((pid) => {
+        g.live.playingTime[pid] = (g.live.playingTime[pid] || 0) + 1;
+      });
+      if (gk) g.live.playingTime[gk] = (g.live.playingTime[gk] || 0) + 1;
 
-    const presentIds = new Set(g.presentIds || []);
-    const sentOffIds = new Set(g.live.sentOff || []);
-    const benchIds = state.players
-      .filter((p) => p.active && presentIds.has(p.id) && !sentOffIds.has(p.id)
-        && !g.live.onField.includes(p.id) && p.id !== gk)
-      .map((p) => p.id);
-    const due = isSubDue(state.team, g.live, benchIds, g.live.onField);
-    if (due && !subDueByGameId[g.id] && state.team.subAlertsEnabled !== false) {
-      playSubDueAlert();
-    }
-    subDueByGameId[g.id] = due;
-  });
+      const presentIds = new Set(g.presentIds || []);
+      const sentOffIds = new Set(g.live.sentOff || []);
+      const benchIds = state.players
+        .filter((p) => p.active && presentIds.has(p.id) && !sentOffIds.has(p.id)
+          && !g.live.onField.includes(p.id) && p.id !== gk)
+        .map((p) => p.id);
+      const due = isSubDue(state.team, g.live, benchIds, g.live.onField);
+      if (due && !subDueByGameId[g.id] && state.team.subAlertsEnabled !== false) {
+        playSubDueAlert();
+      }
+      subDueByGameId[g.id] = due;
+    });
+  }
+
+  // Same one-second ticker also drives any live training session's timer
+  // (see training.js), independently of whether a match happens to be live
+  // too — so it keeps counting down even while the coach is looking at a
+  // different screen. advanceTrainingLive returns true only on the tick
+  // that crosses into a new block, which is when a "move on now" chime is
+  // actually useful.
+  const liveTraining = getState().trainings.find((t) => t.live && t.live.running);
+  if (liveTraining) {
+    update((state) => {
+      const t = state.trainings.find((x) => x.id === liveTraining.id);
+      if (!t) return;
+      const enteredNewBlock = advanceTrainingLive(t);
+      if (enteredNewBlock) playSubDueAlert();
+    });
+  }
 }, 1000);

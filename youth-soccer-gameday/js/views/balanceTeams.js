@@ -50,7 +50,7 @@ function shuffle(list) {
   return arr;
 }
 
-function splitBalancedTeams(players, count) {
+export function splitBalancedTeams(players, count) {
   const buckets = new Map(STREAM_ORDER.map((s) => [s, []]));
   players.forEach((p) => {
     const key = STREAM_ORDER.includes(p.skillStream) ? p.skillStream : null;
