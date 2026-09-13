@@ -116,11 +116,17 @@ see everything working immediately. Reset or clear that data any time from
   - **Plan** — a session planner: an ordered list of timed blocks (warm-up,
     a drill, a scrimmage, cool-down, etc.), each either one activity for
     the whole squad or a different activity per group running in parallel.
-    Each activity field has a "📚 Fill from Drill Library…" dropdown to pull
-    in a saved drill instead of retyping it. Reorder, edit, or delete
-    blocks; the tab totals up the minutes and shows an estimated finish
-    time. It's a static plan to work from during the session, not a live
-    ticking clock like the match-day tracker.
+    A grouped block can also be set to **rotate**: instead of every group
+    staying at one activity for the block's whole duration, groups rotate
+    through every station in turn (a circuit), and the minutes field
+    becomes "per rotation" — the block's total time, the session running
+    total, and the estimated finish time all scale to minutes × number of
+    stations automatically, since that's genuinely how long it takes for
+    every group to get through every station. Each activity field has a
+    "📚 Fill from Drill Library…" dropdown to pull in a saved drill instead
+    of retyping it, and "+ Add Drill" is reachable from the Training list
+    and every session's page too, not just the library itself. Reorder,
+    edit, or delete blocks.
   - **Copy to Share / native share** — at the top of any session's page
     (same pattern as Balance Teams' team split), "📋 Copy to Share" copies
     the whole session — attendance, groups, and the full plan with timings
@@ -128,24 +134,36 @@ see everything working immediately. Reset or clear that data any time from
     another coach. Where the browser supports it, "📤 Text / Share…" opens
     the native share sheet directly instead of a manual copy/paste.
 - **Drill Library** — a reusable repository of drills, separate from any
-  one session (linked from the top of the Training page). Each drill has a
-  name, an optional description, an optional weblink (a video or article),
-  and an optional attached PDF or image (a diagram, say). Images are
-  resized automatically; PDFs are capped at roughly 1.5MB, since everything
-  here is stored on-device in the same `localStorage` as the rest of the
-  team's data, which has far less headroom than a normal file system — a
-  weblink is unlimited and costs nothing, so it's the better choice for
-  anything large or already hosted somewhere. Before saving, Boot Room does
-  a real test write to confirm the drill (attachment included) actually
-  fits in storage, and tells the coach plainly if it doesn't rather than
-  silently failing or risking other data. Deleting a drill never breaks a
-  session's plan, since a plan block only ever copies a drill's name in at
-  the moment it's picked — it's not a live link back to the drill. A drill
-  with an attachment also gets a "📤 Share / Download" button: where the
-  browser supports sharing files (most current Android/iOS), it opens the
-  native share sheet with the actual image or PDF attached, ready to send
-  straight into WhatsApp or Messages; everywhere else (most desktop
-  browsers, older iOS) it downloads the file instead.
+  one session (linked from the top of the Training page, and reachable
+  from any Training screen via "+ Add Drill"). Each drill has a name, an
+  optional description, tags, an optional weblink (a video or article),
+  and an optional attached PDF or image (a diagram, say). Tags are a
+  curated set of common categories (Warm-up, Passing, Dribbling & Ball
+  Control, Shooting, Defending, Possession / Rondo, Small-Sided Games,
+  Fitness & Conditioning, Goalkeeping, Set Pieces, Cool-down, Fun /
+  Game-based) shown as one-tap chips, plus a free-text "+ Add Tag" for
+  anything else — a used custom tag then shows up as its own filter chip
+  in the library too. Tapping a tag filters the list to drills carrying it
+  (tap again, or "✕ Clear filter", to reset). Images are resized
+  automatically; PDFs are capped at roughly 1.5MB, since everything here
+  is stored on-device in the same `localStorage` as the rest of the team's
+  data, which has far less headroom than a normal file system — a weblink
+  is unlimited and costs nothing, so it's the better choice for anything
+  large or already hosted somewhere. Before saving, Boot Room does a real
+  test write to confirm the drill (attachment included) actually fits in
+  storage, and tells the coach plainly if it doesn't rather than silently
+  failing or risking other data. Deleting a drill never breaks a session's
+  plan, since a plan block only ever copies a drill's name in at the
+  moment it's picked — it's not a live link back to the drill. Tapping a
+  drill's attachment name opens it in a new tab (via a same-origin blob:
+  URL rather than linking the stored data: URL directly, since browsers
+  block a data: URL as a direct new-tab target — the earlier version of
+  this link silently failed to open anything). A drill with an attachment
+  also gets a "📤 Share / Download" button: where the browser supports
+  sharing files (most current Android/iOS), it opens the native share
+  sheet with the actual image or PDF attached, ready to send straight into
+  WhatsApp or Messages; everywhere else (most desktop browsers, older iOS)
+  it downloads the file instead.
 - **Captain & Player of the Match** — set per game from that game's page
   (pulled from whoever's marked present, or the full roster if attendance
   isn't set yet). Both show up as season totals in Stats.

@@ -41,6 +41,8 @@ export function renderHelp(app) {
         <li><strong>Attendance tab</strong> — tap players to mark who's actually shown up, same as a game's Squad tab.</li>
         <li><strong>Groups tab</strong> — <strong>Auto-Build Groups</strong> clusters players of similar skill stream together (the opposite of Balance Teams, which spreads streams evenly for a fair match). Leave "Number of groups" blank for one group per stream present, or set a number to merge or split streams to fit. If a group ends up too big or small, tap a player to select them, then tap "Move here" on another group to move them across.</li>
         <li><strong>Plan tab</strong> — build a running order of blocks (warm-up, drills, scrimmage, etc.), each with a duration. A block can be one activity for the whole squad, or a different activity per group, run in parallel. Each activity field has a "📚 Fill from Drill Library…" dropdown to pull in a saved drill by name instead of typing it fresh every time. The tab shows a running total time and an estimated finish time. This is a static plan to work from — there's no live countdown clock.</li>
+        <li><strong>Rotating stations</strong> — tick "Rotate groups through each activity" on a grouped block to run it as a circuit: every group works through every station in turn rather than staying on just one. The minutes field becomes "per rotation," and the block's total time (and the session's running total) automatically scales up to minutes × number of stations, since that's how long it actually takes for every group to get through all of them.</li>
+        <li><strong>+ Add Drill</strong> is reachable from the Training list and from any training session's page (not just the Drill Library itself), so a drill idea that comes up mid-planning can be saved without losing your place.</li>
         <li><strong>📋 Copy to Share</strong> (top of any training session's page) copies the whole session — attendance, groups, and the full plan — as plain text, ready to paste into a WhatsApp message or text to another coach. On a phone that supports it, "📤 Text / Share…" opens the native share sheet directly instead.</li>
       </ul>
     `)}
@@ -48,11 +50,13 @@ export function renderHelp(app) {
     ${section('📚 Drill Library', `
       <p class="muted small mt-0">A reusable collection of drills, separate from any one session — linked from the top of the Training page.</p>
       <ul class="stack" style="margin:0; padding-left:18px;">
-        <li><strong>+ Add Drill</strong> — a name, an optional description, an optional weblink (a video or article), and an optional attached PDF or image (a diagram, say).</li>
+        <li><strong>+ Add Drill</strong> — a name, an optional description, tags, an optional weblink (a video or article), and an optional attached PDF or image (a diagram, say).</li>
+        <li><strong>Tags</strong> — a set of common categories (Warm-up, Passing, Shooting, Defending, Small-Sided Games, and more) to tap on, plus "+ Add Tag" for anything of your own. Tap a tag in the library to filter the list down to drills tagged with it.</li>
         <li>Uploaded images are resized automatically; PDFs are capped at around 1.5MB. Everything here is stored on this device alongside your team data, which has much less room than a normal file system — a weblink costs nothing, so prefer that for anything large or already hosted somewhere.</li>
         <li>If an attachment won't fit, Boot Room tells you rather than silently failing or corrupting other data — remove the attachment and use a link instead, or free up space.</li>
         <li>When building a session's Plan, each activity field can pull a drill's name straight in via its "📚 Fill from Drill Library…" dropdown.</li>
-        <li>A drill with an attachment gets a "📤 Share / Download" button — on a phone that supports it, this opens the native share sheet with the actual image or PDF attached (so it can go straight into WhatsApp or Messages); everywhere else it downloads the file instead so you can attach it manually.</li>
+        <li>Tap a drill's attachment name to view it — opens in a new tab (an image displays directly; a PDF opens in your browser's PDF viewer).</li>
+        <li>A drill with an attachment also gets a "📤 Share / Download" button — on a phone that supports it, this opens the native share sheet with the actual image or PDF attached (so it can go straight into WhatsApp or Messages); everywhere else it downloads the file instead so you can attach it manually.</li>
       </ul>
     `)}
 

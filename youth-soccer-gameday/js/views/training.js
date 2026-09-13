@@ -2,6 +2,7 @@ import { getState, update, findTraining, findDrill } from '../store.js';
 import { uid, escapeHtml, formatDate, formatTime, sortByDateTime, todayIso, nowHHMM, copyToClipboard } from '../util.js';
 import { buildGroupsByStream } from '../trainingGroups.js';
 import { openModal, closeModal, confirmDialog } from '../modal.js';
+import { openDrillForm as openDrillLibraryForm } from './drills.js';
 
 let selectingPlayerId = null;
 let selectingSourceGroupId = null;
@@ -14,8 +15,9 @@ export function renderTraining(app) {
   app.innerHTML = `
     <div class="page-title">
       <h1>Training</h1>
-      <div class="row" style="gap:8px;">
+      <div class="row" style="gap:8px; flex-wrap:wrap;">
         <a class="btn ghost sm" href="#/drills">📚 Drill Library</a>
+        <button class="btn ghost sm" data-action="add-drill">+ Add Drill</button>
         <button class="btn" data-action="add-training">+ Add Training</button>
       </div>
     </div>
@@ -30,6 +32,7 @@ export function renderTraining(app) {
   `;
 
   app.querySelector('[data-action="add-training"]').addEventListener('click', () => openTrainingForm());
+  app.querySelector('[data-action="add-drill"]').addEventListener('click', () => openDrillLibraryForm());
 }
 
 function trainingCard(training) {
@@ -133,6 +136,7 @@ export function renderTrainingDetail(app, trainingId, tab) {
         <div class="sub">${formatDate(training.date)} · ${formatTime(training.time)}${training.location ? ' · ' + escapeHtml(training.location) : ''}</div>
       </div>
       <div class="row" style="gap:4px;">
+        <button class="btn ghost sm" data-action="add-drill">+ Add Drill</button>
         <button class="icon-btn" data-action="edit-training" aria-label="Edit training">✏️</button>
       </div>
     </div>
@@ -158,6 +162,7 @@ export function renderTrainingDetail(app, trainingId, tab) {
   `;
 
   app.querySelector('[data-action="edit-training"]').addEventListener('click', () => openTrainingForm(training));
+  app.querySelector('[data-action="add-drill"]').addEventListener('click', () => openDrillLibraryForm());
 
   const copyBtn = app.querySelector('[data-action="copy-session"]');
   const nativeBtn = app.querySelector('[data-action="native-share-session"]');
@@ -368,6 +373,25 @@ function addMinutesToTime(hhmm, minutes) {
   return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`;
 }
 
+// A rotation block runs the same activities as a normal grouped block, but
+// instead of every group staying at its own activity for the whole block,
+// groups rotate through every station in turn — so the block actually
+// takes as long as one rotation × however many stations there are, not
+// just one rotation's worth. Station count is the number of groups with
+// an activity actually set, falling back to the group count so an
+// in-progress block (no activities typed yet) still shows a sane total.
+function rotationStationCount(block, groups) {
+  const active = groups.filter((g) => ((block.groupActivities || {})[g.id] || '').trim());
+  return active.length || groups.length;
+}
+
+function blockEffectiveMinutes(block, groups) {
+  if (block.mode === 'grouped' && block.rotate) {
+    return (block.minutes || 0) * rotationStationCount(block, groups);
+  }
+  return block.minutes || 0;
+}
+
 // Plain-text summary of a whole session — attendance, groups, and the full
 // plan — for the Copy to Share / native Share button, so a coach can drop
 // the whole thing into a WhatsApp message or text to another coach without
@@ -397,12 +421,17 @@ function formatTrainingForShare(training, players, teamName) {
   }
 
   if (blocks.length) {
-    const totalMinutes = blocks.reduce((sum, b) => sum + (b.minutes || 0), 0);
+    const totalMinutes = blocks.reduce((sum, b) => sum + blockEffectiveMinutes(b, groups), 0);
     const endTime = totalMinutes ? addMinutesToTime(training.time, totalMinutes) : null;
     lines.push('', `Plan (${totalMinutes} min total${endTime ? `, ends ~${formatTime(endTime)}` : ''}):`);
     blocks.forEach((b, i) => {
       if (b.mode === 'grouped') {
-        lines.push(`  ${i + 1}. ${b.minutes} min — per group:`);
+        if (b.rotate) {
+          const stations = rotationStationCount(b, groups);
+          lines.push(`  ${i + 1}. ${b.minutes} min × ${stations} rotations (${b.minutes * stations} min) — rotate through:`);
+        } else {
+          lines.push(`  ${i + 1}. ${b.minutes} min — per group:`);
+        }
         groups.forEach((g) => {
           const activity = (b.groupActivities || {})[g.id];
           if (activity) lines.push(`     ${g.name}: ${activity}`);
@@ -419,7 +448,7 @@ function formatTrainingForShare(training, players, teamName) {
 function renderPlanTab(container, training) {
   const blocks = training.blocks || [];
   const groups = training.groups || [];
-  const totalMinutes = blocks.reduce((sum, b) => sum + (b.minutes || 0), 0);
+  const totalMinutes = blocks.reduce((sum, b) => sum + blockEffectiveMinutes(b, groups), 0);
   const endTime = totalMinutes ? addMinutesToTime(training.time, totalMinutes) : null;
 
   container.innerHTML = `
@@ -474,10 +503,13 @@ function moveBlock(training, blockId, direction) {
 
 function blockCardHtml(block, index, total, groups) {
   const groupsById = Object.fromEntries(groups.map((g) => [g.id, g]));
+  const isRotation = block.mode === 'grouped' && block.rotate;
+  const stations = isRotation ? rotationStationCount(block, groups) : null;
+  const effectiveMinutes = blockEffectiveMinutes(block, groups);
   return `
     <div class="card">
       <div class="spread" style="margin-bottom:6px;">
-        <span class="badge">${block.minutes} min</span>
+        <span class="badge">${effectiveMinutes} min${isRotation ? ` (${block.minutes} × ${stations} rotations)` : ''}</span>
         <div class="row" style="gap:2px;">
           <button type="button" class="icon-btn" data-action="move-block-up" data-block-id="${block.id}" aria-label="Move up" ${index === 0 ? 'disabled' : ''}>⬆️</button>
           <button type="button" class="icon-btn" data-action="move-block-down" data-block-id="${block.id}" aria-label="Move down" ${index === total - 1 ? 'disabled' : ''}>⬇️</button>
@@ -486,7 +518,7 @@ function blockCardHtml(block, index, total, groups) {
         </div>
       </div>
       ${block.mode === 'grouped' ? `
-        <div class="muted small" style="margin-bottom:4px; font-weight:600;">Per group:</div>
+        <div class="muted small" style="margin-bottom:4px; font-weight:600;">${isRotation ? 'Rotation — every group does each, in turn:' : 'Per group:'}</div>
         <div class="stack">
           ${Object.entries(block.groupActivities || {}).filter(([gid]) => groupsById[gid]).map(([gid, text]) => `
             <div class="small"><strong>${escapeHtml(groupsById[gid].name)}:</strong> ${escapeHtml(text || '—')}</div>
@@ -508,7 +540,7 @@ function drillFillHtml(fieldName, drills) {
 }
 
 function openBlockForm(training, groups, existing) {
-  const pf = existing || { mode: 'whole', minutes: 10, activity: '', groupActivities: {} };
+  const pf = existing || { mode: 'whole', minutes: 10, activity: '', groupActivities: {}, rotate: false };
   const hasGroups = groups.length > 0;
   const { drills } = getState();
 
@@ -517,7 +549,7 @@ function openBlockForm(training, groups, existing) {
     bodyHtml: `
       <form id="block-form" class="stack">
         <div class="field">
-          <label>Duration (minutes)</label>
+          <label data-minutes-label>Duration (minutes)</label>
           <input type="number" name="minutes" min="1" max="180" value="${pf.minutes}" required />
         </div>
         <div class="field">
@@ -536,6 +568,11 @@ function openBlockForm(training, groups, existing) {
           </div>
         </div>
         <div data-grouped-fields ${pf.mode === 'grouped' && hasGroups ? '' : 'hidden'}>
+          <label class="checkbox-row">
+            <input type="checkbox" name="rotate" ${pf.rotate ? 'checked' : ''} />
+            Rotate groups through each activity (a circuit — every group does every station in turn)
+          </label>
+          <div class="muted small" data-rotate-hint style="margin-bottom:8px;"></div>
           ${groups.map((g) => `
             <div class="field">
               <label>${escapeHtml(g.name)}</label>
@@ -553,12 +590,43 @@ function openBlockForm(training, groups, existing) {
       const modeSelect = form.querySelector('[name="mode"]');
       const wholeField = form.querySelector('[data-whole-field]');
       const groupedFields = form.querySelector('[data-grouped-fields]');
+      const minutesInput = form.querySelector('[name="minutes"]');
+      const minutesLabel = form.querySelector('[data-minutes-label]');
+      const rotateCheckbox = form.querySelector('[name="rotate"]');
+      const rotateHint = form.querySelector('[data-rotate-hint]');
+
+      function activeStationCount() {
+        const withText = groups.filter((g) => (form.querySelector(`[name="group-${g.id}"]`)?.value || '').trim());
+        return withText.length || groups.length;
+      }
+
+      function refreshRotateUi() {
+        const grouped = modeSelect.value === 'grouped';
+        const rotating = grouped && rotateCheckbox.checked;
+        minutesLabel.textContent = rotating ? 'Minutes per rotation' : 'Duration (minutes)';
+        if (rotating) {
+          const stations = activeStationCount();
+          const mins = Number(minutesInput.value) || 0;
+          rotateHint.textContent = `${stations} station${stations === 1 ? '' : 's'} × ${mins} min = ${stations * mins} min for this block.`;
+        } else {
+          rotateHint.textContent = '';
+        }
+      }
+
       if (hasGroups) {
         modeSelect.addEventListener('change', () => {
           const grouped = modeSelect.value === 'grouped';
           wholeField.hidden = grouped;
           groupedFields.hidden = !grouped;
+          refreshRotateUi();
         });
+        rotateCheckbox.addEventListener('change', refreshRotateUi);
+        minutesInput.addEventListener('input', refreshRotateUi);
+        groups.forEach((g) => {
+          const input = form.querySelector(`[name="group-${g.id}"]`);
+          if (input) input.addEventListener('input', refreshRotateUi);
+        });
+        refreshRotateUi();
       }
 
       form.querySelectorAll('[data-drill-fill]').forEach((select) => {
@@ -567,6 +635,7 @@ function openBlockForm(training, groups, existing) {
           const input = form.querySelector(`[name="${select.dataset.drillFill}"]`);
           if (drill && input) input.value = drill.name;
           select.value = '';
+          refreshRotateUi();
         });
       });
 
@@ -576,6 +645,7 @@ function openBlockForm(training, groups, existing) {
         const minutes = Number(fd.get('minutes')) || 1;
         const mode = hasGroups ? (fd.get('mode') || 'whole') : 'whole';
         const activity = (fd.get('activity') || '').trim();
+        const rotate = mode === 'grouped' && fd.get('rotate') === 'on';
         const groupActivities = {};
         if (mode === 'grouped') {
           groups.forEach((g) => { groupActivities[g.id] = (fd.get(`group-${g.id}`) || '').trim(); });
@@ -589,8 +659,9 @@ function openBlockForm(training, groups, existing) {
             b.mode = mode;
             b.activity = activity;
             b.groupActivities = groupActivities;
+            b.rotate = rotate;
           } else {
-            t.blocks.push({ id: uid(), minutes, mode, activity, groupActivities });
+            t.blocks.push({ id: uid(), minutes, mode, activity, groupActivities, rotate });
           }
         });
         closeModal();

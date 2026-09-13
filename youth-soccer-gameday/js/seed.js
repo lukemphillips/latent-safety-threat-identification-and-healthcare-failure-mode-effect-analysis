@@ -93,9 +93,9 @@ export function seedTrainings(players = []) {
 
 export function seedDrills() {
   return [
-    { id: uid(), name: 'Passing Triangles', description: 'Three players form a triangle, one-touch passing around it. Rotate who moves after each pass to add movement off the ball.', link: '', attachment: null },
-    { id: uid(), name: 'Dribbling Through Gates', description: 'Scatter pairs of cones ("gates") across a grid. Players dribble freely, aiming to pass the ball through as many gates as possible in a set time.', link: '', attachment: null },
-    { id: uid(), name: 'Small-Sided Possession Game', description: 'A small grid, two teams keep possession against each other (add a neutral player to make it easier for the team in possession). Count consecutive passes.', link: '', attachment: null },
+    { id: uid(), name: 'Passing Triangles', description: 'Three players form a triangle, one-touch passing around it. Rotate who moves after each pass to add movement off the ball.', link: '', attachment: null, tags: ['Passing'] },
+    { id: uid(), name: 'Dribbling Through Gates', description: 'Scatter pairs of cones ("gates") across a grid. Players dribble freely, aiming to pass the ball through as many gates as possible in a set time.', link: '', attachment: null, tags: ['Dribbling & Ball Control'] },
+    { id: uid(), name: 'Small-Sided Possession Game', description: 'A small grid, two teams keep possession against each other (add a neutral player to make it easier for the team in possession). Count consecutive passes.', link: '', attachment: null, tags: ['Possession / Rondo', 'Small-Sided Games'] },
   ];
 }
 
