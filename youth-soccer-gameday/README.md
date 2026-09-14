@@ -306,6 +306,23 @@ see everything working immediately. Reset or clear that data any time from
     still accurate when you come back.
   - Rolling substitutions: unlimited subs, paired ("who's on, then who's
     off") with an "add to pitch" option when there's a spare spot.
+  - **Live pitch + drag-and-drop** — the same visual pitch from the
+    pre-match Squad tab carries into the live match, kept in sync with
+    who's actually on the field (including subs and send-offs as they
+    happen). Drag an on-field chip onto another pitch spot to reposition
+    them, or onto an occupied one to swap the two players' positions —
+    pure repositioning, no personnel change. Drag a bench card onto an
+    empty pitch spot to bring that player on (same as "Add to Pitch"),
+    or onto an occupied spot to substitute (routed through the normal sub
+    flow, so the min-stint and squad-rule warnings still apply). The
+    **Formation** dropdown also works mid-match: switching shapes remaps
+    everyone's position on the new layout without touching who's actually
+    on the field, and any on-field player whose old slot id doesn't exist
+    in the new formation is placed into whatever slot is left over rather
+    than being left without a visible position. Drag-and-drop is built on
+    pointer events (not native HTML5 drag-and-drop, which touch browsers
+    support poorly) so it works the same on a coach's phone as a laptop,
+    with auto-scroll near the top/bottom of the screen while dragging.
   - Minimum-stint protection (default 4 min, adjustable in Settings) — subbing
     a player off before they've had a fair block of time on the pitch shows
     a warning naming them and how long they've actually played; you can

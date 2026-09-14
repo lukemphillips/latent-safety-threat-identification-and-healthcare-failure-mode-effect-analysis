@@ -393,6 +393,15 @@ button { font: inherit; }
   font-size: 11px;
 }
 .pitch-slot.selecting .chip { outline: 3px solid #fff; outline-offset: 2px; }
+.pitch-slot .chip[data-drag-player] { cursor: grab; touch-action: none; }
+.dragging-source { opacity: 0.35; }
+.drag-ghost {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.85;
+  transform: scale(1.08);
+}
 .pitch-slot .slot-label {
   font-size: 10.5px;
   font-weight: 700;
@@ -463,6 +472,7 @@ button { font: inherit; }
 .field-card.subbing { outline: 2px solid var(--blue); }
 .field-card.selected-in { outline: 2px solid var(--green-600); }
 .field-card .pt { font-size: 11.5px; color: var(--ink-soft); margin-top: 4px; }
+.field-card[data-bench-player] { touch-action: none; }
 
 .sublog-item {
   display: flex;
