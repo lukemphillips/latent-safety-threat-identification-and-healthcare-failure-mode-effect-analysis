@@ -750,6 +750,42 @@ function renderStaticPlan(container, training) {
   });
 }
 
+// Called from main.js's per-second ticker instead of a full re-render, so
+// an ordinary tick doesn't tear down and rebuild the live timer's buttons
+// (Pause/Skip/View Drill/etc.) out from under a tap-in-progress. Only
+// patches the on-screen clock text directly; returns false (a no-op) if
+// the live timer isn't the thing currently on screen, or if the block/
+// rotation-leg has actually changed and needs a real render instead.
+export function patchLiveTimerClock(training) {
+  if (!training || !training.live) return false;
+  const root = document.querySelector('[data-live-timer-root]');
+  if (!root || root.dataset.trainingId !== training.id) return false;
+
+  const groups = training.groups || [];
+  const timeline = planTimeline(training);
+  if (!timeline.length) return false;
+  const elapsed = training.live.elapsedSeconds;
+  const entry = currentTimelineEntry(timeline, elapsed);
+  const idx = timeline.indexOf(entry);
+  const secondsIntoBlock = elapsed - entry.startSeconds;
+  const block = entry.block;
+  const isRotation = block.mode === 'grouped' && block.rotate;
+  const legIndex = isRotation ? rotationLegInfo(block, groups, secondsIntoBlock).legIndex : null;
+  const blockKey = `${idx}:${legIndex ?? ''}`;
+  if (root.dataset.blockKey !== blockKey) return false;
+
+  const secondsLeftInBlock = Math.max(0, entry.effectiveSeconds - secondsIntoBlock);
+  const clockEl = root.querySelector('#live-timer-clock');
+  if (clockEl) clockEl.textContent = formatClock(secondsLeftInBlock);
+
+  if (isRotation) {
+    const { secondsIntoLeg, legSeconds } = rotationLegInfo(block, groups, secondsIntoBlock);
+    const rotationClockEl = root.querySelector('#live-timer-rotation-clock');
+    if (rotationClockEl) rotationClockEl.textContent = formatClock(Math.max(0, legSeconds - secondsIntoLeg));
+  }
+  return true;
+}
+
 function renderLiveTimer(container, training) {
   const groups = training.groups || [];
   const timeline = planTimeline(training);
@@ -764,16 +800,23 @@ function renderLiveTimer(container, training) {
   const secondsLeftInBlock = Math.max(0, entry.effectiveSeconds - secondsIntoBlock);
   const block = entry.block;
   const isRotation = block.mode === 'grouped' && block.rotate;
+  const legIndex = isRotation ? rotationLegInfo(block, groups, secondsIntoBlock).legIndex : null;
+  // Identifies "what's currently showing" (which block, and which rotation
+  // leg within it) — patchLiveTimerClock compares this against a fresh
+  // computation each tick, and only patches the clock text in place when
+  // it's unchanged, letting a real content change (a new block or leg)
+  // fall through to a normal full re-render instead.
+  const blockKey = `${idx}:${legIndex ?? ''}`;
 
   let activityHtml;
   if (block.isBreak) {
     activityHtml = `<div style="text-align:center; font-size:16px; font-weight:700;">☕ Break${block.activity ? ': ' + escapeHtml(block.activity) : ''}</div>`;
   } else if (block.mode === 'grouped') {
     if (isRotation) {
-      const { legIndex, stations, secondsIntoLeg, legSeconds } = rotationLegInfo(block, groups, secondsIntoBlock);
+      const { stations, secondsIntoLeg, legSeconds } = rotationLegInfo(block, groups, secondsIntoBlock);
       const assignments = rotationAssignment(block, groups, legIndex);
       activityHtml = `
-        <div class="muted small" style="text-align:center; margin-bottom:6px;">Rotation ${legIndex + 1} of ${stations} · ${formatClock(Math.max(0, legSeconds - secondsIntoLeg))} left this rotation</div>
+        <div class="muted small" style="text-align:center; margin-bottom:6px;">Rotation ${legIndex + 1} of ${stations} · <span id="live-timer-rotation-clock">${formatClock(Math.max(0, legSeconds - secondsIntoLeg))}</span> left this rotation</div>
         <div class="stack">
           ${assignments.map(({ group, activity, drillId }) => `<div class="small" style="text-align:center;"><strong>${escapeHtml(group.name)}:</strong> ${escapeHtml(activity || '—')} ${viewDrillButtonHtml(drillId)}</div>`).join('')}
         </div>
@@ -791,27 +834,29 @@ function renderLiveTimer(container, training) {
   }
 
   container.innerHTML = `
-    <div class="card" style="text-align:center;">
-      <div class="muted small">Block ${idx + 1} of ${timeline.length}${training.live.running ? '' : ' · Paused'}</div>
-      <div style="font-size:44px; font-weight:800; font-variant-numeric:tabular-nums; margin:6px 0;">${formatClock(secondsLeftInBlock)}</div>
-      ${activityHtml}
-    </div>
-    <div class="row" style="gap:8px; justify-content:center; flex-wrap:wrap; margin:14px 0;">
-      ${training.live.running
-        ? '<button class="btn secondary" data-action="pause-live">⏸ Pause</button>'
-        : '<button class="btn" data-action="resume-live">▶ Resume</button>'}
-      <button class="btn ghost" data-action="prev-block" ${idx === 0 ? 'disabled' : ''}>⏮ Previous</button>
-      <button class="btn ghost" data-action="skip-block">⏭ Skip</button>
-      <button class="btn danger" data-action="end-live">⏹ End Session</button>
-    </div>
-    <div class="section-title" style="margin-top:0;">Session order</div>
-    <div class="card">
-      ${timeline.map((e, i) => `
-        <div class="card-row" style="padding:6px 0; ${i === idx ? 'font-weight:700;' : ''} ${i < idx ? 'opacity:0.55;' : ''}">
-          <span class="small">${i < idx ? '✅' : i === idx ? '▶' : '⏳'} ${e.block.isBreak ? '☕ Break' : (e.block.mode === 'grouped' ? (e.block.rotate ? 'Rotation' : 'Per group') : escapeHtml(e.block.activity || 'Activity'))}</span>
-          <span class="small muted">${Math.round(e.effectiveSeconds / 60)} min</span>
-        </div>
-      `).join('')}
+    <div data-live-timer-root data-training-id="${training.id}" data-block-key="${blockKey}">
+      <div class="card" style="text-align:center;">
+        <div class="muted small">Block ${idx + 1} of ${timeline.length}${training.live.running ? '' : ' · Paused'}</div>
+        <div id="live-timer-clock" style="font-size:44px; font-weight:800; font-variant-numeric:tabular-nums; margin:6px 0;">${formatClock(secondsLeftInBlock)}</div>
+        ${activityHtml}
+      </div>
+      <div class="row" style="gap:8px; justify-content:center; flex-wrap:wrap; margin:14px 0;">
+        ${training.live.running
+          ? '<button class="btn secondary" data-action="pause-live">⏸ Pause</button>'
+          : '<button class="btn" data-action="resume-live">▶ Resume</button>'}
+        <button class="btn ghost" data-action="prev-block" ${idx === 0 ? 'disabled' : ''}>⏮ Previous</button>
+        <button class="btn ghost" data-action="skip-block">⏭ Skip</button>
+        <button class="btn danger" data-action="end-live">⏹ End Session</button>
+      </div>
+      <div class="section-title" style="margin-top:0;">Session order</div>
+      <div class="card">
+        ${timeline.map((e, i) => `
+          <div class="card-row" style="padding:6px 0; ${i === idx ? 'font-weight:700;' : ''} ${i < idx ? 'opacity:0.55;' : ''}">
+            <span class="small">${i < idx ? '✅' : i === idx ? '▶' : '⏳'} ${e.block.isBreak ? '☕ Break' : (e.block.mode === 'grouped' ? (e.block.rotate ? 'Rotation' : 'Per group') : escapeHtml(e.block.activity || 'Activity'))}</span>
+            <span class="small muted">${Math.round(e.effectiveSeconds / 60)} min</span>
+          </div>
+        `).join('')}
+      </div>
     </div>
   `;
 

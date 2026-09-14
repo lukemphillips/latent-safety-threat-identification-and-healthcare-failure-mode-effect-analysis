@@ -74,6 +74,24 @@ export function update(mutator) {
   listeners.forEach((fn) => fn(state));
 }
 
+// Same as update() — mutates state and persists it — but skips notifying
+// subscribers, so it doesn't trigger the full-page re-render that
+// subscribe(route) normally does. Meant only for the once-a-second
+// clock ticks that just bump elapsedSeconds: notifying on every one of
+// those tears down and rebuilds whatever's currently on screen every
+// single second, which on a phone can cancel a tap that lands right as
+// the DOM node it's on gets replaced out from under it (a genuine
+// substitution or block change is the one case that still warrants a
+// real render — call notifyListeners() for those).
+export function updateSilently(mutator) {
+  mutator(getState());
+  persist();
+}
+
+export function notifyListeners() {
+  listeners.forEach((fn) => fn(state));
+}
+
 export function subscribe(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);

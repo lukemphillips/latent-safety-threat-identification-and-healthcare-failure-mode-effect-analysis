@@ -1,5 +1,5 @@
 import { initErrorLogging } from './errorLog.js';
-import { getState, update, subscribe } from './store.js';
+import { getState, update, updateSilently, notifyListeners, subscribe } from './store.js';
 import { isSubDue, matchEligiblePlayers } from './util.js';
 import { playSubDueAlert } from './subAlert.js';
 import { renderDashboard } from './views/dashboard.js';
@@ -11,7 +11,7 @@ import { renderSettings } from './views/settings.js';
 import { renderStats } from './views/stats.js';
 import { renderBalanceTeams } from './views/balanceTeams.js';
 import { renderHelp } from './views/help.js';
-import { renderTraining, renderTrainingDetail, advanceTrainingLive } from './views/training.js';
+import { renderTraining, renderTrainingDetail, advanceTrainingLive, patchLiveTimerClock } from './views/training.js';
 import { renderDrillLibrary } from './views/drills.js';
 
 initErrorLogging();
@@ -140,16 +140,30 @@ setInterval(() => {
   // Same one-second ticker also drives any live training session's timer
   // (see training.js), independently of whether a match happens to be live
   // too — so it keeps counting down even while the coach is looking at a
-  // different screen. advanceTrainingLive returns true only on the tick
-  // that crosses into a new block, which is when a "move on now" chime is
-  // actually useful.
+  // different screen. This mutates silently (no full re-render) on an
+  // ordinary tick: re-rendering the whole page every single second was
+  // tearing down and rebuilding the live timer's buttons out from under a
+  // tap on a phone often enough that "View Drill" (and Pause/Skip) could
+  // simply fail to register. patchLiveTimerClock updates just the
+  // countdown text directly when the timer is the thing on screen;
+  // crossing into a new block (or the whole plan finishing) is a real
+  // content change, so that case still gets a full render.
   const liveTraining = getState().trainings.find((t) => t.live && t.live.running);
   if (liveTraining) {
-    update((state) => {
+    let enteredNewBlock = false;
+    let justFinished = false;
+    updateSilently((state) => {
       const t = state.trainings.find((x) => x.id === liveTraining.id);
       if (!t) return;
-      const enteredNewBlock = advanceTrainingLive(t);
-      if (enteredNewBlock) playSubDueAlert();
+      enteredNewBlock = advanceTrainingLive(t);
+      justFinished = !t.live.running;
     });
+    if (enteredNewBlock) playSubDueAlert();
+    if (enteredNewBlock || justFinished) {
+      notifyListeners();
+    } else {
+      const freshTraining = getState().trainings.find((t) => t.id === liveTraining.id);
+      patchLiveTimerClock(freshTraining);
+    }
   }
 }, 1000);
