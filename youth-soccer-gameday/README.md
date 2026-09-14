@@ -292,6 +292,12 @@ see everything working immediately. Reset or clear that data any time from
   re-summed on top of it, so a player's season minutes don't double-count
   a match day, and a player who sat out the second match of a day doesn't
   pick up a phantom appearance just because their minutes carried over.
+  A separate "🧤 Goalkeeper Appearances" table breaks down how many times
+  each player has gone in goal, one column per half (or quarter, etc. —
+  labelled off the team's current period format) plus a season total,
+  tallied from every completed game's per-period keeper assignment. Only
+  shows up once someone's actually played in goal, and only lists players
+  who have.
 - **Club logo** — upload an image in Settings (Team section) to replace the
   default Boot Room crest in the header with your own club badge. Resized
   automatically to a small header-sized image before saving, so a full-size

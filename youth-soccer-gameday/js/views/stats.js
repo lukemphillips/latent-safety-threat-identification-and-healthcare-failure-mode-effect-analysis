@@ -1,5 +1,5 @@
 import { getState, update } from '../store.js';
-import { escapeHtml, formatDate, formatMinutes, formatPercent, formatPositions, matchTypeBadgeHtml, sortByDateTime, startOfWeekIso, weekLabel, uid } from '../util.js';
+import { escapeHtml, formatDate, formatMinutes, formatPercent, formatPositions, matchTypeBadgeHtml, sortByDateTime, startOfWeekIso, weekLabel, uid, periodLabel, gameNumPeriods } from '../util.js';
 import { openModal, closeModal, alertDialog } from '../modal.js';
 
 // Reads a weekly award's chosen players regardless of whether it's the
@@ -123,6 +123,73 @@ function headToHead() {
   }).sort((a, b) => a.opponent.localeCompare(b.opponent));
 }
 
+// How many times each player has gone in goal, broken down by which half
+// (or quarter, etc. — whatever the team's period format is) they kept for.
+// gkByPeriod on a completed game's live state is { periodNumber: playerId
+// } for that one match; this tallies it across every completed match.
+// Columns are labelled off the team's current period format/count rather
+// than each game's own numPeriods, since a season's matches are normally
+// all played to the same format — good enough without tracking a label
+// per historical game.
+function computeGoalkeeperRows() {
+  const { players, games, team } = getState();
+  const active = players.filter((p) => p.active);
+  const completed = games.filter((g) => g.status === 'completed' && g.live);
+
+  let maxPeriods = 0;
+  completed.forEach((g) => {
+    maxPeriods = Math.max(maxPeriods, gameNumPeriods(g, team));
+  });
+
+  const rows = active
+    .map((p) => {
+      const byPeriod = {};
+      let total = 0;
+      completed.forEach((g) => {
+        Object.entries(g.live.gkByPeriod || {}).forEach(([periodNum, playerId]) => {
+          if (playerId !== p.id) return;
+          byPeriod[periodNum] = (byPeriod[periodNum] || 0) + 1;
+          total += 1;
+        });
+      });
+      return { player: p, byPeriod, total };
+    })
+    .filter((r) => r.total > 0)
+    .sort((a, b) => b.total - a.total || a.player.name.localeCompare(b.player.name));
+
+  return { rows, maxPeriods };
+}
+
+function goalkeeperStatsHtml() {
+  const { team } = getState();
+  const { rows, maxPeriods } = computeGoalkeeperRows();
+  if (!rows.length) return '';
+  const periodNumbers = Array.from({ length: maxPeriods }, (_, i) => i + 1);
+  return `
+    <div class="section-title">🧤 Goalkeeper Appearances</div>
+    <div class="card" style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead>
+          <tr>
+            <th style="text-align:left; padding:6px 8px;">Player</th>
+            ${periodNumbers.map((n) => `<th style="text-align:right; padding:6px 8px; white-space:nowrap;">${escapeHtml(periodLabel(team.numPeriods, n))}</th>`).join('')}
+            <th style="text-align:right; padding:6px 8px;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r) => `
+            <tr style="border-top:1px solid var(--line);">
+              <td style="padding:6px 8px; font-weight:600;">${escapeHtml(r.player.name)}</td>
+              ${periodNumbers.map((n) => `<td style="text-align:right; padding:6px 8px;">${r.byPeriod[n] || 0}</td>`).join('')}
+              <td style="text-align:right; padding:6px 8px; font-weight:700;">${r.total}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 export function renderStats(app) {
   const { games, team } = getState();
   const completedCount = games.filter((g) => g.status === 'completed').length;
@@ -163,6 +230,8 @@ export function renderStats(app) {
         </tbody>
       </table>
     </div>
+
+    ${goalkeeperStatsHtml()}
 
     <div class="section-title">History</div>
     ${history.length ? history.map(historyRowHtml).join('') : '<div class="card empty">No games yet.</div>'}

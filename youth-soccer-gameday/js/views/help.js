@@ -47,7 +47,7 @@ export function renderHelp(app) {
       <ul class="stack" style="margin:0; padding-left:18px;">
         <li>Set <strong>Captain</strong> and <strong>Player of the Match</strong> from the game's page, any time.</li>
         <li><strong>Player of the Week</strong> (Stats page) groups completed games into Monday-to-Sunday weeks and lets you pick one or more standout players once that week's matches are done.</li>
-        <li><strong>Stats</strong> has a sortable leaderboard, full match history, and head-to-head records per opponent — tap a column heading to sort by it.</li>
+        <li><strong>Stats</strong> has a sortable leaderboard, full match history, and head-to-head records per opponent — tap a column heading to sort by it. A separate "🧤 Goalkeeper Appearances" table breaks down how many times each player has gone in goal, by which half (or quarter, etc.) they kept for, plus a season total — it only shows up once someone's actually played in goal.</li>
       </ul>
     `)}
 
