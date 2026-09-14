@@ -110,21 +110,27 @@ see everything working immediately. Reset or clear that data any time from
   location; each session has four tabs:
   - **Attendance** — tap players to mark who's actually shown up, same
     interaction as a game's Squad tab.
-  - **Groups** — "Auto-Build Groups" clusters players of similar skill
-    stream together, the opposite goal from Balance Teams (which spreads
-    streams evenly for a fair match): here similar-ability players are put
-    together so each group can be coached at its own level. Leave "Number
-    of groups" blank for one group per stream present, or set a specific
-    number — fewer than the streams present merges the smallest adjacent
-    pair, more splits the largest group roughly in half. "⚖️ Balance
-    numbers across groups" (checked by default) runs a follow-up pass that
+  - **Groups** — two modes, same as Matches below. **Same stream**
+    (default) clusters players of similar skill stream together, so each
+    group can be coached at its own level. Leave "Number of groups" blank
+    for one group per stream present, or set a specific number — fewer
+    than the streams present merges the smallest adjacent pair, more
+    splits the largest group roughly in half. "⚖️ Balance numbers across
+    groups" (checked by default in this mode) runs a follow-up pass that
     repeatedly moves one player from the largest group into whichever
     smallest group sits closest to it in ability, until no group has more
     than one extra player over any other — trading a little clustering
-    purity for fairer numbers, automatically. If a group still ends up
-    too big or too small for what you want, tap a player to select them,
-    then tap "Move here" on a different group's card to move them across
-    by hand.
+    purity for fairer numbers, automatically. **Mixed ability** is the
+    opposite: every skill stream is spread evenly across however many
+    groups you set (reusing Balance Teams' even-spread algorithm), so each
+    group gets a fair cross-section instead of similar players together —
+    useful for stations built around mixed-ability play, or just to vary
+    things up; numbers are inherently balanced in this mode, so there's no
+    separate checkbox for it. Tap "🎲 Auto-Build Groups" to build (or
+    rebuild) in whichever mode is selected. If a group still ends up too
+    big, too small, or otherwise wrong for what you want, tap a player to
+    select them, then tap "Move here" on a different group's card to move
+    them across by hand.
   - **Matches** — sets up small-sided scrimmage teams, a separate concept
     from coaching Groups. Pick a number of teams and tap "Build Match
     Teams"; "Randomize Again" re-rolls it. The most teams offered scales

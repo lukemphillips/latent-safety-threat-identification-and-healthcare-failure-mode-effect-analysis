@@ -266,12 +266,25 @@ function attendanceChipHtml(p, isPresent) {
   `;
 }
 
+// "Same stream" reuses the training-groups clustering algorithm (players
+// of similar ability trained together, coachable at one level); "Mixed
+// ability" reuses Balance Teams' even-spread algorithm so each group gets
+// a fair cross-section of every stream instead — useful when the point of
+// a station is players of different levels working together (e.g. older
+// players helping younger ones), or just to vary things up. Mirrors the
+// same two-mode choice already offered on the Matches tab.
+function buildMixedGroups(players, count) {
+  return splitBalancedTeams(players, count).map((groupPlayers, i) => ({ id: uid(), name: `Group ${i + 1}`, playerIds: groupPlayers.map((p) => p.id) }));
+}
+
 function renderGroupsTab(container, training) {
   const { players } = getState();
   const presentIds = new Set(training.presentIds || []);
   const present = players.filter((p) => p.active && presentIds.has(p.id));
   const groups = training.groups || [];
   const byId = Object.fromEntries(present.map((p) => [p.id, p]));
+  const mode = training.groupMode || 'stream';
+  const maxGroups = Math.max(1, present.length);
 
   if (!present.length) {
     container.innerHTML = `<div class="banner info">Mark who's here on the Attendance tab first, then come back to build groups.</div>`;
@@ -280,18 +293,26 @@ function renderGroupsTab(container, training) {
 
   container.innerHTML = `
     <div class="card">
-      <div class="field-row" style="align-items:flex-end;">
+      <div class="tabs" style="max-width:360px;">
+        <div class="tab ${mode === 'stream' ? 'active' : ''}" data-group-mode="stream">Same stream</div>
+        <div class="tab ${mode === 'mixed' ? 'active' : ''}" data-group-mode="mixed">Mixed ability</div>
+      </div>
+      <div class="field-row" style="align-items:flex-end; margin-top:10px;">
         <div class="field" style="max-width:180px;">
           <label>Number of groups</label>
-          <input type="number" id="group-target-count" min="1" max="${present.length}" placeholder="Auto" value="${groups.length || ''}" />
+          <input type="number" id="group-target-count" min="1" max="${maxGroups}" placeholder="${mode === 'mixed' ? '' : 'Auto'}" value="${groups.length || ''}" />
         </div>
         <button class="btn secondary" data-action="auto-build-groups">🎲 ${groups.length ? 'Rebuild Groups' : 'Auto-Build Groups'}</button>
       </div>
-      <label class="checkbox-row" style="margin-top:8px;">
-        <input type="checkbox" id="group-balance-numbers" checked />
-        ⚖️ Balance numbers across groups
-      </label>
-      <div class="muted small" style="margin-top:6px;">Groups cluster players of similar ability together. Leave "Number of groups" blank for one group per skill stream present, or set a number to merge or split streams to fit. With balancing on, sizes are then evened out (moving a player to a neighbouring group where needed) so no group ends up much bigger than another.</div>
+      ${mode === 'stream' ? `
+        <label class="checkbox-row" style="margin-top:8px;">
+          <input type="checkbox" id="group-balance-numbers" checked />
+          ⚖️ Balance numbers across groups
+        </label>
+      ` : ''}
+      <div class="muted small" style="margin-top:6px;">${mode === 'stream'
+        ? 'Groups cluster players of similar ability together. Leave "Number of groups" blank for one group per skill stream present, or set a number to merge or split streams to fit. With balancing on, sizes are then evened out (moving a player to a neighbouring group where needed) so no group ends up much bigger than another.'
+        : 'Each skill stream is spread evenly across every group, rather than kept together — useful for mixed-ability stations, or just to vary things up. Set how many groups you want (numbers are balanced automatically).'}</div>
     </div>
 
     ${groups.length ? `
@@ -302,11 +323,21 @@ function renderGroupsTab(container, training) {
     ` : '<div class="card empty" style="margin-top:12px;">No groups yet — tap Auto-Build Groups above.</div>'}
   `;
 
+  container.querySelectorAll('[data-group-mode]').forEach((el) => {
+    el.addEventListener('click', () => {
+      update((state) => {
+        const t = state.trainings.find((x) => x.id === training.id);
+        t.groupMode = el.dataset.groupMode;
+      });
+    });
+  });
+
   container.querySelector('[data-action="auto-build-groups"]').addEventListener('click', () => {
     const raw = container.querySelector('#group-target-count').value;
-    const targetCount = raw ? Number(raw) : null;
-    const balance = container.querySelector('#group-balance-numbers').checked;
-    const newGroups = buildGroupsByStream(present, targetCount, balance);
+    const currentMode = training.groupMode || 'stream';
+    const newGroups = currentMode === 'mixed'
+      ? buildMixedGroups(present, Math.max(1, Math.min(maxGroups, Number(raw) || groups.length || 2)))
+      : buildGroupsByStream(present, raw ? Number(raw) : null, container.querySelector('#group-balance-numbers').checked);
     selectingPlayerId = null;
     selectingSourceGroupId = null;
     update((state) => {
@@ -364,12 +395,15 @@ function renderGroupsTab(container, training) {
 function groupCardHtml(group, byId) {
   const isSourceGroup = selectingSourceGroupId === group.id;
   const groupPlayers = group.playerIds.map((id) => byId[id]).filter(Boolean);
+  const counts = { A: 0, B: 0, C: 0, D: 0, none: 0 };
+  groupPlayers.forEach((p) => { counts[p.skillStream && counts[p.skillStream] !== undefined ? p.skillStream : 'none'] += 1; });
   return `
     <div class="card" data-group-card="${group.id}" style="flex:1 1 220px;">
       <div class="spread" style="margin-bottom:6px;">
         <div style="font-weight:700;">${escapeHtml(group.name)} (${groupPlayers.length})</div>
         ${selectingPlayerId && !isSourceGroup ? `<button type="button" class="btn ghost sm" data-move-to-group="${group.id}">Move here →</button>` : ''}
       </div>
+      <div class="muted small" style="margin-bottom:8px;">A:${counts.A} · B:${counts.B} · C:${counts.C} · D:${counts.D}${counts.none ? ` · Unclassified:${counts.none}` : ''}</div>
       <div class="stack">
         ${groupPlayers.length ? groupPlayers.map((p) => `
           <button type="button" class="bench-chip ${selectingPlayerId === p.id ? 'picking' : ''}" data-group-player="${p.id}" data-source-group="${group.id}" style="justify-content:flex-start;">
