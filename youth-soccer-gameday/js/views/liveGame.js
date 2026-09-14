@@ -138,7 +138,14 @@ export function renderLiveGame(app, gameId) {
 
     ${sentOffPlayers.length ? `
       <div class="section-title">Sent Off</div>
-      <div class="card"><span class="small">${sentOffPlayers.map((p) => escapeHtml(p.name)).join(', ')}</span></div>
+      <div class="card stack">
+        ${sentOffPlayers.map((p) => `
+          <div class="card-row">
+            <span class="small">${escapeHtml(p.name)}</span>
+            ${!isCompleted ? `<button type="button" class="btn ghost sm" data-action="recover-player" data-player-id="${p.id}">↩️ Recover</button>` : ''}
+          </div>
+        `).join('')}
+      </div>
     ` : ''}
 
     <div class="section-title">Playing Time</div>
@@ -284,6 +291,12 @@ export function renderLiveGame(app, gameId) {
         const playerId = btn.dataset.playerId;
         openRemovalModal(gameId, byId[playerId], team.enableCards);
         if (selectingInboundId === playerId) selectingInboundId = null;
+      });
+    });
+
+    app.querySelectorAll('[data-action="recover-player"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        openRecoverModal(gameId, byId[btn.dataset.playerId]);
       });
     });
 
@@ -543,7 +556,7 @@ function playingTimeRows(active, live, presentIds) {
 
 const EVENT_ICONS = {
   'goal-us': '⚽', 'goal-them': '🥅', save: '🧤', sub: '🔄', add: '⬆️',
-  'send-off': '🟥', 'period-start': '⏱', 'gk-change': '🧤',
+  'send-off': '🟥', 'period-start': '⏱', 'gk-change': '🧤', recovered: '↩️',
 };
 
 function eventRowHtml(entry, numPeriods) {
@@ -570,6 +583,9 @@ function eventRowHtml(entry, numPeriods) {
       label = `Sent off: ${escapeHtml(entry.name)}${reasonLabel ? ` (${reasonLabel})` : ''}`;
       break;
     }
+    case 'recovered':
+      label = `Back available: ${escapeHtml(entry.name)}`;
+      break;
     case 'card':
       label = `${entry.cardType === 'red' ? 'Red' : 'Yellow'} card: ${escapeHtml(entry.name)}`;
       break;
@@ -753,6 +769,70 @@ function openRemovalModal(gameId, player, enableCards) {
         });
         closeModal();
         if (secondYellow) alertDialog(`${player.name} picked up a second yellow card — automatically sent off and excluded from further substitutions.`);
+      });
+    },
+  });
+}
+
+// Finds whichever subLog entries actually put this player into sentOff,
+// searching back from the most recent — a straight red is one 'card'
+// entry; a second-yellow send-off is that 'send-off' entry plus the
+// specific 'card'/yellow entry right before it (not their first, valid
+// yellow); an injury/other removal is just the one 'send-off' entry.
+// Used both to describe why they're sent off in the Recover dialog, and
+// — if the coach says it was logged in error — to know exactly what to
+// delete so the record ends up as if it never happened.
+function findRemovalReason(subLog, playerId) {
+  for (let i = subLog.length - 1; i >= 0; i--) {
+    const e = subLog[i];
+    if (e.playerId !== playerId) continue;
+    if (e.type === 'card' && e.cardType === 'red') return { reason: 'red card', indexes: [i] };
+    if (e.type === 'send-off' && e.reason === 'second yellow') {
+      // The specific yellow that triggered this: the *last* yellow logged
+      // for this player before this send-off, found by scanning backward.
+      let secondYellowIdx = -1;
+      for (let k = i - 1; k >= 0; k--) {
+        if (subLog[k].type === 'card' && subLog[k].cardType === 'yellow' && subLog[k].playerId === playerId) { secondYellowIdx = k; break; }
+      }
+      return { reason: 'second yellow card', indexes: secondYellowIdx !== -1 ? [secondYellowIdx, i] : [i] };
+    }
+    if (e.type === 'send-off') return { reason: e.reason === 'injury' ? 'injury' : 'other reason', indexes: [i] };
+  }
+  return { reason: 'unknown reason', indexes: [] };
+}
+
+function openRecoverModal(gameId, player) {
+  if (!player) return;
+  const game = findGame(gameId);
+  const { reason, indexes } = findRemovalReason(game.live.subLog || [], player.id);
+
+  openModal({
+    title: `Recover — ${escapeHtml(player.name)}`,
+    bodyHtml: `
+      <form id="recover-form" class="stack">
+        <p class="muted small mt-0">Currently sent off: <strong>${escapeHtml(reason)}</strong>. Recovering makes them available for subs again — it doesn't put them straight back on the pitch.</p>
+        <label class="checkbox-row">
+          <input type="checkbox" name="mistake" />
+          This was logged by mistake — also remove it from the match record
+        </label>
+        <button type="submit" class="btn block">Recover</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#recover-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const mistake = new FormData(e.target).get('mistake') === 'on';
+        update((state) => {
+          const g = state.games.find((x) => x.id === gameId);
+          g.live.sentOff = (g.live.sentOff || []).filter((id) => id !== player.id);
+          if (mistake && indexes.length) {
+            const toRemove = new Set(indexes);
+            g.live.subLog = g.live.subLog.filter((_, i) => !toRemove.has(i));
+          } else {
+            g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'recovered', playerId: player.id, name: player.name });
+          }
+        });
+        closeModal();
       });
     },
   });

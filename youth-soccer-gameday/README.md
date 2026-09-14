@@ -308,6 +308,24 @@ see everything working immediately. Reset or clear that data any time from
     totals in Stats (a second-yellow send-off is not also counted as a
     red — the FAI/DDSL send-off outcome is the same either way, but it's
     recorded distinctly from a straight red in the log).
+  - **Recover** — every name in the "Sent Off" list gets a "↩️ Recover"
+    button, for the two situations a send-off isn't actually final: an
+    injury that turns out fine, or a card logged against the wrong
+    player. It looks up why they're out (searching backward through the
+    event log for the specific card/send-off entry that put them there —
+    for a second-yellow send-off, that's the second yellow itself, not
+    their legitimate first one) and shows it in the dialog. Recovering
+    always clears `sentOff` so they're selectable for a sub again;
+    leaving "This was logged by mistake" unticked (the default) also
+    logs a "Back available" event and keeps the original card/send-off
+    on the record, for a real injury that's since cleared up. Ticking it
+    instead deletes the specific entry (or entries — a corrected second
+    yellow removes just that card and the auto-send-off, not the
+    player's genuine first yellow) so the log reads as if it never
+    happened, correcting a data-entry mistake without leaving a phantom
+    card or inflated stat behind. Either way, recovering only restores
+    bench eligibility — it never puts the player back on the pitch
+    itself; that's still a normal sub.
   - The goalkeeper is selected per period and kept out of the normal
     substitution rotation, with their own stint tracked separately; confirm
     or change who's in goal at any point, or when a new period starts.
