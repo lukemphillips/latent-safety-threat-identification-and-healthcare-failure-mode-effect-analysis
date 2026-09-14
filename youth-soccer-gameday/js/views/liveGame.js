@@ -1,7 +1,7 @@
 import { getState, update, findGame, saveAutoBackup } from '../store.js';
-import { uid, escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile, matchEligiblePlayers } from '../util.js';
+import { uid, escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile, matchEligiblePlayers, playerPositions } from '../util.js';
 import { writeAutoSaveFile } from '../fileHandle.js';
-import { outfieldTargetCount } from '../formations.js';
+import { outfieldTargetCount, formationFor } from '../formations.js';
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../subPlan.js';
@@ -27,6 +27,11 @@ export function renderLiveGame(app, gameId) {
   const live = game.live;
   const isCompleted = game.status === 'completed';
   const targetOutfield = outfieldTargetCount(team.squadFormat);
+  const formation = formationFor(team.squadFormat, game.formationId, team.customFormations || []);
+  const slotByPlayerId = Object.fromEntries(
+    Object.entries(game.lineup?.slots || {}).filter(([, pid]) => pid).map(([slotId, pid]) => [pid, slotId])
+  );
+  const slotLabelById = Object.fromEntries(formation.slots.map((s) => [s.id, s.role]));
   // A game can override the team's default period length/count (set when
   // the match was scheduled) — resolve once and use these everywhere below
   // instead of reading team.numPeriods/periodMinutes directly.
@@ -126,7 +131,7 @@ export function renderLiveGame(app, gameId) {
 
     <div class="section-title">On Field (${onFieldOutfield.length}${isCompleted ? '' : ` / ${targetOutfield} target`})</div>
     <div class="onfield-grid">
-      ${onFieldOutfield.length ? onFieldOutfield.map((p) => fieldCardHtml(p, live, isCompleted, true, team)).join('') : '<span class="muted small">No one is on the field.</span>'}
+      ${onFieldOutfield.length ? onFieldOutfield.map((p) => fieldCardHtml(p, live, isCompleted, true, team, slotLabelById[slotByPlayerId[p.id]])).join('') : '<span class="muted small">No one is on the field.</span>'}
     </div>
 
     ${!isCompleted ? `
@@ -315,13 +320,22 @@ export function renderLiveGame(app, gameId) {
     if (addBtn) {
       addBtn.addEventListener('click', () => {
         const inId = selectingInboundId;
-        const inName = byId[inId]?.name || '';
+        const inPlayer = byId[inId];
+        const inName = inPlayer?.name || '';
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
           g.live.onField.push(inId);
           g.live.stintStart = g.live.stintStart || {};
           g.live.stintStart[inId] = g.live.elapsedSeconds;
           g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'add', inId, inName });
+          // Filling an open spot rather than swapping — give them whichever
+          // empty formation slot matches their preferred position, falling
+          // back to any other empty non-GK slot so the pitch still shows
+          // where they are even without a role match.
+          const emptySlotIds = Object.keys(g.lineup?.slots || {}).filter((sid) => !g.lineup.slots[sid] && sid !== 'gk');
+          const preferredSlotId = emptySlotIds.find((sid) => playerPositions(inPlayer).includes(formation.slots.find((s) => s.id === sid)?.role));
+          const chosenSlotId = preferredSlotId || emptySlotIds[0];
+          if (chosenSlotId) g.lineup.slots[chosenSlotId] = inId;
         });
         selectingInboundId = null;
       });
@@ -345,6 +359,11 @@ function removePlayerFromPlay(state, gameId, playerId) {
     if (g.live.gkByPeriod[period] === playerId) g.live.gkByPeriod[period] = null;
   });
   g.live.sentOff = [...new Set([...(g.live.sentOff || []), playerId])];
+  // Frees up whichever formation slot they held so the pitch position
+  // shows as vacant rather than still pointing at a player who's gone.
+  Object.keys(g.lineup?.slots || {}).forEach((slotId) => {
+    if (g.lineup.slots[slotId] === playerId) g.lineup.slots[slotId] = null;
+  });
 }
 
 function stintSeconds(live, playerId) {
@@ -384,6 +403,11 @@ async function applySub(gameId, inId, outId, byId, team) {
     g.live.stintStart = g.live.stintStart || {};
     g.live.stintStart[inId] = g.live.elapsedSeconds;
     g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'sub', inId, inName, outId, outName });
+    // The incoming player takes over whichever formation slot the outgoing
+    // one held — keeps positions meaningful through the match instead of
+    // freezing at kickoff, so "who's playing where" stays accurate live.
+    const slotId = Object.keys(g.lineup?.slots || {}).find((sid) => g.lineup.slots[sid] === outId);
+    if (slotId) g.lineup.slots[slotId] = inId;
   });
   selectingInboundId = null;
 }
@@ -493,7 +517,7 @@ function upcomingSubsHtml(team, live, bench, onFieldOutfield) {
   `;
 }
 
-function fieldCardHtml(p, live, isCompleted, isOnField, team) {
+function fieldCardHtml(p, live, isCompleted, isOnField, team, positionRole) {
   const seconds = live.playingTime[p.id] || 0;
   const clickable = !isCompleted && selectingInboundId;
   const stint = isOnField ? stintSeconds(live, p.id) : null;
@@ -506,7 +530,7 @@ function fieldCardHtml(p, live, isCompleted, isOnField, team) {
     <div class="field-card ${clickable ? 'subbing' : ''}" ${clickable ? `data-onfield-player="${p.id}" style="cursor:pointer;"` : ''}>
       <div class="row spread">
         <span class="jersey" style="width:26px;height:26px;font-size:12px;">${p.jerseyNumber ?? '-'}</span>
-        <span class="small muted">${isOnField ? 'On field' : 'Bench'}</span>
+        <span class="small muted">${positionRole ? escapeHtml(positionRole) : (isOnField ? 'On field' : 'Bench')}</span>
       </div>
       <div style="font-weight:700; font-size:13.5px; margin-top:4px;">${escapeHtml(p.name)}</div>
       <div class="pt">⏱ ${formatClock(seconds)}</div>

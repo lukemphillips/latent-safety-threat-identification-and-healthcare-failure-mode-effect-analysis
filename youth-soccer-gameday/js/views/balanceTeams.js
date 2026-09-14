@@ -95,10 +95,12 @@ function sendSquadToMatch(playerIds, gameId) {
   update((state) => {
     const g = state.games.find((x) => x.id === gameId);
     if (!g) return;
-    const formation = formationFor(state.team.squadFormat);
+    // Respects a formation the coach already picked for this game (e.g. on
+    // its Squad tab) rather than silently resetting it back to the default.
+    const formation = formationFor(state.team.squadFormat, g.formationId, state.team.customFormations || []);
     g.presentIds = [...playerIds];
     const presentPlayers = state.players.filter((p) => playerIds.includes(p.id));
-    g.lineup = { slots: autoFillLineup(formation, presentPlayers, emptyLineupSlots(formation.size)) };
+    g.lineup = { slots: autoFillLineup(formation, presentPlayers, emptyLineupSlots(formation)) };
   });
 }
 

@@ -269,15 +269,37 @@ see everything working immediately. Reset or clear that data any time from
   see who actually showed up versus who said they would.
 - **Squad tab** — fast, on-the-fly match-day squad building: tap players
   present today ("✅ Use RSVP List" if you're using RSVPs, or "Mark All
-  Present" in one tap), then place them on a pitch formation (5/7/9/11-a-side
-  based on your team's settings) — or tap "⚡ Auto-Fill" to place everyone
-  present by their preferred position in one go (goalkeeper slot filled
-  from GK-tagged players first) and just adjust from there; it only fills
-  empty spots, so it's also a quick way to plug remaining gaps after
-  placing a few players yourself. The GK spot
-  sets your 1st-half keeper. Once the match is live, this tab switches to a
-  quick "add a late arrival" view — mark them present and they show up on
-  the live bench immediately, no need to touch the pitch again.
+  Present" in one tap), then place them on a pitch formation — or tap
+  "⚡ Auto-Fill" to place everyone present by their preferred position in
+  one go (goalkeeper slot filled from GK-tagged players first) and just
+  adjust from there; it only fills empty spots, so it's also a quick way
+  to plug remaining gaps after placing a few players yourself. The GK spot
+  sets your 1st-half keeper.
+  - **Formations** — a **Formation** dropdown above the pitch offers a
+    few common default shapes for your squad size (e.g. 7-a-side gets
+    2-3-1, 3-2-1, and 2-2-2) plus anything you've built yourself (see
+    below), labeled "(yours)" to tell them apart. Switching formations
+    mid-setup remaps your current lineup rather than clearing it — slots
+    that exist in both shapes (matched by id, e.g. `d1`, `m2`) keep their
+    player; anyone whose slot doesn't exist in the new shape just moves to
+    the bench. **Create your own** from Settings' "Formations" section:
+    name it and choose how many defenders/midfielders/forwards you want
+    (must add up to one less than your squad size, to leave room for the
+    goalkeeper) — the app lays them out on the pitch as evenly spaced rows
+    rather than needing pixel-precise drag-and-drop placement. It then
+    shows up as an option for every game using that squad size, and can be
+    edited or deleted from Settings at any time (a game using a deleted
+    formation falls back to a default suggestion automatically).
+  - **Positions carry through the live match**, not just the pre-match
+    setup: substituting a player on takes over the exact pitch slot the
+    player coming off held, shown as a role label (DEF/MID/FWD) on their
+    live match-day card instead of just "On field" — so "who's playing
+    where" stays meaningful for the whole match, not only at kickoff.
+    Sending a player off or recovering one frees or re-fills their slot
+    the same way.
+  Once the match is live, the Squad tab itself switches to a quick "add a
+  late arrival" view — mark them present and they show up on the live
+  bench immediately, no need to touch the pitch again.
 - **Live game day**:
   - A match clock that keeps running in real time no matter what screen
     you're on — step away to the Squad tab, Roster, wherever, and it's
@@ -521,7 +543,8 @@ js/
   main.js          entry point + hash router
   store.js         in-memory state + localStorage persistence + pub/sub
   seed.js          sample data
-  formations.js    pitch formation templates per squad size
+  formations.js    default formation shapes per squad size + custom-
+                   formation builder (evenly-laid-out DEF/MID/FWD counts)
   ageFormats.js    DDSL/FAI age-group format reference + suggestion logic
   starterDrills.js ~45 curated real drills (name/description/link/tags/
                    ageGroups, a dozen with an inline-SVG diagram) loaded

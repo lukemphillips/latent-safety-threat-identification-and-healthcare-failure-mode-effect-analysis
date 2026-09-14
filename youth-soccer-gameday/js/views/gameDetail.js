@@ -1,6 +1,6 @@
 import { getState, update, findGame } from '../store.js';
 import { uid, escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions, gameNumPeriods, gamePeriodMinutes, matchEligiblePlayers } from '../util.js';
-import { formationFor } from '../formations.js';
+import { formationFor, formationOptionsFor, remapLineupToFormat } from '../formations.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { openGameForm } from './schedule.js';
 import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../subPlan.js';
@@ -255,7 +255,8 @@ function renderSquadTab(container, game) {
   if (game.status === 'live') return renderLiveSquadTab(container, game, active, present, absent);
   if (game.status === 'completed') return renderCompletedSquadTab(container, present, absent);
 
-  const formation = formationFor(team.squadFormat);
+  const formationOptions = formationOptionsFor(team.squadFormat, team.customFormations || []);
+  const formation = formationFor(team.squadFormat, game.formationId, team.customFormations || []);
   const slots = game.lineup.slots;
   const assignedIds = new Set(Object.values(slots).filter(Boolean));
   const bench = present.filter((p) => !assignedIds.has(p.id));
@@ -279,7 +280,15 @@ function renderSquadTab(container, game) {
     </div>
     ${present.length ? `<a class="btn ghost sm" href="#/balance/${game.id}" style="margin:10px 0; display:inline-flex;">🎲 Balance Teams from today's squad</a>` : ''}
 
-    <div class="spread" style="margin:16px 0 10px;">
+    <div class="field" style="margin:16px 0 0;">
+      <label>Formation</label>
+      <select id="formation-select">
+        ${formationOptions.map((f) => `<option value="${f.id}" ${formation.id === f.id ? 'selected' : ''}>${escapeHtml(f.label)}${f.custom ? ' (yours)' : ''}</option>`).join('')}
+      </select>
+    </div>
+    <div class="muted small" style="margin:4px 0 10px;">Want a different shape? <a href="#/settings">Create your own in Settings</a> — it'll show up here for every ${team.squadFormat}-a-side game.</div>
+
+    <div class="spread" style="margin:0 0 10px;">
       <span class="muted small">${formation.label} · ${filledCount}/${formation.slots.length} filled</span>
       <div class="row" style="gap:8px;">
         <button class="btn secondary sm" data-action="auto-fill-lineup" ${present.length && filledCount < formation.slots.length ? '' : 'disabled'}>⚡ Auto-Fill</button>
@@ -309,6 +318,17 @@ function renderSquadTab(container, game) {
     update((state) => {
       const g = state.games.find((x) => x.id === game.id);
       g.presentIds = matchEligiblePlayers(state.players).map((p) => p.id);
+    });
+  });
+
+  container.querySelector('#formation-select').addEventListener('change', (e) => {
+    const newFormationId = e.target.value;
+    selectingSlotId = null;
+    update((state) => {
+      const g = state.games.find((x) => x.id === game.id);
+      const newFormation = formationFor(state.team.squadFormat, newFormationId, state.team.customFormations || []);
+      g.formationId = newFormationId;
+      g.lineup.slots = remapLineupToFormat(g.lineup.slots, newFormation);
     });
   });
 

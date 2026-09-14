@@ -1,5 +1,5 @@
 import { getState, update, resetToSample, clearAllData, restoreFromBackup, mergeBackup, findPlayer, getAutoBackups, restoreAutoBackupById } from '../store.js';
-import { FORMATIONS, remapLineupToFormat } from '../formations.js';
+import { PRESET_FORMATIONS, formationOptionsFor, buildCustomFormation, remapLineupToFormat } from '../formations.js';
 import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
@@ -55,7 +55,7 @@ export function renderSettings(app) {
         <div class="field">
           <label>Format</label>
           <select name="squadFormat">
-            ${Object.values(FORMATIONS).map((f) => `<option value="${f.size}" ${team.squadFormat === f.size ? 'selected' : ''}>${f.label}</option>`).join('')}
+            ${Object.keys(PRESET_FORMATIONS).map(Number).map((size) => `<option value="${size}" ${team.squadFormat === size ? 'selected' : ''}>${size}-a-side</option>`).join('')}
           </select>
         </div>
       </div>
@@ -125,6 +125,17 @@ export function renderSettings(app) {
         </table>
       </div>
     </details>
+
+    <div class="section-title">Formations</div>
+    <div class="card">
+      <p class="muted small mt-0">Beyond the built-in default suggestions offered on a game's Squad tab (a few common shapes per squad size), you can build your own — pick how many defenders, midfielders, and forwards, and it lays them out on the pitch for you. Only shows up for games using your team's current ${team.squadFormat}-a-side format.</p>
+      <div class="stack">
+        ${(team.customFormations || []).length
+          ? team.customFormations.map((f) => formationRow(f)).join('')
+          : '<p class="muted small">No custom formations yet.</p>'}
+      </div>
+      <button class="btn secondary block" data-action="add-formation" style="margin-top:10px;">+ Create Formation</button>
+    </div>
 
     <div class="section-title">Squad Rules</div>
     <div class="card">
@@ -247,7 +258,13 @@ export function renderSettings(app) {
         // bench, so nobody is silently dropped or stranded in a slot the
         // pitch no longer renders.
         state.games.forEach((g) => {
-          if (g.status !== 'completed') g.lineup = { slots: remapLineupToFormat(g.lineup?.slots, newFormat) };
+          if (g.status !== 'completed') {
+            // A chosen formation belongs to one squad size — carrying its
+            // id over to a resized game would point at a shape that no
+            // longer applies, so fall back to the new size's own default.
+            g.formationId = null;
+            g.lineup = { slots: remapLineupToFormat(g.lineup?.slots, newFormat) };
+          }
         });
       }
     });
@@ -312,6 +329,23 @@ export function renderSettings(app) {
     });
   }
 
+  app.querySelector('[data-action="add-formation"]').addEventListener('click', () => openFormationForm(team.squadFormat));
+  app.querySelectorAll('[data-action="edit-formation"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const existing = (getState().team.customFormations || []).find((f) => f.id === btn.dataset.id);
+      if (existing) openFormationForm(team.squadFormat, existing);
+    });
+  });
+  app.querySelectorAll('[data-action="delete-formation"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!(await confirmDialog('Delete this formation? Any game currently using it falls back to a default suggestion instead.', { okLabel: 'Delete', danger: true }))) return;
+      update((state) => {
+        state.team.customFormations = (state.team.customFormations || []).filter((f) => f.id !== btn.dataset.id);
+        state.games.forEach((g) => { if (g.formationId === btn.dataset.id) g.formationId = null; });
+      });
+    });
+  });
+
   app.querySelector('[data-action="add-rule"]').addEventListener('click', () => openRuleForm(players));
   app.querySelectorAll('[data-action="remove-rule"]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -359,6 +393,115 @@ function errorCountText(errorLog) {
   const last = errorLog[errorLog.length - 1];
   const when = new Date(last.at).toLocaleString();
   return `${errorLog.length} error${errorLog.length === 1 ? '' : 's'} logged — most recent ${when}.`;
+}
+
+function formationRow(f) {
+  return `
+    <div class="card-row">
+      <span class="small">${escapeHtml(f.label)} <span class="muted">(${f.def} DEF · ${f.mid} MID · ${f.fwd} FWD)</span></span>
+      <div class="row" style="gap:6px;">
+        <button class="icon-btn" data-action="edit-formation" data-id="${f.id}" aria-label="Edit formation">✏️</button>
+        <button class="btn ghost sm" data-action="delete-formation" data-id="${f.id}">Delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function openFormationForm(squadFormat, existing) {
+  const outfieldNeeded = squadFormat - 1;
+  const pf = existing || { label: '', def: Math.max(1, Math.round(outfieldNeeded * 0.4)), mid: Math.max(1, Math.round(outfieldNeeded * 0.35)), fwd: 0 };
+  pf.fwd = existing ? existing.fwd : Math.max(0, outfieldNeeded - pf.def - pf.mid);
+
+  openModal({
+    title: existing ? 'Edit Formation' : 'Create Formation',
+    bodyHtml: `
+      <form id="formation-form" class="stack">
+        <p class="muted small mt-0">For your team's current ${squadFormat}-a-side format — that's 1 goalkeeper plus ${outfieldNeeded} outfield players to place across defenders, midfielders, and forwards.</p>
+        <div class="field">
+          <label>Name</label>
+          <input type="text" name="label" required value="${escapeHtml(pf.label)}" placeholder="e.g. 3-4 Press" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Defenders</label>
+            <input type="number" name="def" min="0" max="${outfieldNeeded}" value="${pf.def}" />
+          </div>
+          <div class="field">
+            <label>Midfielders</label>
+            <input type="number" name="mid" min="0" max="${outfieldNeeded}" value="${pf.mid}" />
+          </div>
+          <div class="field">
+            <label>Forwards</label>
+            <input type="number" name="fwd" min="0" max="${outfieldNeeded}" value="${pf.fwd}" />
+          </div>
+        </div>
+        <div id="formation-total" class="small muted"></div>
+        <div id="formation-form-error" class="small" style="color:var(--red);" hidden></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn block">${existing ? 'Save' : 'Create'}</button>
+          ${existing ? '<button type="button" class="btn danger" data-action="delete-formation-inline">Delete</button>' : ''}
+        </div>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      const form = modalEl.querySelector('#formation-form');
+      const totalEl = modalEl.querySelector('#formation-total');
+      const errorEl = modalEl.querySelector('#formation-form-error');
+      const defInput = form.querySelector('[name="def"]');
+      const midInput = form.querySelector('[name="mid"]');
+      const fwdInput = form.querySelector('[name="fwd"]');
+
+      const refreshTotal = () => {
+        const total = 1 + (Number(defInput.value) || 0) + (Number(midInput.value) || 0) + (Number(fwdInput.value) || 0);
+        const target = squadFormat;
+        totalEl.textContent = `Total: ${total} of ${target} players (including goalkeeper)`;
+        totalEl.style.color = total === target ? '' : 'var(--red)';
+      };
+      refreshTotal();
+      [defInput, midInput, fwdInput].forEach((el) => el.addEventListener('input', refreshTotal));
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        errorEl.hidden = true;
+        const fd = new FormData(form);
+        const label = (fd.get('label') || '').trim();
+        const def = Number(fd.get('def')) || 0;
+        const mid = Number(fd.get('mid')) || 0;
+        const fwd = Number(fd.get('fwd')) || 0;
+        if (!label) return;
+        let formation;
+        try {
+          formation = buildCustomFormation({ id: existing?.id, size: squadFormat, label, def, mid, fwd });
+        } catch (err) {
+          errorEl.textContent = err.message;
+          errorEl.hidden = false;
+          return;
+        }
+        update((state) => {
+          state.team.customFormations = state.team.customFormations || [];
+          if (existing) {
+            const idx = state.team.customFormations.findIndex((f) => f.id === existing.id);
+            if (idx !== -1) state.team.customFormations[idx] = formation;
+          } else {
+            state.team.customFormations.push(formation);
+          }
+        });
+        closeModal();
+      });
+
+      const inlineDeleteBtn = modalEl.querySelector('[data-action="delete-formation-inline"]');
+      if (inlineDeleteBtn) {
+        inlineDeleteBtn.addEventListener('click', async () => {
+          if (!(await confirmDialog('Delete this formation? Any game currently using it falls back to a default suggestion instead.', { okLabel: 'Delete', danger: true }))) return;
+          update((state) => {
+            state.team.customFormations = (state.team.customFormations || []).filter((f) => f.id !== existing.id);
+            state.games.forEach((g) => { if (g.formationId === existing.id) g.formationId = null; });
+          });
+          closeModal();
+        });
+      }
+    },
+  });
 }
 
 function ruleRow(r) {
