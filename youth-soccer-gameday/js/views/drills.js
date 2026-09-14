@@ -372,10 +372,19 @@ async function importDrillsZip(file) {
       const fileEntry = zip.file(entry.attachment.file);
       if (fileEntry) {
         try {
-          const blob = await fileEntry.async('blob');
+          const attachmentType = entry.attachment.type === 'pdf' ? 'pdf' : 'image';
+          const mime = attachmentType === 'pdf' ? 'application/pdf' : 'image/jpeg';
+          // A file read back out of a zip archive doesn't reliably carry its
+          // original MIME type (JSZip only preserves one if it was given one
+          // when the file was added) — rewrap it with the type the manifest
+          // says it should be, rather than trusting whatever (or nothing)
+          // comes back, so the resulting data: URL actually opens as an
+          // image/PDF instead of a generic, unrenderable octet-stream.
+          const rawBlob = await fileEntry.async('blob');
+          const blob = new Blob([rawBlob], { type: mime });
           const dataUrl = await readFileAsDataUrl(blob);
           if (dataUrl.length <= MAX_ATTACHMENT_DATA_URL_LENGTH) {
-            attachment = { name: entry.attachment.name || entry.attachment.file, type: entry.attachment.type === 'pdf' ? 'pdf' : 'image', dataUrl };
+            attachment = { name: entry.attachment.name || entry.attachment.file, type: attachmentType, dataUrl };
           }
         } catch (e) {
           // Unreadable attachment — fall through and import the drill without it.
