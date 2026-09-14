@@ -175,9 +175,14 @@ see everything working immediately. Reset or clear that data any time from
   adds a curated set of about 45 real drills in one tap — spanning
   warm-ups, passing, dribbling, shooting, defending, possession, small-sided
   games, fitness, goalkeeping, set pieces, cool-downs and fun games, each
-  linking to a genuine coaching video rather than shipping any binary
-  attachment (see `js/starterDrills.js`). It's dedup'd by name, so clicking
-  it again only adds whatever's still missing — safe to press repeatedly.
+  linking to a genuine coaching video (see `js/starterDrills.js`). A dozen
+  of them also ship with a small original diagram — a cone/player layout
+  drawn as inline SVG, so it stays plain text in the source file and costs
+  nothing to load — covering the drills where a simple picture of the setup
+  is genuinely more useful than the video alone (rondo grids, cone
+  patterns, corner-kick runs, and the like); most rely on the video link by
+  itself. It's dedup'd by name, so clicking it again only adds whatever's
+  still missing — safe to press repeatedly.
   Each drill (starter-pack or hand-added) has a name, an optional
   description, age groups, tags, an optional weblink (a video or article),
   and an optional attached PDF or image (a diagram, say). Age groups reuse
@@ -430,8 +435,9 @@ js/
   formations.js    pitch formation templates per squad size
   ageFormats.js    DDSL/FAI age-group format reference + suggestion logic
   starterDrills.js ~45 curated real drills (name/description/link/tags/
-                   ageGroups) loaded in one tap via the Drill Library's
-                   "📚 Load Starter Drill Pack" button
+                   ageGroups, a dozen with an inline-SVG diagram) loaded
+                   in one tap via the Drill Library's "📚 Load Starter
+                   Drill Pack" button
   importRoster.js  CSV/Excel parsing + header-alias mapping for bulk import
   errorLog.js      on-device uncaught-error capture for Settings > Diagnostics
   rules.js         "keep at least one on the pitch" pair-rule checking

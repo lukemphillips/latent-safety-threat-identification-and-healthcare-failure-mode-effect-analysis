@@ -10,6 +10,13 @@ const MAX_PDF_BYTES = 1.5 * 1024 * 1024;
 const MAX_IMAGE_DIM = 1000;
 const MAX_ATTACHMENT_DATA_URL_LENGTH = 2_000_000;
 
+const MIME_EXTENSIONS = {
+  'application/pdf': '.pdf',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/svg+xml': '.svg',
+};
+
 // A curated starting set of "subheadings" a coach can tag a drill with,
 // shown as one-tap chips; the "Add your own tag" field in the form covers
 // anything not on this list, and once used, a custom tag shows up as its
@@ -375,11 +382,15 @@ async function exportDrillsZip(drills) {
   for (const d of drills) {
     const entry = { name: d.name, description: d.description || '', link: d.link || '', tags: d.tags || [], ageGroups: d.ageGroups || [] };
     if (d.attachment) {
-      const ext = d.attachment.type === 'pdf' ? '.pdf' : '.jpg';
-      const zipPath = `attachments/${d.id}${ext}`;
       const blob = await (await fetch(d.attachment.dataUrl)).blob();
+      // Record the attachment's real MIME type (jpeg photo, PDF, or an SVG
+      // diagram) rather than assuming every "image" is a JPEG — needed
+      // since the starter drill pack's diagrams are SVGs, not photos.
+      const mime = blob.type || (d.attachment.type === 'pdf' ? 'application/pdf' : 'image/jpeg');
+      const ext = MIME_EXTENSIONS[mime] || (d.attachment.type === 'pdf' ? '.pdf' : '.jpg');
+      const zipPath = `attachments/${d.id}${ext}`;
       zip.file(zipPath, blob);
-      entry.attachment = { file: zipPath, name: d.attachment.name, type: d.attachment.type };
+      entry.attachment = { file: zipPath, name: d.attachment.name, type: d.attachment.type, mime };
     }
     manifest.push(entry);
   }
@@ -437,7 +448,11 @@ async function importDrillsZip(file) {
       if (fileEntry) {
         try {
           const attachmentType = entry.attachment.type === 'pdf' ? 'pdf' : 'image';
-          const mime = attachmentType === 'pdf' ? 'application/pdf' : 'image/jpeg';
+          // Prefer the manifest's own recorded MIME (added once exports
+          // started tagging it, so an SVG diagram round-trips as an SVG
+          // rather than being forced to JPEG); older exports without it
+          // fall back to the previous pdf/jpeg-only assumption.
+          const mime = entry.attachment.mime || (attachmentType === 'pdf' ? 'application/pdf' : 'image/jpeg');
           // A file read back out of a zip archive doesn't reliably carry its
           // original MIME type (JSZip only preserves one if it was given one
           // when the file was added) — rewrap it with the type the manifest
@@ -513,12 +528,26 @@ function ageGroupChipsHtml(selectedAgeGroups) {
   `).join('');
 }
 
+// A handful of starter drills carry a small original diagram (cone/player
+// layout) as inline SVG markup rather than a data: URL, since that keeps
+// starterDrills.js readable as plain text — this turns it into the same
+// { name, type, dataUrl } shape as a hand-uploaded attachment, built as an
+// SVG data: URL (tiny, and needs no base64 step).
+function diagramToAttachment(entry) {
+  if (!entry.diagramSvg) return null;
+  return {
+    name: `${entry.name} diagram.svg`,
+    type: 'image',
+    dataUrl: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(entry.diagramSvg)}`,
+  };
+}
+
 // Adds the built-in starter set (see js/starterDrills.js) to this device's
 // library, skipping — by name — any that are already present so clicking
 // the button again (or clicking it on a library that already has some of
 // these drills manually added) doesn't create duplicates. Uses the same
-// per-drill storage-quota check as ZIP import, though none of these carry
-// an attachment so that check should basically never trip.
+// per-drill storage-quota check as ZIP import, though these diagrams are
+// tiny enough that check should basically never trip.
 function loadStarterDrillPack() {
   const startingState = getState();
   const existingNames = new Set(startingState.drills.map((d) => d.name));
@@ -532,7 +561,7 @@ function loadStarterDrillPack() {
       name: entry.name,
       description: entry.description || '',
       link: entry.link || '',
-      attachment: null,
+      attachment: diagramToAttachment(entry),
       tags: [...(entry.tags || [])],
       ageGroups: [...(entry.ageGroups || [])],
     };
