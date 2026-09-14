@@ -52,6 +52,7 @@ export function seedPlayers() {
     skillStream,
     guardianName: '',
     guardianPhone: '',
+    notes: '',
     active: true,
   }));
 }

@@ -47,9 +47,13 @@ export function renderDashboard(app) {
     ` : ''}
 
     <div class="section-title">Quick Links</div>
-    <div class="fab-row">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
       <a class="btn secondary block" href="#/roster">👥 Roster (${activePlayers.length})</a>
       <a class="btn secondary block" href="#/schedule">📅 Schedule (${upcoming.length})</a>
+      <a class="btn secondary block" href="#/training">🏃 Training</a>
+      <a class="btn secondary block" href="#/stats">📊 Stats</a>
+      <a class="btn secondary block" href="#/settings">⚙️ Settings</a>
+      <a class="btn secondary block" href="#/help">❓ Help &amp; How-To</a>
     </div>
   `;
 

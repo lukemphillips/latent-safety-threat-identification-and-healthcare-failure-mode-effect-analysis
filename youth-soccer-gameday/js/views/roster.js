@@ -44,6 +44,7 @@ function playerRow(p) {
       <div class="player-meta">
         <div class="player-name ${p.active ? '' : 'inactive'}">${escapeHtml(p.name)}</div>
         <div class="player-sub">${formatPositions(p)}${p.guardianName ? ' · ' + escapeHtml(p.guardianName) : ''}</div>
+        ${p.notes ? `<div class="muted small" style="margin-top:2px;">📝 ${escapeHtml(p.notes)}</div>` : ''}
       </div>
       ${streamBadgeHtml(p.skillStream)}
       ${p.active ? '' : '<span class="badge pending">inactive</span>'}
@@ -53,7 +54,7 @@ function playerRow(p) {
 
 function openPlayerForm(playerId) {
   const existing = playerId ? findPlayer(playerId) : null;
-  const p = existing || { name: '', jerseyNumber: '', positions: [], skillStream: '', guardianName: '', guardianPhone: '', active: true };
+  const p = existing || { name: '', jerseyNumber: '', positions: [], skillStream: '', guardianName: '', guardianPhone: '', notes: '', active: true };
   const currentPositions = playerPositions(p);
 
   const dlg = openModal({
@@ -94,6 +95,10 @@ function openPlayerForm(playerId) {
           <label>Guardian phone</label>
           <input type="tel" name="guardianPhone" value="${escapeHtml(p.guardianPhone)}" />
         </div>
+        <div class="field">
+          <label>Notes</label>
+          <textarea name="notes" placeholder="Anything worth remembering — allergies, pickup arrangements, injuries, etc.">${escapeHtml(p.notes || '')}</textarea>
+        </div>
         <label class="checkbox-row">
           <input type="checkbox" name="active" ${p.active ? 'checked' : ''} />
           Active on roster
@@ -116,6 +121,7 @@ function openPlayerForm(playerId) {
           skillStream: fd.get('skillStream') || null,
           guardianName: (fd.get('guardianName') || '').trim(),
           guardianPhone: (fd.get('guardianPhone') || '').trim(),
+          notes: (fd.get('notes') || '').trim(),
           active: fd.get('active') === 'on',
         };
         if (!data.name) return;

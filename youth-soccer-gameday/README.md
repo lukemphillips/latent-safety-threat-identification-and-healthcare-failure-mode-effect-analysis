@@ -28,10 +28,16 @@ see everything working immediately. Reset or clear that data any time from
 
 ## Features
 
+- **Home** — the next game (with an RSVP summary) and the last result up
+  top, then a Quick Links grid to every other section — Roster, Schedule,
+  Training, Stats, Settings, and Help & How-To.
 - **Roster** — players with jersey number, one or more preferred positions
-  (a versatile player can be both DEF and MID, say), guardian contact,
-  active/inactive status, and a streaming classification (A/B/C/D) you
-  assign per player to keep team-building fair. **Import** lets you bulk-add
+  (a versatile player can be both DEF and MID, say), guardian contact, a
+  free-text **notes** field (allergies, pickup arrangements, an injury —
+  anything worth remembering that doesn't fit another field; shows as a
+  📝 preview line on the roster row when set), active/inactive status,
+  and a streaming classification (A/B/C/D) you assign per player to keep
+  team-building fair. **Import** lets you bulk-add
   players from a .csv or .xlsx file instead of typing each one in — the
   first row should be headers, and common variants (Name/Player, Jersey/
   Number/#, Position/Pos, Stream/Group/Classification, Guardian/Parent,
