@@ -1,5 +1,5 @@
 import { getState, update } from '../store.js';
-import { escapeHtml, formatDate, formatMinutes, formatPercent, formatPositions, matchTypeBadgeHtml, sortByDateTime, startOfWeekIso, weekLabel, uid, periodLabel, gameNumPeriods } from '../util.js';
+import { escapeHtml, formatDate, formatMinutes, formatPercent, formatPositions, matchTypeBadgeHtml, sortByDateTime, startOfWeekIso, weekLabel, uid, periodLabel, gameNumPeriods, matchEligiblePlayers } from '../util.js';
 import { openModal, closeModal, alertDialog } from '../modal.js';
 
 // Reads a weekly award's chosen players regardless of whether it's the
@@ -34,7 +34,7 @@ let sortDir = 'desc';
 
 function computeLeaderRows() {
   const { players, games, team } = getState();
-  const active = players.filter((p) => p.active);
+  const active = matchEligiblePlayers(players);
   const completed = games.filter((g) => g.status === 'completed');
   const trackedForAttendance = games.filter((g) => (g.presentIds || []).length > 0);
   const weeklyAwards = team.weeklyAwards || [];
@@ -133,7 +133,7 @@ function headToHead() {
 // per historical game.
 function computeGoalkeeperRows() {
   const { players, games, team } = getState();
-  const active = players.filter((p) => p.active);
+  const active = matchEligiblePlayers(players);
   const completed = games.filter((g) => g.status === 'completed' && g.live);
 
   let maxPeriods = 0;
@@ -290,7 +290,7 @@ function weekRowHtml(week) {
 
 function openWeekAwardModal(week, onSaved) {
   const { players } = getState();
-  const active = players.filter((p) => p.active);
+  const active = matchEligiblePlayers(players);
   const present = active.filter((p) => week.presentIds.includes(p.id));
   const pool = present.length ? present : active;
   if (!pool.length) {

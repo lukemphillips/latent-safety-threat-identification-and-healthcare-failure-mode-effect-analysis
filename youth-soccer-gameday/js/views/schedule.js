@@ -1,5 +1,5 @@
 import { getState, update } from '../store.js';
-import { uid, escapeHtml, formatDate, formatTime, sortByDateTime, todayIso, nowHHMM, matchTypeBadgeHtml } from '../util.js';
+import { uid, escapeHtml, formatDate, formatTime, sortByDateTime, todayIso, nowHHMM, matchTypeBadgeHtml, matchEligiblePlayers } from '../util.js';
 import { emptyLineupSlots } from '../formations.js';
 import { openModal, closeModal } from '../modal.js';
 
@@ -175,7 +175,7 @@ export function openGameForm(prefill) {
         update((state) => {
           const buildRsvps = () => {
             const rsvps = {};
-            state.players.filter((p) => p.active).forEach((p) => { rsvps[p.id] = 'pending'; });
+            matchEligiblePlayers(state.players).forEach((p) => { rsvps[p.id] = 'pending'; });
             return rsvps;
           };
           const shared = {

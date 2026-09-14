@@ -45,7 +45,15 @@ see everything working immediately. Reset or clear that data any time from
   It previews every row before importing, skips rows with no name, flags
   values it doesn't recognize (an odd position or stream) instead of
   guessing, and defaults to skipping any name that's already on the roster
-  (you can still check it to import anyway).
+  (you can still check it to import anyway). A player can also be marked
+  **👥 Guest** (with an optional "visiting from" team name) — meant for
+  combining with another team for a joint training session. A guest shows
+  up for Training's Attendance, Groups, and small-sided Matches tabs (so
+  numbers work out for drills and scrimmages), but is excluded everywhere
+  match-related: Schedule/RSVP, a game's Squad and Lineup, Live Game, the
+  squad-rule editor, Balance Teams, and Stats — since they're not actually
+  part of your team for real fixtures. The Roster header splits out the
+  guest count separately from "active players" for that reason.
 - **Balance Teams** — pick who's involved (defaults to the whole active
   roster), then randomly split them into 2–4 teams. The split balances each
   streaming classification separately (so it's not just an even head count

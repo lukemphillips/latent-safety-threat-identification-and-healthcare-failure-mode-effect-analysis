@@ -1,6 +1,6 @@
 import { getState, update, resetToSample, clearAllData, restoreFromBackup, mergeBackup, findPlayer, getAutoBackups, restoreAutoBackupById } from '../store.js';
 import { FORMATIONS, remapLineupToFormat } from '../formations.js';
-import { escapeHtml, uid, copyToClipboard, resizeImageFile } from '../util.js';
+import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
@@ -454,9 +454,9 @@ function openRestoreModal() {
 }
 
 function openRuleForm(players) {
-  const active = players.filter((p) => p.active);
+  const active = matchEligiblePlayers(players);
   if (active.length < 2) {
-    alertDialog('You need at least two active players to set a rule.');
+    alertDialog('You need at least two active, non-guest players to set a rule.');
     return;
   }
   const options = (excludeId) => active

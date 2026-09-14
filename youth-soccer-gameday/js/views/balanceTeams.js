@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate, sortByDateTime } from '../util.js';
+import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate, sortByDateTime, matchEligiblePlayers } from '../util.js';
 import { isJuniorAgeGroup } from '../ageFormats.js';
 import { formationFor, emptyLineupSlots } from '../formations.js';
 import { autoFillLineup } from './gameDetail.js';
@@ -109,7 +109,7 @@ function confirmOverwrite(targetGame) {
 
 export function renderBalanceTeams(app, gameId) {
   const { players, team, games } = getState();
-  const active = players.filter((p) => p.active);
+  const active = matchEligiblePlayers(players);
   const junior = isJuniorAgeGroup(team.ageGroup);
   const game = gameId ? findGame(gameId) : null;
   const upcoming = sortByDateTime(games.filter((g) => g.status === 'scheduled'));

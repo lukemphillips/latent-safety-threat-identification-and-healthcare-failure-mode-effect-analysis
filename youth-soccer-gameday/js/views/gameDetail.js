@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions, gameNumPeriods, gamePeriodMinutes } from '../util.js';
+import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions, gameNumPeriods, gamePeriodMinutes, matchEligiblePlayers } from '../util.js';
 import { formationFor } from '../formations.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { openGameForm } from './schedule.js';
@@ -60,7 +60,7 @@ function potmName(game) {
 
 function honoreePool(game) {
   const { players } = getState();
-  const active = players.filter((p) => p.active);
+  const active = matchEligiblePlayers(players);
   const present = active.filter((p) => (game.presentIds || []).includes(p.id));
   return present.length ? present : active;
 }
@@ -193,7 +193,7 @@ function statusBanner(game) {
 
 function renderRsvpTab(container, game) {
   const { players } = getState();
-  const active = players.filter((p) => p.active);
+  const active = matchEligiblePlayers(players);
   const counts = { yes: 0, no: 0, maybe: 0, pending: 0 };
   active.forEach((p) => { counts[game.rsvps[p.id] || 'pending']++; });
 
@@ -245,7 +245,7 @@ function rsvpRow(game, p, isPresent) {
 
 function renderSquadTab(container, game) {
   const { players, team } = getState();
-  const active = players.filter((p) => p.active);
+  const active = matchEligiblePlayers(players);
   const presentIds = new Set(game.presentIds || []);
   const present = active.filter((p) => presentIds.has(p.id));
   const absent = active.filter((p) => !presentIds.has(p.id));
@@ -305,7 +305,7 @@ function renderSquadTab(container, game) {
   container.querySelector('[data-action="mark-all-present"]').addEventListener('click', () => {
     update((state) => {
       const g = state.games.find((x) => x.id === game.id);
-      g.presentIds = state.players.filter((p) => p.active).map((p) => p.id);
+      g.presentIds = matchEligiblePlayers(state.players).map((p) => p.id);
     });
   });
 
@@ -314,7 +314,7 @@ function renderSquadTab(container, game) {
     useRsvpBtn.addEventListener('click', () => {
       update((state) => {
         const g = state.games.find((x) => x.id === game.id);
-        const rsvpYesIds = state.players.filter((p) => p.active && g.rsvps?.[p.id] === 'yes').map((p) => p.id);
+        const rsvpYesIds = matchEligiblePlayers(state.players).filter((p) => g.rsvps?.[p.id] === 'yes').map((p) => p.id);
         g.presentIds = [...new Set([...(g.presentIds || []), ...rsvpYesIds])];
       });
     });
@@ -354,7 +354,7 @@ function renderSquadTab(container, game) {
       selectingSlotId = null;
       update((state) => {
         const g = state.games.find((x) => x.id === game.id);
-        const presentPlayers = state.players.filter((p) => p.active && (g.presentIds || []).includes(p.id));
+        const presentPlayers = matchEligiblePlayers(state.players).filter((p) => (g.presentIds || []).includes(p.id));
         g.lineup.slots = autoFillLineup(formation, presentPlayers, g.lineup.slots);
       });
     });
@@ -555,7 +555,7 @@ export function autoFillLineup(formation, presentPlayers, currentSlots) {
 
 async function startGame(game) {
   const { players, team, games } = getState();
-  const active = players.filter((p) => p.active);
+  const active = matchEligiblePlayers(players);
   const presentIds = game.presentIds || [];
   const gkId = game.lineup.slots.gk || null;
   const outfieldIds = Object.entries(game.lineup.slots)

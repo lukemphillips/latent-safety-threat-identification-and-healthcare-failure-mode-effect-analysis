@@ -10,7 +10,7 @@ export function renderHelp(app) {
     ${section('🚀 Getting started', `
       <ol class="stack" style="margin:0; padding-left:18px;">
         <li><a href="#/settings">Settings</a> — set your team name, age group, and format. "Suggest format for this age group" fills in a sensible squad size and match length for you.</li>
-        <li><a href="#/roster">Roster</a> — add players one at a time, or use <strong>Import</strong> to bulk-add from a spreadsheet (a template is offered in the import dialog).</li>
+        <li><a href="#/roster">Roster</a> — add players one at a time, or use <strong>Import</strong> to bulk-add from a spreadsheet (a template is offered in the import dialog). Marking a player as a <strong>👥 Guest</strong> (in their Add/Edit form) is for combining with another team for a joint training session — a guest shows up for Training attendance, groups, and small-sided matches, but never in Schedule, RSVP, a game's Squad/Lineup, Live Game, squad rules, Balance Teams, or Stats, since they're not actually part of your team for real fixtures.</li>
         <li><a href="#/schedule">Schedule</a> — add your first game. Each game can override the team's default match length, or you can add a same-day second match right from this form.</li>
       </ol>
     `)}

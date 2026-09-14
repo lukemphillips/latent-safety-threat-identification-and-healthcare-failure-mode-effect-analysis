@@ -1,5 +1,5 @@
 import { getState, update, findGame, saveAutoBackup } from '../store.js';
-import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile } from '../util.js';
+import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile, matchEligiblePlayers } from '../util.js';
 import { writeAutoSaveFile } from '../fileHandle.js';
 import { outfieldTargetCount } from '../formations.js';
 import { violatedRules } from '../rules.js';
@@ -21,7 +21,7 @@ export function renderLiveGame(app, gameId) {
   }
 
   const { players, team, games } = getState();
-  const active = players.filter((p) => p.active);
+  const active = matchEligiblePlayers(players);
   const byId = Object.fromEntries(active.map((p) => [p.id, p]));
   const live = game.live;
   const isCompleted = game.status === 'completed';
@@ -302,7 +302,7 @@ async function applySub(gameId, inId, outId, byId, team) {
   }
 
   const currentBench = new Set(
-    getState().players.filter((p) => p.active && (game.presentIds || []).includes(p.id)
+    matchEligiblePlayers(getState().players).filter((p) => (game.presentIds || []).includes(p.id)
       && !(game.live.sentOff || []).includes(p.id) && !game.live.onField.includes(p.id)
       && p.id !== game.live.gkByPeriod[game.live.currentPeriod]).map((p) => p.id)
   );

@@ -187,6 +187,17 @@ export function formatPositions(p) {
   return playerPositions(p).join('/');
 }
 
+// The roster of players eligible for real fixtures — active players minus
+// any guests. Guests (visiting from another team for a joint training
+// session) are meant to show up in Training's Attendance, Groups, and
+// small-sided Matches tabs, but never in Schedule/RSVP, a game's Squad or
+// Lineup, Live Game, the squad-rule editor, Balance Teams, or Stats, since
+// they're never actually part of this team's real matches. Everywhere
+// training-related keeps using a plain `p.active` filter instead.
+export function matchEligiblePlayers(players) {
+  return players.filter((p) => p.active && !p.isGuest);
+}
+
 // Same "is a substitution worth suggesting right now" rule the live view's
 // fair-play banner shows, but as a plain boolean over ids/seconds — shared
 // so the global sub-due alert (main.js) and the banner (liveGame.js) never

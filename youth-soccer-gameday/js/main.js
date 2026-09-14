@@ -1,6 +1,6 @@
 import { initErrorLogging } from './errorLog.js';
 import { getState, update, subscribe } from './store.js';
-import { isSubDue } from './util.js';
+import { isSubDue, matchEligiblePlayers } from './util.js';
 import { playSubDueAlert } from './subAlert.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderRoster } from './views/roster.js';
@@ -125,8 +125,8 @@ setInterval(() => {
 
       const presentIds = new Set(g.presentIds || []);
       const sentOffIds = new Set(g.live.sentOff || []);
-      const benchIds = state.players
-        .filter((p) => p.active && presentIds.has(p.id) && !sentOffIds.has(p.id)
+      const benchIds = matchEligiblePlayers(state.players)
+        .filter((p) => presentIds.has(p.id) && !sentOffIds.has(p.id)
           && !g.live.onField.includes(p.id) && p.id !== gk)
         .map((p) => p.id);
       const due = isSubDue(state.team, g.live, benchIds, g.live.onField);
