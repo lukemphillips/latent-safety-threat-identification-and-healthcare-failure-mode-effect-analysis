@@ -168,7 +168,15 @@ see everything working immediately. Reset or clear that data any time from
     optional note. Each activity field has a "📚 Fill from Drill Library…"
     dropdown to pull in a saved drill instead of retyping it, and "+ Add
     Drill" is reachable from the Training list and every session's page
-    too, not just the library itself. Reorder, edit, or delete blocks.
+    too, not just the library itself. Filling from the library also keeps
+    a link back to that drill (`block.activityDrillId` for a whole-team
+    activity, `block.groupActivityDrillIds` per group) — a "📚 View Drill"
+    button next to the activity text reopens its full description, image,
+    PDF/link, and tags in a read-only modal, both on the static Plan tab
+    and on the live timer below, so a coach never has to leave Training
+    mid-session to remember what a drill actually involves. Typing over
+    the activity text by hand clears that link, since it may no longer
+    describe the linked drill. Reorder, edit, or delete blocks.
     "▶ Start Session" turns the static plan into a **live countdown
     timer**: a big clock counts down the current block, an order-of-play
     list shows done/current/upcoming blocks, and ⏸ Pause / ▶ Resume, ⏮
@@ -179,8 +187,9 @@ see everything working immediately. Reset or clear that data any time from
     chime/vibration (the same alert used for substitution reminders) fires
     whenever the timer crosses into a new block. A rotation block's live
     view shows exactly which station each group is on and counts down that
-    specific leg. "⏹ End Session" stops the timer without touching the
-    saved plan; a live session shows a 🔴 LIVE tag on the Training list.
+    specific leg, with its own "View Drill" button per station where one's
+    linked. "⏹ End Session" stops the timer without touching the saved
+    plan; a live session shows a 🔴 LIVE tag on the Training list.
   - **Copy to Share / native share** — at the top of any session's page
     (same pattern as Balance Teams' team split), "📋 Copy to Share" copies
     the whole session — attendance, groups, match teams, and the full plan

@@ -245,6 +245,34 @@ export function renderDrillLibrary(app) {
   });
 }
 
+// A read-only look at a single drill — its description, image/PDF
+// attachment, tags, and age groups — for anywhere outside the Drill
+// Library itself that links back to a specific drill (e.g. a Training
+// Plan block filled from it). Reuses the same card the library list
+// shows, just inside a modal, with its own edit-drill/view-attachment/
+// share-attachment buttons wired up since those only exist on the
+// library page's own DOM otherwise.
+export function openDrillDetailModal(drill) {
+  if (!drill) return;
+  openModal({
+    title: 'Drill Details',
+    bodyHtml: drillCardHtml(drill),
+    onMount: (modalEl) => {
+      const editBtn = modalEl.querySelector('[data-action="edit-drill"]');
+      if (editBtn) {
+        editBtn.addEventListener('click', () => {
+          closeModal();
+          openDrillForm(drill);
+        });
+      }
+      const viewBtn = modalEl.querySelector('[data-action="view-attachment"]');
+      if (viewBtn && drill.attachment) viewBtn.addEventListener('click', () => viewAttachment(drill.attachment));
+      const shareBtn = modalEl.querySelector('[data-action="share-attachment"]');
+      if (shareBtn && drill.attachment) shareBtn.addEventListener('click', () => shareOrDownloadAttachment(drill, shareBtn));
+    },
+  });
+}
+
 function drillCardHtml(drill) {
   const tags = drill.tags || [];
   const ageGroups = drill.ageGroups || [];

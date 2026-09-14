@@ -2,7 +2,7 @@ import { getState, update, findTraining, findDrill } from '../store.js';
 import { uid, escapeHtml, formatDate, formatTime, formatClock, sortByDateTime, todayIso, nowHHMM, copyToClipboard } from '../util.js';
 import { buildGroupsByStream } from '../trainingGroups.js';
 import { openModal, closeModal, confirmDialog } from '../modal.js';
-import { openDrillForm as openDrillLibraryForm } from './drills.js';
+import { openDrillForm as openDrillLibraryForm, openDrillDetailModal } from './drills.js';
 import { splitBalancedTeams } from './balanceTeams.js';
 
 let selectingPlayerId = null;
@@ -591,7 +591,11 @@ function rotationAssignment(block, groups, legIndex) {
   if (!n) return [];
   return activeGroups.map((g, i) => {
     const stationGroup = activeGroups[(i + legIndex) % n];
-    return { group: g, activity: (block.groupActivities || {})[stationGroup.id] };
+    return {
+      group: g,
+      activity: (block.groupActivities || {})[stationGroup.id],
+      drillId: (block.groupActivityDrillIds || {})[stationGroup.id],
+    };
   });
 }
 
@@ -740,6 +744,10 @@ function renderStaticPlan(container, training) {
   container.querySelectorAll('[data-action="move-block-down"]').forEach((el) => {
     el.addEventListener('click', () => moveBlock(training, el.dataset.blockId, 1));
   });
+
+  container.querySelectorAll('[data-action="view-drill"]').forEach((el) => {
+    el.addEventListener('click', () => openDrillDetailModal(findDrill(el.dataset.drillId)));
+  });
 }
 
 function renderLiveTimer(container, training) {
@@ -767,19 +775,19 @@ function renderLiveTimer(container, training) {
       activityHtml = `
         <div class="muted small" style="text-align:center; margin-bottom:6px;">Rotation ${legIndex + 1} of ${stations} · ${formatClock(Math.max(0, legSeconds - secondsIntoLeg))} left this rotation</div>
         <div class="stack">
-          ${assignments.map(({ group, activity }) => `<div class="small" style="text-align:center;"><strong>${escapeHtml(group.name)}:</strong> ${escapeHtml(activity || '—')}</div>`).join('')}
+          ${assignments.map(({ group, activity, drillId }) => `<div class="small" style="text-align:center;"><strong>${escapeHtml(group.name)}:</strong> ${escapeHtml(activity || '—')} ${viewDrillButtonHtml(drillId)}</div>`).join('')}
         </div>
       `;
     } else {
       const active = groups.filter((g) => ((block.groupActivities || {})[g.id] || '').trim());
       activityHtml = `
         <div class="stack">
-          ${active.map((g) => `<div class="small" style="text-align:center;"><strong>${escapeHtml(g.name)}:</strong> ${escapeHtml((block.groupActivities || {})[g.id])}</div>`).join('') || '<div class="muted small" style="text-align:center;">No group activities set.</div>'}
+          ${active.map((g) => `<div class="small" style="text-align:center;"><strong>${escapeHtml(g.name)}:</strong> ${escapeHtml((block.groupActivities || {})[g.id])} ${viewDrillButtonHtml((block.groupActivityDrillIds || {})[g.id])}</div>`).join('') || '<div class="muted small" style="text-align:center;">No group activities set.</div>'}
         </div>
       `;
     }
   } else {
-    activityHtml = `<div style="text-align:center; font-size:16px; font-weight:600;">${escapeHtml(block.activity || '—')}</div>`;
+    activityHtml = `<div style="text-align:center; font-size:16px; font-weight:600;">${escapeHtml(block.activity || '—')} ${viewDrillButtonHtml(block.activityDrillId)}</div>`;
   }
 
   container.innerHTML = `
@@ -845,6 +853,10 @@ function renderLiveTimer(container, training) {
       t.live = null;
     });
   });
+
+  container.querySelectorAll('[data-action="view-drill"]').forEach((el) => {
+    el.addEventListener('click', () => openDrillDetailModal(findDrill(el.dataset.drillId)));
+  });
 }
 
 function moveBlock(training, blockId, direction) {
@@ -880,12 +892,20 @@ function blockCardHtml(block, index, total, groups) {
         <div class="muted small" style="margin-bottom:4px; font-weight:600;">${isRotation ? 'Rotation — every group does each, in turn:' : 'Per group:'}</div>
         <div class="stack">
           ${Object.entries(block.groupActivities || {}).filter(([gid]) => groupsById[gid]).map(([gid, text]) => `
-            <div class="small"><strong>${escapeHtml(groupsById[gid].name)}:</strong> ${escapeHtml(text || '—')}</div>
+            <div class="small">
+              <strong>${escapeHtml(groupsById[gid].name)}:</strong> ${escapeHtml(text || '—')}
+              ${viewDrillButtonHtml((block.groupActivityDrillIds || {})[gid])}
+            </div>
           `).join('') || '<span class="muted small">No group activities set.</span>'}
         </div>
-      ` : `<div>${escapeHtml(block.activity || '—')}</div>`}
+      ` : `<div>${escapeHtml(block.activity || '—')} ${viewDrillButtonHtml(block.activityDrillId)}</div>`}
     </div>
   `;
+}
+
+function viewDrillButtonHtml(drillId) {
+  if (!drillId) return '';
+  return `<button type="button" class="small" data-action="view-drill" data-drill-id="${drillId}" style="background:none; border:none; padding:0; color:inherit; cursor:pointer; font:inherit; text-decoration:underline;">📚 View Drill</button>`;
 }
 
 function drillFillHtml(fieldName, drills) {
@@ -896,6 +916,17 @@ function drillFillHtml(fieldName, drills) {
       ${drills.map((d) => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('')}
     </select>
   `;
+}
+
+// Filling an activity from the Drill Library only ever copied its name in
+// as plain text (see the [data-drill-fill] change handler below) — with
+// no link back to the actual drill record, there was no way to reopen
+// its description/image/attachment later, live or not. This hidden field
+// carries that link alongside the text: set when a drill is picked from
+// the dropdown, and cleared the moment the coach types over the text by
+// hand (so a since-edited activity never points at the wrong drill).
+function drillLinkFieldHtml(fieldName, drillId) {
+  return `<input type="hidden" name="${fieldName}-drillId" value="${escapeHtml(drillId || '')}" />`;
 }
 
 function openBlockForm(training, groups, existing) {
@@ -928,6 +959,7 @@ function openBlockForm(training, groups, existing) {
             <label data-whole-activity-label>${pf.isBreak ? 'Note (optional)' : 'Activity'}</label>
             <input type="text" name="activity" value="${escapeHtml(pf.activity || '')}" placeholder="e.g. Passing triangles" />
             ${drillFillHtml('activity', drills)}
+            ${drillLinkFieldHtml('activity', pf.activityDrillId)}
           </div>
         </div>
         <div data-grouped-fields ${pf.mode === 'grouped' && hasGroups && !pf.isBreak ? '' : 'hidden'}>
@@ -941,6 +973,7 @@ function openBlockForm(training, groups, existing) {
               <label>${escapeHtml(g.name)}</label>
               <input type="text" name="group-${g.id}" value="${escapeHtml((pf.groupActivities || {})[g.id] || '')}" placeholder="Activity for this group" />
               ${drillFillHtml(`group-${g.id}`, drills)}
+              ${drillLinkFieldHtml(`group-${g.id}`, (pf.groupActivityDrillIds || {})[g.id])}
             </div>
           `).join('')}
         </div>
@@ -1013,13 +1046,22 @@ function openBlockForm(training, groups, existing) {
       refreshBreakUi();
 
       form.querySelectorAll('[data-drill-fill]').forEach((select) => {
+        const fieldName = select.dataset.drillFill;
+        const input = form.querySelector(`[name="${fieldName}"]`);
+        const linkField = form.querySelector(`[name="${fieldName}-drillId"]`);
         select.addEventListener('change', () => {
           const drill = findDrill(select.value);
-          const input = form.querySelector(`[name="${select.dataset.drillFill}"]`);
           if (drill && input) input.value = drill.name;
+          if (linkField) linkField.value = drill ? drill.id : '';
           select.value = '';
           refreshRotateUi();
         });
+        // Typing over a filled-in activity by hand means it may no longer
+        // describe the linked drill — drop the link rather than leave
+        // "View Drill" pointing at something the text doesn't match.
+        if (input && linkField) {
+          input.addEventListener('input', () => { linkField.value = ''; });
+        }
       });
 
       form.addEventListener('submit', (e) => {
@@ -1029,10 +1071,15 @@ function openBlockForm(training, groups, existing) {
         const isBreak = fd.get('isBreak') === 'on';
         const mode = isBreak ? 'whole' : (hasGroups ? (fd.get('mode') || 'whole') : 'whole');
         const activity = (fd.get('activity') || '').trim();
+        const activityDrillId = (fd.get('activity-drillId') || '').trim() || null;
         const rotate = !isBreak && mode === 'grouped' && fd.get('rotate') === 'on';
         const groupActivities = {};
+        const groupActivityDrillIds = {};
         if (!isBreak && mode === 'grouped') {
-          groups.forEach((g) => { groupActivities[g.id] = (fd.get(`group-${g.id}`) || '').trim(); });
+          groups.forEach((g) => {
+            groupActivities[g.id] = (fd.get(`group-${g.id}`) || '').trim();
+            groupActivityDrillIds[g.id] = (fd.get(`group-${g.id}-drillId`) || '').trim() || null;
+          });
         }
 
         update((state) => {
@@ -1042,11 +1089,13 @@ function openBlockForm(training, groups, existing) {
             b.minutes = minutes;
             b.mode = mode;
             b.activity = activity;
+            b.activityDrillId = activityDrillId;
             b.groupActivities = groupActivities;
+            b.groupActivityDrillIds = groupActivityDrillIds;
             b.rotate = rotate;
             b.isBreak = isBreak;
           } else {
-            t.blocks.push({ id: uid(), minutes, mode, activity, groupActivities, rotate, isBreak });
+            t.blocks.push({ id: uid(), minutes, mode, activity, activityDrillId, groupActivities, groupActivityDrillIds, rotate, isBreak });
           }
         });
         closeModal();
