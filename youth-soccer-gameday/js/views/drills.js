@@ -1,6 +1,7 @@
 import { getState, update, findDrill, hasStorageRoomFor } from '../store.js';
 import { uid, escapeHtml, resizeImageFile, formatBytes, todayIso } from '../util.js';
 import { openModal, closeModal, confirmDialog } from '../modal.js';
+import { STARTER_DRILLS } from '../starterDrills.js';
 
 // Everything here lives in localStorage alongside the rest of the team's
 // data, which has far less headroom than a normal file system — these caps
@@ -19,8 +20,16 @@ const PRESET_DRILL_TAGS = [
   'Goalkeeping', 'Set Pieces', 'Cool-down', 'Fun / Game-based',
 ];
 
+// Same six age bands as ageFormats.js (the app's canonical reference,
+// sourced from the FAI Player Development Plan), kept as a separate
+// dimension from category tags above — age and drill category are
+// independent things to filter by, so they get their own chip row rather
+// than being merged into one tag list.
+export const PRESET_AGE_GROUPS = ['U7', 'U8-U9', 'U10-U11', 'U12', 'U13', 'U14+'];
+
 let searchTerm = '';
 let activeTagFilters = new Set();
+let activeAgeFilters = new Set();
 
 // Every tag actually used by a drill, presets first (in their curated
 // order) then any custom tags after — so the filter row stays predictable
@@ -33,17 +42,32 @@ function usedTagsInOrder(drills) {
   return [...PRESET_DRILL_TAGS.filter((t) => used.has(t)), ...customOnly];
 }
 
+function usedAgeGroupsInOrder(drills) {
+  const used = new Set();
+  drills.forEach((d) => (d.ageGroups || []).forEach((a) => used.add(a)));
+  const customOnly = [...used].filter((a) => !PRESET_AGE_GROUPS.includes(a));
+  return [...PRESET_AGE_GROUPS.filter((a) => used.has(a)), ...customOnly];
+}
+
 export function renderDrillLibrary(app) {
   const { drills } = getState();
   const term = searchTerm.trim().toLowerCase();
   const tagFiltered = activeTagFilters.size
     ? drills.filter((d) => (d.tags || []).some((t) => activeTagFilters.has(t)))
     : drills;
-  const filtered = term
-    ? tagFiltered.filter((d) => d.name.toLowerCase().includes(term) || (d.description || '').toLowerCase().includes(term))
+  const ageFiltered = activeAgeFilters.size
+    ? tagFiltered.filter((d) => (d.ageGroups || []).some((a) => activeAgeFilters.has(a)))
     : tagFiltered;
+  const filtered = term
+    ? ageFiltered.filter((d) => d.name.toLowerCase().includes(term)
+        || (d.description || '').toLowerCase().includes(term)
+        || (d.ageGroups || []).some((a) => a.toLowerCase().includes(term)))
+    : ageFiltered;
   const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
   const filterTags = usedTagsInOrder(drills);
+  const filterAgeGroups = usedAgeGroupsInOrder(drills);
+  const starterDrillNames = new Set(STARTER_DRILLS.map((d) => d.name));
+  const starterAlreadyLoaded = drills.length && STARTER_DRILLS.every((d) => starterDrillNames.has(d.name) && drills.some((existing) => existing.name === d.name));
 
   app.innerHTML = `
     <div class="page-title">
@@ -57,6 +81,7 @@ export function renderDrillLibrary(app) {
     </div>
 
     <div class="row" style="gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <button class="btn ghost sm" data-action="load-starter-pack">📚 Load Starter Drill Pack</button>
       <button class="btn ghost sm" data-action="export-zip" ${drills.length ? '' : 'disabled'}>📦 Export ZIP</button>
       <label class="btn ghost sm" style="cursor:pointer;">
         📦 Import ZIP
@@ -71,19 +96,40 @@ export function renderDrillLibrary(app) {
       </div>
     ` : ''}
 
+    ${filterAgeGroups.length ? `
+      <div class="muted small" style="margin-bottom:4px;">Age group</div>
+      <div class="chip-list" style="margin-bottom:12px;">
+        ${filterAgeGroups.map((a) => `<button type="button" class="bench-chip ${activeAgeFilters.has(a) ? 'picking' : ''}" data-age-filter="${escapeHtml(a)}">${escapeHtml(a)}</button>`).join('')}
+        ${activeAgeFilters.size ? '<button type="button" class="bench-chip" data-action="clear-age-filters">✕ Clear</button>' : ''}
+      </div>
+    ` : ''}
+
     ${filterTags.length ? `
+      <div class="muted small" style="margin-bottom:4px;">Category</div>
       <div class="chip-list" style="margin-bottom:12px;">
         ${filterTags.map((t) => `<button type="button" class="bench-chip ${activeTagFilters.has(t) ? 'picking' : ''}" data-tag-filter="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('')}
-        ${activeTagFilters.size ? '<button type="button" class="bench-chip" data-action="clear-tag-filters">✕ Clear filter</button>' : ''}
+        ${activeTagFilters.size ? '<button type="button" class="bench-chip" data-action="clear-tag-filters">✕ Clear</button>' : ''}
       </div>
     ` : ''}
 
     ${sorted.length ? sorted.map(drillCardHtml).join('') : (drills.length
       ? '<div class="card empty">No drills match.</div>'
-      : '<div class="card empty">No drills yet — add your first one above.</div>')}
+      : '<div class="card empty">No drills yet — add your first one above, or load the starter pack for ~45 ready-made drills.</div>')}
   `;
 
   app.querySelector('[data-action="add-drill"]').addEventListener('click', () => openDrillForm());
+
+  const loadStarterBtn = app.querySelector('[data-action="load-starter-pack"]');
+  loadStarterBtn.addEventListener('click', () => {
+    const message = loadStarterDrillPack();
+    renderDrillLibrary(app);
+    const freshStatusEl = app.querySelector('#drill-zip-status');
+    freshStatusEl.textContent = message;
+    freshStatusEl.hidden = false;
+  });
+  if (starterAlreadyLoaded) {
+    loadStarterBtn.title = 'Already loaded — click again to add any missing ones.';
+  }
 
   const zipStatusEl = app.querySelector('#drill-zip-status');
   const showZipStatus = (msg) => { zipStatusEl.textContent = msg; zipStatusEl.hidden = false; };
@@ -154,6 +200,22 @@ export function renderDrillLibrary(app) {
     });
   }
 
+  app.querySelectorAll('[data-age-filter]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const age = el.dataset.ageFilter;
+      if (activeAgeFilters.has(age)) activeAgeFilters.delete(age);
+      else activeAgeFilters.add(age);
+      renderDrillLibrary(app);
+    });
+  });
+  const clearAgeFiltersBtn = app.querySelector('[data-action="clear-age-filters"]');
+  if (clearAgeFiltersBtn) {
+    clearAgeFiltersBtn.addEventListener('click', () => {
+      activeAgeFilters = new Set();
+      renderDrillLibrary(app);
+    });
+  }
+
   app.querySelectorAll('[data-action="edit-drill"]').forEach((el) => {
     el.addEventListener('click', () => {
       const drill = findDrill(el.dataset.drillId);
@@ -178,12 +240,14 @@ export function renderDrillLibrary(app) {
 
 function drillCardHtml(drill) {
   const tags = drill.tags || [];
+  const ageGroups = drill.ageGroups || [];
   return `
     <div class="card">
       <div class="card-row" style="align-items:flex-start;">
         <div>
           <div style="font-weight:700; font-size:15px;">${escapeHtml(drill.name)}</div>
           ${drill.description ? `<div class="muted small" style="margin-top:4px;">${escapeHtml(drill.description)}</div>` : ''}
+          ${ageGroups.length ? `<div class="row" style="gap:6px; margin-top:6px; flex-wrap:wrap;">${ageGroups.map((a) => `<span class="badge scheduled">🎯 ${escapeHtml(a)}</span>`).join('')}</div>` : ''}
           ${tags.length ? `<div class="row" style="gap:6px; margin-top:6px; flex-wrap:wrap;">${tags.map((t) => `<span class="badge">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
           <div class="row" style="gap:12px; margin-top:8px; flex-wrap:wrap;">
             ${drill.link ? `<a class="small" href="${escapeHtml(drill.link)}" target="_blank" rel="noopener">🔗 Link</a>` : ''}
@@ -309,7 +373,7 @@ async function exportDrillsZip(drills) {
   const zip = new window.JSZip();
   const manifest = [];
   for (const d of drills) {
-    const entry = { name: d.name, description: d.description || '', link: d.link || '', tags: d.tags || [] };
+    const entry = { name: d.name, description: d.description || '', link: d.link || '', tags: d.tags || [], ageGroups: d.ageGroups || [] };
     if (d.attachment) {
       const ext = d.attachment.type === 'pdf' ? '.pdf' : '.jpg';
       const zipPath = `attachments/${d.id}${ext}`;
@@ -398,6 +462,7 @@ async function importDrillsZip(file) {
       description: entry.description || '',
       link: normalizeLink(entry.link || ''),
       tags: Array.isArray(entry.tags) ? entry.tags : [],
+      ageGroups: Array.isArray(entry.ageGroups) ? entry.ageGroups : [],
       attachment,
     };
 
@@ -442,8 +507,57 @@ function tagChipsHtml(selectedTags) {
   `).join('');
 }
 
+function ageGroupChipsHtml(selectedAgeGroups) {
+  return PRESET_AGE_GROUPS.map((a) => `
+    <button type="button" class="bench-chip ${selectedAgeGroups.has(a) ? 'picking' : ''}" data-age-toggle="${escapeHtml(a)}">${escapeHtml(a)}</button>
+  `).join('');
+}
+
+// Adds the built-in starter set (see js/starterDrills.js) to this device's
+// library, skipping — by name — any that are already present so clicking
+// the button again (or clicking it on a library that already has some of
+// these drills manually added) doesn't create duplicates. Uses the same
+// per-drill storage-quota check as ZIP import, though none of these carry
+// an attachment so that check should basically never trip.
+function loadStarterDrillPack() {
+  const startingState = getState();
+  const existingNames = new Set(startingState.drills.map((d) => d.name));
+  const working = [...startingState.drills];
+  let added = 0, skippedExisting = 0, skippedStorage = 0;
+
+  for (const entry of STARTER_DRILLS) {
+    if (existingNames.has(entry.name)) { skippedExisting += 1; continue; }
+    const drill = {
+      id: uid(),
+      name: entry.name,
+      description: entry.description || '',
+      link: entry.link || '',
+      attachment: null,
+      tags: [...(entry.tags || [])],
+      ageGroups: [...(entry.ageGroups || [])],
+    };
+    if (!hasStorageRoomFor({ ...startingState, drills: [...working, drill] })) {
+      skippedStorage += 1;
+      continue;
+    }
+    working.push(drill);
+    existingNames.add(drill.name);
+    added += 1;
+  }
+
+  if (added) update((state) => { state.drills = working; });
+
+  if (!added && skippedExisting && !skippedStorage) {
+    return 'Starter pack already loaded — nothing new to add.';
+  }
+  const parts = [`Added ${added} starter drill${added === 1 ? '' : 's'}.`];
+  if (skippedExisting) parts.push(`${skippedExisting} already in your library.`);
+  if (skippedStorage) parts.push(`${skippedStorage} skipped (storage full).`);
+  return parts.join(' ');
+}
+
 export function openDrillForm(existing) {
-  const pf = existing || { name: '', description: '', link: '', attachment: null, tags: [] };
+  const pf = existing || { name: '', description: '', link: '', attachment: null, tags: [], ageGroups: [] };
   let pendingAttachment = pf.attachment;
 
   openModal({
@@ -457,6 +571,10 @@ export function openDrillForm(existing) {
         <div class="field">
           <label>Description</label>
           <textarea name="description" placeholder="How it works, setup, coaching points…">${escapeHtml(pf.description || '')}</textarea>
+        </div>
+        <div class="field">
+          <label>Age groups (optional)</label>
+          <div class="chip-list" id="drill-age-groups"></div>
         </div>
         <div class="field">
           <label>Tags (optional)</label>
@@ -504,6 +622,21 @@ export function openDrillForm(existing) {
         });
       }
       renderTags();
+
+      const selectedAgeGroups = new Set(pf.ageGroups || []);
+      const ageGroupsContainer = modalEl.querySelector('#drill-age-groups');
+      function renderAgeGroups() {
+        ageGroupsContainer.innerHTML = ageGroupChipsHtml(selectedAgeGroups);
+        ageGroupsContainer.querySelectorAll('[data-age-toggle]').forEach((el) => {
+          el.addEventListener('click', () => {
+            const age = el.dataset.ageToggle;
+            if (selectedAgeGroups.has(age)) selectedAgeGroups.delete(age);
+            else selectedAgeGroups.add(age);
+            renderAgeGroups();
+          });
+        });
+      }
+      renderAgeGroups();
       const addCustomTag = () => {
         const val = customTagInput.value.trim();
         if (!val) return;
@@ -579,7 +712,7 @@ export function openDrillForm(existing) {
           return;
         }
 
-        const drill = { id: existing ? existing.id : uid(), name, description, link, attachment: pendingAttachment, tags: [...selectedTags] };
+        const drill = { id: existing ? existing.id : uid(), name, description, link, attachment: pendingAttachment, tags: [...selectedTags], ageGroups: [...selectedAgeGroups] };
 
         const s = getState();
         const nextDrills = existing

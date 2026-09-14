@@ -171,16 +171,28 @@ see everything working immediately. Reset or clear that data any time from
     Share…" opens the native share sheet directly instead of copy/paste.
 - **Drill Library** — a reusable repository of drills, separate from any
   one session (linked from the top of the Training page, and reachable
-  from any Training screen via "+ Add Drill"). Each drill has a name, an
-  optional description, tags, an optional weblink (a video or article),
-  and an optional attached PDF or image (a diagram, say). Tags are a
-  curated set of common categories (Warm-up, Passing, Dribbling & Ball
-  Control, Shooting, Defending, Possession / Rondo, Small-Sided Games,
-  Fitness & Conditioning, Goalkeeping, Set Pieces, Cool-down, Fun /
-  Game-based) shown as one-tap chips, plus a free-text "+ Add Tag" for
-  anything else — a used custom tag then shows up as its own filter chip
-  in the library too. Tapping a tag filters the list to drills carrying it
-  (tap again, or "✕ Clear filter", to reset). Images are resized
+  from any Training screen via "+ Add Drill"). "📚 Load Starter Drill Pack"
+  adds a curated set of about 45 real drills in one tap — spanning
+  warm-ups, passing, dribbling, shooting, defending, possession, small-sided
+  games, fitness, goalkeeping, set pieces, cool-downs and fun games, each
+  linking to a genuine coaching video rather than shipping any binary
+  attachment (see `js/starterDrills.js`). It's dedup'd by name, so clicking
+  it again only adds whatever's still missing — safe to press repeatedly.
+  Each drill (starter-pack or hand-added) has a name, an optional
+  description, age groups, tags, an optional weblink (a video or article),
+  and an optional attached PDF or image (a diagram, say). Age groups reuse
+  the same six FAI-based bands as the rest of the app (U7, U8-U9, U10-U11,
+  U12, U13, U14+ — see `js/ageFormats.js`), shown as one-tap chips, so a
+  coach can filter the whole library down to drills that suit a specific
+  squad's age. Tags are a curated set of common categories (Warm-up,
+  Passing, Dribbling & Ball Control, Shooting, Defending, Possession /
+  Rondo, Small-Sided Games, Fitness & Conditioning, Goalkeeping, Set
+  Pieces, Cool-down, Fun / Game-based) shown the same way, plus a free-text
+  "+ Add Tag" for anything else — a used custom tag then shows up as its
+  own filter chip in the library too. Age group and category filters
+  combine (both narrow the list at once), and the search box also matches
+  age-group text, so typing "U10" surfaces anything tagged for that band
+  without needing to tap a chip. Images are resized
   automatically; PDFs are capped at roughly 1.5MB, since everything here
   is stored on-device in the same `localStorage` as the rest of the team's
   data, which has far less headroom than a normal file system — a weblink
@@ -417,6 +429,9 @@ js/
   seed.js          sample data
   formations.js    pitch formation templates per squad size
   ageFormats.js    DDSL/FAI age-group format reference + suggestion logic
+  starterDrills.js ~45 curated real drills (name/description/link/tags/
+                   ageGroups) loaded in one tap via the Drill Library's
+                   "📚 Load Starter Drill Pack" button
   importRoster.js  CSV/Excel parsing + header-alias mapping for bulk import
   errorLog.js      on-device uncaught-error capture for Settings > Diagnostics
   rules.js         "keep at least one on the pitch" pair-rule checking

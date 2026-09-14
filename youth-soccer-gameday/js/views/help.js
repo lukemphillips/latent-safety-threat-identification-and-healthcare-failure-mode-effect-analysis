@@ -78,8 +78,11 @@ export function renderHelp(app) {
     ${section('📚 Drill Library', `
       <p class="muted small mt-0">A reusable collection of drills, separate from any one session — linked from the top of the Training page.</p>
       <ul class="stack" style="margin:0; padding-left:18px;">
-        <li><strong>+ Add Drill</strong> — a name, an optional description, tags, an optional weblink (a video or article), and an optional attached PDF or image (a diagram, say).</li>
+        <li><strong>📚 Load Starter Drill Pack</strong> — one tap adds around 45 ready-made drills covering warm-ups, passing, dribbling, shooting, defending, possession, small-sided games, fitness, goalkeeping, set pieces and fun games, each with a real coaching video link and an age-group tag already set. Safe to click more than once — anything already in your library (matched by name) is skipped, so it only ever adds what's missing.</li>
+        <li><strong>+ Add Drill</strong> — a name, an optional description, age groups, tags, an optional weblink (a video or article), and an optional attached PDF or image (a diagram, say).</li>
+        <li><strong>Age groups</strong> — tap one or more of the six standard bands (U7, U8-U9, U10-U11, U12, U13, U14+, matching the age-format reference on the Team Settings page) so a drill can be filtered to just the ages it suits.</li>
         <li><strong>Tags</strong> — a set of common categories (Warm-up, Passing, Shooting, Defending, Small-Sided Games, and more) to tap on, plus "+ Add Tag" for anything of your own. Tap a tag in the library to filter the list down to drills tagged with it.</li>
+        <li>The library has two filter rows — <strong>Age group</strong> and <strong>Category</strong> — that combine together (picking an age group and a category shows only drills matching both), and the search box also matches age-group text (e.g. typing "U10" finds anything tagged for that band).</li>
         <li>Uploaded images are resized automatically; PDFs are capped at around 1.5MB. Everything here is stored on this device alongside your team data, which has much less room than a normal file system — a weblink costs nothing, so prefer that for anything large or already hosted somewhere.</li>
         <li>If an attachment won't fit, Boot Room tells you rather than silently failing or corrupting other data — remove the attachment and use a link instead, or free up space.</li>
         <li>When building a session's Plan, each activity field can pull a drill's name straight in via its "📚 Fill from Drill Library…" dropdown.</li>
