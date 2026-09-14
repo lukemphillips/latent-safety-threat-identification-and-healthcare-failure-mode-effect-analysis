@@ -207,6 +207,14 @@ function openImportModal() {
           <label>File</label>
           <input type="file" name="file" accept=".csv,.xlsx,.xls" />
         </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="import-as-guests" />
+          👥 Import this whole list as guest players (visiting from another team, for a joint training session)
+        </label>
+        <div class="field" id="import-guest-team-name-field" hidden>
+          <label>Visiting from (optional)</label>
+          <input type="text" id="import-guest-team-name" placeholder="e.g. Riverside Rovers" />
+        </div>
         <div id="import-status" class="muted small"></div>
         <div id="import-preview"></div>
       </div>
@@ -217,7 +225,13 @@ function openImportModal() {
       const previewEl = modalEl.querySelector('#import-preview');
       const copyBtn = modalEl.querySelector('[data-action="copy-template"]');
       const fallbackEl = modalEl.querySelector('#import-template-fallback');
+      const importAsGuestsCheckbox = modalEl.querySelector('#import-as-guests');
+      const guestTeamNameField = modalEl.querySelector('#import-guest-team-name-field');
       let parsedRows = [];
+
+      importAsGuestsCheckbox.addEventListener('change', () => {
+        guestTeamNameField.hidden = !importAsGuestsCheckbox.checked;
+      });
 
       copyBtn.addEventListener('click', async () => {
         await copyToClipboard(TEMPLATE_CSV, {
@@ -299,6 +313,8 @@ function openImportModal() {
             alertDialog('No players selected to import.');
             return;
           }
+          const isGuest = importAsGuestsCheckbox.checked;
+          const guestTeamName = isGuest ? modalEl.querySelector('#import-guest-team-name').value.trim() : '';
           update((state) => {
             checked.forEach((r) => {
               state.players.push({
@@ -310,6 +326,8 @@ function openImportModal() {
                 guardianName: r.guardianName,
                 guardianPhone: r.guardianPhone,
                 active: true,
+                isGuest,
+                guestTeamName,
               });
             });
           });

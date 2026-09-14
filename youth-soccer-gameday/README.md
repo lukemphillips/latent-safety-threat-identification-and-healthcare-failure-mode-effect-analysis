@@ -53,7 +53,11 @@ see everything working immediately. Reset or clear that data any time from
   match-related: Schedule/RSVP, a game's Squad and Lineup, Live Game, the
   squad-rule editor, Balance Teams, and Stats — since they're not actually
   part of your team for real fixtures. The Roster header splits out the
-  guest count separately from "active players" for that reason.
+  guest count separately from "active players" for that reason. The
+  Import dialog has a matching "Import this whole list as guest players"
+  checkbox — tick it (with an optional shared team name) to bring a whole
+  visiting team's roster in as guests in one go, instead of adding each
+  one by hand and flipping the Guest switch every time.
 - **Balance Teams** — pick who's involved (defaults to the whole active
   roster), then randomly split them into 2–4 teams. The split balances each
   streaming classification separately (so it's not just an even head count
@@ -321,20 +325,30 @@ see everything working immediately. Reset or clear that data any time from
   yellow/red card logging alongside send-offs; card counts show up in Stats.
 - **Stats** — a sortable leaderboard (appearances, minutes, goals, assists,
   saves, cards when enabled, Player-of-the-Match awards, times captained,
-  attendance %), full match history, and head-to-head records per opponent.
-  On a match day with more than one game, each player's minutes and
-  appearances count only what they actually played in that specific game —
-  the running day-total that the live fair-play banner shows (so it can
-  balance minutes across a whole match day, not just one game) is not
+  match attendance %), full match history, and head-to-head records per
+  opponent. On a match day with more than one game, each player's minutes
+  and appearances count only what they actually played in that specific
+  game — the running day-total that the live fair-play banner shows (so it
+  can balance minutes across a whole match day, not just one game) is not
   re-summed on top of it, so a player's season minutes don't double-count
   a match day, and a player who sat out the second match of a day doesn't
   pick up a phantom appearance just because their minutes carried over.
-  A separate "🧤 Goalkeeper Appearances" table breaks down how many times
-  each player has gone in goal, one column per half (or quarter, etc. —
-  labelled off the team's current period format) plus a season total,
-  tallied from every completed game's per-period keeper assignment. Only
-  shows up once someone's actually played in goal, and only lists players
-  who have.
+  The leaderboard also includes a **Trn Att%** column — the share of
+  training sessions each player has attended, out of every session where
+  attendance was actually taken (separate from match attendance, since a
+  player can miss training but make every game, or vice versa). When a
+  **minimum playing time standard** is set (Settings, see below), a **PT%**
+  column appears too: each player's share of the total match minutes they
+  were actually available for (summed across every completed match they
+  were present at, whatever that match's own length), with a ⚠️ next to
+  anyone currently under the team's standard — the only place in the app
+  that actively checks a player's playing time against a target rather
+  than just reporting the raw minutes. A separate "🧤 Goalkeeper
+  Appearances" table breaks down how many times each player has gone in
+  goal, one column per half (or quarter, etc. — labelled off the team's
+  current period format) plus a season total, tallied from every completed
+  game's per-period keeper assignment. Only shows up once someone's
+  actually played in goal, and only lists players who have.
 - **Club logo** — upload an image in Settings (Team section) to replace the
   default Boot Room crest in the header with your own club badge. Resized
   automatically to a small header-sized image before saving, so a full-size
@@ -343,11 +357,15 @@ see everything working immediately. Reset or clear that data any time from
   default crest.
 - **Settings** — team name, age group, squad format, default match length
   (minutes per period + number of periods — each game can still set its
-  own when scheduled), minimum stint length, the equal-playing-time
-  toggle, cards toggle, squad rules, and a collapsible age-group format
-  guide (see below) with a one-tap "Suggest format" button that reads your
-  age group and fills in the squad format + match length for you.
-  Changing squad format (e.g.
+  own when scheduled), minimum stint length, a **minimum playing time
+  standard** (% of match minutes every player should get at minimum, over
+  the season — surfaced in Stats' PT% column, see above), the
+  equal-playing-time toggle, cards toggle, squad rules, and a collapsible
+  age-group format guide (see below) with a one-tap "Suggest format &
+  playing-time standard" button that reads your age group and fills in
+  the squad format, match length, *and* the minimum playing time standard
+  for you — the guide table's own "Min Play%" column shows what each band
+  gets. Changing squad format (e.g.
   7-a-side to 5-a-side) reshapes every upcoming lineup to fit — spots the
   new formation still has keep their player, anyone whose spot no longer
   exists just moves to the bench, so nobody's silently dropped and nothing
@@ -427,15 +445,22 @@ Settings includes a reference table of playing formats by age group, based
 on the FAI Player Development Plan that DDSL and most Irish schoolboy/
 schoolgirl leagues build their own rules on: 4v4 (no keeper) at U7, 5-a-side
 at U8–U9, 7-a-side at U10–U11, 9-a-side at U12, and 11-a-side from U13 up,
-each with its own match length and pitch size.
+each with its own match length, pitch size, and minimum playing time
+standard (the table's "Min Play%" column). The U13/U14+ figures come
+directly from the FAI's own published minimum-minutes guidance for those
+bands, converted to a percentage of that band's total match length; U7–U12
+(the FAI's development phase, where the guidance is that younger players
+need *more* guaranteed time, not less) carries the ~50% figure that's the
+common general benchmark for equal playing time at that age.
 
 Worth knowing: this session's network policy blocked direct access to
 ddsl.ie, so the table is sourced from the public FAI plan and reporting
 about DDSL rather than DDSL's own rule book (which is linked from
 [ddsl.ie](https://ddsl.ie/) if you want to check the current one directly)
 — DDSL has in the past run U11/U12 differently from the standard FAI
-format, so it's worth confirming your age group's exact rules with your
-league before relying on the suggestion.
+format, so it's worth confirming your age group's exact rules (including
+its exact playing-time policy) with your league before relying on the
+suggestion.
 
 ## Project structure
 

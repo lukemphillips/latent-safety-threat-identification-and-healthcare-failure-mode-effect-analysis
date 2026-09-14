@@ -59,7 +59,7 @@ export function renderSettings(app) {
           </select>
         </div>
       </div>
-      <button type="button" class="btn ghost sm" data-action="suggest-format">Suggest format for this age group</button>
+      <button type="button" class="btn ghost sm" data-action="suggest-format">Suggest format &amp; playing-time standard for this age group</button>
       <div class="field-row">
         <div class="field">
           <label>Default minutes per period</label>
@@ -74,6 +74,11 @@ export function renderSettings(app) {
       <div class="field">
         <label>Minimum minutes on the pitch before a sub</label>
         <input type="number" name="minStintMinutes" min="0" max="30" step="1" value="${team.minStintMinutes ?? 4}" />
+      </div>
+      <div class="field">
+        <label>Minimum playing time standard (% of match minutes)</label>
+        <input type="number" name="minPlayingTimePercent" min="0" max="100" step="5" placeholder="e.g. 50" value="${team.minPlayingTimePercent ?? ''}" />
+        <p class="muted small" style="margin:4px 0 0;">The share of a match's total minutes every player should get at minimum, over the season — shown in Stats so you can see who's falling short. "Suggest format for this age group" below fills this in from the FAI/DDSL guide too.</p>
       </div>
       <label class="checkbox-row">
         <input type="checkbox" name="equalPlayingTimePolicy" ${team.equalPlayingTimePolicy ? 'checked' : ''} />
@@ -102,6 +107,7 @@ export function renderSettings(app) {
               <th style="text-align:left; padding:5px 6px;">Format</th>
               <th style="text-align:left; padding:5px 6px;">Duration</th>
               <th style="text-align:left; padding:5px 6px;">Pitch</th>
+              <th style="text-align:left; padding:5px 6px;">Min Play%</th>
             </tr>
           </thead>
           <tbody>
@@ -111,8 +117,9 @@ export function renderSettings(app) {
                 <td style="padding:5px 6px;">${b.squadFormat ? b.squadFormat + '-a-side' : '4v4 (no GK)'}</td>
                 <td style="padding:5px 6px;">${b.numPeriods} × ${b.periodMinutes} min</td>
                 <td style="padding:5px 6px;">${escapeHtml(b.pitch)}</td>
+                <td style="padding:5px 6px;">${b.minPlayingTimePercent != null ? b.minPlayingTimePercent + '%' : '—'}</td>
               </tr>
-              ${b.notes ? `<tr><td colspan="4" class="muted" style="padding:0 6px 6px;">${escapeHtml(b.notes)}</td></tr>` : ''}
+              ${b.notes ? `<tr><td colspan="5" class="muted" style="padding:0 6px 6px;">${escapeHtml(b.notes)}</td></tr>` : ''}
             `).join('')}
           </tbody>
         </table>
@@ -193,14 +200,17 @@ export function renderSettings(app) {
       alertDialog('Enter an age group with a number in it (e.g. "U10") to get a suggestion.');
       return;
     }
+    if (band.minPlayingTimePercent != null) {
+      form.querySelector('[name="minPlayingTimePercent"]').value = String(band.minPlayingTimePercent);
+    }
     if (!band.squadFormat) {
-      alertDialog(`${band.label}: ${band.notes}`);
+      alertDialog(`${band.label}: ${band.notes}${band.minPlayingTimePercent != null ? ` Minimum playing time standard set to ${band.minPlayingTimePercent}%.` : ''}`);
       return;
     }
     form.querySelector('[name="squadFormat"]').value = String(band.squadFormat);
     form.querySelector('[name="periodMinutes"]').value = String(band.periodMinutes);
     form.querySelector('[name="numPeriods"]').value = String(band.numPeriods);
-    alertDialog(`Suggested ${band.label} format applied: ${band.squadFormat}-a-side, ${band.numPeriods} × ${band.periodMinutes} min.${band.notes ? ' ' + band.notes : ''} Review and hit Save Team Settings to keep it.`);
+    alertDialog(`Suggested ${band.label} format applied: ${band.squadFormat}-a-side, ${band.numPeriods} × ${band.periodMinutes} min, minimum playing time standard ${band.minPlayingTimePercent}%.${band.notes ? ' ' + band.notes : ''} Review and hit Save Team Settings to keep it.`);
   });
 
   app.querySelector('#team-form').addEventListener('submit', (e) => {
@@ -226,6 +236,7 @@ export function renderSettings(app) {
       state.team.periodMinutes = Number(fd.get('periodMinutes')) || state.team.periodMinutes;
       state.team.numPeriods = Number(fd.get('numPeriods')) || state.team.numPeriods;
       state.team.minStintMinutes = fd.get('minStintMinutes') === '' ? 0 : Number(fd.get('minStintMinutes'));
+      state.team.minPlayingTimePercent = fd.get('minPlayingTimePercent') === '' ? null : Number(fd.get('minPlayingTimePercent'));
       state.team.equalPlayingTimePolicy = fd.get('equalPlayingTimePolicy') === 'on';
       state.team.subAlertsEnabled = fd.get('subAlertsEnabled') === 'on';
       state.team.enableCards = fd.get('enableCards') === 'on';

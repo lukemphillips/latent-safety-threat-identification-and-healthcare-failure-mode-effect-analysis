@@ -9,8 +9,8 @@ export function renderHelp(app) {
 
     ${section('🚀 Getting started', `
       <ol class="stack" style="margin:0; padding-left:18px;">
-        <li><a href="#/settings">Settings</a> — set your team name, age group, and format. "Suggest format for this age group" fills in a sensible squad size and match length for you.</li>
-        <li><a href="#/roster">Roster</a> — add players one at a time, or use <strong>Import</strong> to bulk-add from a spreadsheet (a template is offered in the import dialog). Marking a player as a <strong>👥 Guest</strong> (in their Add/Edit form) is for combining with another team for a joint training session — a guest shows up for Training attendance, groups, and small-sided matches, but never in Schedule, RSVP, a game's Squad/Lineup, Live Game, squad rules, Balance Teams, or Stats, since they're not actually part of your team for real fixtures.</li>
+        <li><a href="#/settings">Settings</a> — set your team name, age group, and format. "Suggest format &amp; playing-time standard for this age group" fills in a sensible squad size, match length, and minimum playing time standard for you, based on the FAI/DDSL guide below it.</li>
+        <li><a href="#/roster">Roster</a> — add players one at a time, or use <strong>Import</strong> to bulk-add from a spreadsheet (a template is offered in the import dialog; tick "Import this whole list as guest players" to bring in a visiting team's roster in one go, with a shared team name). Marking a player as a <strong>👥 Guest</strong> (in their Add/Edit form, or via Import) is for combining with another team for a joint training session — a guest shows up for Training attendance, groups, and small-sided matches, but never in Schedule, RSVP, a game's Squad/Lineup, Live Game, squad rules, Balance Teams, or Stats, since they're not actually part of your team for real fixtures.</li>
         <li><a href="#/schedule">Schedule</a> — add your first game. Each game can override the team's default match length, or you can add a same-day second match right from this form.</li>
       </ol>
     `)}
@@ -47,7 +47,7 @@ export function renderHelp(app) {
       <ul class="stack" style="margin:0; padding-left:18px;">
         <li>Set <strong>Captain</strong> and <strong>Player of the Match</strong> from the game's page, any time.</li>
         <li><strong>Player of the Week</strong> (Stats page) groups completed games into Monday-to-Sunday weeks and lets you pick one or more standout players once that week's matches are done.</li>
-        <li><strong>Stats</strong> has a sortable leaderboard, full match history, and head-to-head records per opponent — tap a column heading to sort by it. A separate "🧤 Goalkeeper Appearances" table breaks down how many times each player has gone in goal, by which half (or quarter, etc.) they kept for, plus a season total — it only shows up once someone's actually played in goal.</li>
+        <li><strong>Stats</strong> has a sortable leaderboard, full match history, and head-to-head records per opponent — tap a column heading to sort by it. Alongside match attendance ("Match Att%"), the leaderboard also shows <strong>Trn Att%</strong> — the share of training sessions each player has actually attended, out of every session where attendance was taken. If a minimum playing time standard is set in Settings, a <strong>PT%</strong> column also appears: each player's share of the total match minutes available to them (across matches they were present for), with a ⚠️ next to anyone currently below that standard. A separate "🧤 Goalkeeper Appearances" table breaks down how many times each player has gone in goal, by which half (or quarter, etc.) they kept for, plus a season total — it only shows up once someone's actually played in goal.</li>
       </ul>
     `)}
 
