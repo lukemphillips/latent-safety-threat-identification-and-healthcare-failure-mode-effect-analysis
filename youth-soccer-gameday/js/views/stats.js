@@ -161,9 +161,20 @@ function computeGoalkeeperRows() {
 }
 
 function goalkeeperStatsHtml() {
-  const { team } = getState();
+  const { team, games } = getState();
   const { rows, maxPeriods } = computeGoalkeeperRows();
-  if (!rows.length) return '';
+  const hasCompletedGame = games.some((g) => g.status === 'completed' && g.live);
+  if (!rows.length) {
+    // Shown even when empty (rather than disappearing outright) so it's
+    // clear the feature exists and what's missing — no completed match
+    // yet, or one has finished but no keeper was ever assigned per half.
+    return `
+      <div class="section-title">🧤 Goalkeeper Appearances</div>
+      <div class="card empty">${hasCompletedGame
+        ? 'No completed match yet has a goalkeeper recorded for a half — set one on the Squad tab before starting, or confirm it when a new period begins.'
+        : 'Once a match is completed with a goalkeeper set for each half, appearances will show up here.'}</div>
+    `;
+  }
   const periodNumbers = Array.from({ length: maxPeriods }, (_, i) => i + 1);
   return `
     <div class="section-title">🧤 Goalkeeper Appearances</div>
