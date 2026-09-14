@@ -176,7 +176,12 @@ see everything working immediately. Reset or clear that data any time from
     and on the live timer below, so a coach never has to leave Training
     mid-session to remember what a drill actually involves. Typing over
     the activity text by hand clears that link, since it may no longer
-    describe the linked drill. Reorder, edit, or delete blocks.
+    describe the linked drill — but any activity whose text exactly
+    matches a saved drill's name (case/whitespace-insensitive) still gets
+    a "View Drill" button even without an explicit link, so blocks typed
+    by hand, or created before this feature existed (including the
+    sample seed data), aren't stuck with no way back to their drill.
+    Reorder, edit, or delete blocks.
     "▶ Start Session" turns the static plan into a **live countdown
     timer**: a big clock counts down the current block, an order-of-play
     list shows done/current/upcoming blocks, and ⏸ Pause / ▶ Resume, ⏮

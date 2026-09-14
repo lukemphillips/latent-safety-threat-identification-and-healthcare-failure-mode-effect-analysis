@@ -581,6 +581,21 @@ function rotationLegInfo(block, groups, secondsIntoBlock) {
   return { legIndex, stations, secondsIntoLeg, legSeconds };
 }
 
+// Falls back to matching the activity's own text against a saved drill's
+// name (case/whitespace-insensitive) whenever there's no explicit link —
+// covers activity text that was typed by hand rather than picked from the
+// "📚 Fill from Drill Library…" dropdown (including every block from
+// before that link existed, like the sample seed data, or from before
+// this feature was added at all), so "View Drill" can still show up for
+// anything that happens to already match a real drill by name.
+function resolveActivityDrillId(activityText, explicitDrillId) {
+  if (explicitDrillId) return explicitDrillId;
+  const text = (activityText || '').trim().toLowerCase();
+  if (!text) return null;
+  const match = getState().drills.find((d) => d.name.trim().toLowerCase() === text);
+  return match ? match.id : null;
+}
+
 // What each real group is actually doing during a given rotation leg: at
 // leg 0 every group is at its own station; at leg L each group has moved
 // on to the station that was L groups ahead of it, cycling back around —
@@ -591,10 +606,11 @@ function rotationAssignment(block, groups, legIndex) {
   if (!n) return [];
   return activeGroups.map((g, i) => {
     const stationGroup = activeGroups[(i + legIndex) % n];
+    const activity = (block.groupActivities || {})[stationGroup.id];
     return {
       group: g,
-      activity: (block.groupActivities || {})[stationGroup.id],
-      drillId: (block.groupActivityDrillIds || {})[stationGroup.id],
+      activity,
+      drillId: resolveActivityDrillId(activity, (block.groupActivityDrillIds || {})[stationGroup.id]),
     };
   });
 }
@@ -825,12 +841,12 @@ function renderLiveTimer(container, training) {
       const active = groups.filter((g) => ((block.groupActivities || {})[g.id] || '').trim());
       activityHtml = `
         <div class="stack">
-          ${active.map((g) => `<div class="small" style="text-align:center;"><strong>${escapeHtml(g.name)}:</strong> ${escapeHtml((block.groupActivities || {})[g.id])} ${viewDrillButtonHtml((block.groupActivityDrillIds || {})[g.id])}</div>`).join('') || '<div class="muted small" style="text-align:center;">No group activities set.</div>'}
+          ${active.map((g) => `<div class="small" style="text-align:center;"><strong>${escapeHtml(g.name)}:</strong> ${escapeHtml((block.groupActivities || {})[g.id])} ${viewDrillButtonHtml(resolveActivityDrillId((block.groupActivities || {})[g.id], (block.groupActivityDrillIds || {})[g.id]))}</div>`).join('') || '<div class="muted small" style="text-align:center;">No group activities set.</div>'}
         </div>
       `;
     }
   } else {
-    activityHtml = `<div style="text-align:center; font-size:16px; font-weight:600;">${escapeHtml(block.activity || '—')} ${viewDrillButtonHtml(block.activityDrillId)}</div>`;
+    activityHtml = `<div style="text-align:center; font-size:16px; font-weight:600;">${escapeHtml(block.activity || '—')} ${viewDrillButtonHtml(resolveActivityDrillId(block.activity, block.activityDrillId))}</div>`;
   }
 
   container.innerHTML = `
@@ -939,11 +955,11 @@ function blockCardHtml(block, index, total, groups) {
           ${Object.entries(block.groupActivities || {}).filter(([gid]) => groupsById[gid]).map(([gid, text]) => `
             <div class="small">
               <strong>${escapeHtml(groupsById[gid].name)}:</strong> ${escapeHtml(text || '—')}
-              ${viewDrillButtonHtml((block.groupActivityDrillIds || {})[gid])}
+              ${viewDrillButtonHtml(resolveActivityDrillId(text, (block.groupActivityDrillIds || {})[gid]))}
             </div>
           `).join('') || '<span class="muted small">No group activities set.</span>'}
         </div>
-      ` : `<div>${escapeHtml(block.activity || '—')} ${viewDrillButtonHtml(block.activityDrillId)}</div>`}
+      ` : `<div>${escapeHtml(block.activity || '—')} ${viewDrillButtonHtml(resolveActivityDrillId(block.activity, block.activityDrillId))}</div>`}
     </div>
   `;
 }
