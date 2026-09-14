@@ -291,8 +291,23 @@ see everything working immediately. Reset or clear that data any time from
   - Goals logged with scorer + optional assist; opponent goals logged with
     one tap.
   - GK saves logged per player (or "open play"), with an editable minute.
-  - Send-off (and, if your team logs cards, yellow/red cards) — a red card
-    or send-off removes the player from selection for the rest of the match.
+  - Removing a player from the match — every on-field player and the
+    goalkeeper has a removal button ("Card / Remove" with Cards enabled in
+    Settings, "Remove from Match" without) that opens a short "What
+    happened?" menu instead of one ambiguous action: 🟨 Yellow (stays on),
+    🟥 Red, 🚑 Injury, or Other reason (with Cards off, just Injury/Other,
+    since there's no card to log). Anything other than a first yellow —
+    red, injury, other, or a second yellow — removes the player from the
+    pitch, clears any goalkeeper slot they held, and drops them into
+    `sentOff`, so they can never be selected for a sub again this match;
+    the match event log records which of those it was. A **second yellow
+    card is applied automatically**: logging it immediately sends the
+    player off with a clear alert explaining why, rather than leaving the
+    coach to separately notice the accumulation and remove them by hand.
+    Both yellows still count individually toward that player's card
+    totals in Stats (a second-yellow send-off is not also counted as a
+    red — the FAI/DDSL send-off outcome is the same either way, but it's
+    recorded distinctly from a straight red in the log).
   - The goalkeeper is selected per period and kept out of the normal
     substitution rotation, with their own stint tracked separately; confirm
     or change who's in goal at any point, or when a new period starts.

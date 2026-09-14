@@ -278,26 +278,11 @@ export function renderLiveGame(app, gameId) {
       });
     });
 
-    app.querySelectorAll('[data-action="send-off"]').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const playerId = btn.dataset.playerId;
-        const player = byId[playerId];
-        if (!(await confirmDialog(`Send off ${player?.name}? They'll be unavailable for the rest of the match.`, { okLabel: 'Send Off', danger: true }))) return;
-        update((state) => {
-          removePlayerFromPlay(state, gameId, playerId);
-          const g = state.games.find((x) => x.id === gameId);
-          g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'send-off', playerId, name: player?.name || '' });
-        });
-        if (selectingInboundId === playerId) selectingInboundId = null;
-      });
-    });
-
     app.querySelectorAll('[data-action="log-card"]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const playerId = btn.dataset.playerId;
-        openCardModal(gameId, byId[playerId]);
+        openRemovalModal(gameId, byId[playerId], team.enableCards);
         if (selectingInboundId === playerId) selectingInboundId = null;
       });
     });
@@ -402,7 +387,7 @@ function goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted) {
           ${currentGk && !isCompleted ? `<div class="muted small">Stint: ${formatClock(stint)}</div>` : ''}
         </div>
         <div class="row">
-          ${!isCompleted && currentGk && team.enableCards ? `<button class="btn danger sm" data-action="log-card" data-player-id="${currentGk.id}">Card</button>` : ''}
+          ${!isCompleted && currentGk ? `<button class="btn danger sm" data-action="log-card" data-player-id="${currentGk.id}">${team.enableCards ? 'Card' : 'Remove'}</button>` : ''}
           ${!isCompleted ? `<button class="btn sm ${currentGk ? 'ghost' : ''}" data-action="${currentGk ? 'change-gk' : 'assign-gk'}">${currentGk ? 'Change' : 'Assign'}</button>` : ''}
         </div>
       </div>
@@ -503,9 +488,7 @@ function fieldCardHtml(p, live, isCompleted, isOnField, team) {
   const stintLine = isOnField
     ? `<div class="pt">${stint < minStintSeconds ? '🔒' : ''} Stint: ${formatClock(stint)}</div>`
     : '';
-  const cardAction = team?.enableCards
-    ? `<button type="button" class="btn danger sm" style="margin-top:6px;" data-action="log-card" data-player-id="${p.id}">Card / Remove</button>`
-    : `<button type="button" class="btn danger sm" style="margin-top:6px;" data-action="send-off" data-player-id="${p.id}">Send Off</button>`;
+  const cardAction = `<button type="button" class="btn danger sm" style="margin-top:6px;" data-action="log-card" data-player-id="${p.id}">${team?.enableCards ? 'Card / Remove' : 'Remove from Match'}</button>`;
   return `
     <div class="field-card ${clickable ? 'subbing' : ''}" ${clickable ? `data-onfield-player="${p.id}" style="cursor:pointer;"` : ''}>
       <div class="row spread">
@@ -582,9 +565,11 @@ function eventRowHtml(entry, numPeriods) {
     case 'add':
       label = `${escapeHtml(entry.inName)} added to pitch`;
       break;
-    case 'send-off':
-      label = `Sent off: ${escapeHtml(entry.name)}`;
+    case 'send-off': {
+      const reasonLabel = { 'second yellow': 'second yellow', injury: 'injury', other: 'other reason' }[entry.reason];
+      label = `Sent off: ${escapeHtml(entry.name)}${reasonLabel ? ` (${reasonLabel})` : ''}`;
       break;
+    }
     case 'card':
       label = `${entry.cardType === 'red' ? 'Red' : 'Yellow'} card: ${escapeHtml(entry.name)}`;
       break;
@@ -701,41 +686,73 @@ function openSaveModal(gameId, pool, currentGkId, elapsedSeconds) {
   });
 }
 
-function openCardModal(gameId, player) {
+// Covers both "Card / Remove" (cards enabled — yellow/red/injury/other,
+// all four unambiguous about whether the player stays on or is done for
+// the match) and "Remove from Match" (cards disabled — just injury/other,
+// no card bookkeeping). Either way, anything other than a first yellow
+// takes the player out of play the same way: off the pitch, cleared from
+// any goalkeeper slot, and dropped into sentOff so they can never be
+// picked again as a sub for the rest of this match.
+function openRemovalModal(gameId, player, enableCards) {
   if (!player) return;
+  const game = findGame(gameId);
+  const priorYellows = (game.live.subLog || []).filter(
+    (e) => e.type === 'card' && e.cardType === 'yellow' && e.playerId === player.id
+  ).length;
+  const options = enableCards
+    ? [
+        { value: 'yellow', label: '🟨 Yellow card (stays on)' },
+        { value: 'red', label: '🟥 Red card (sent off)' },
+        { value: 'injury', label: '🚑 Injury (sent off, no card)' },
+        { value: 'other', label: 'Other reason (sent off, no card)' },
+      ]
+    : [
+        { value: 'injury', label: '🚑 Injury (sent off)' },
+        { value: 'other', label: 'Other reason (sent off)' },
+      ];
+
   openModal({
-    title: `Card — ${escapeHtml(player.name)}`,
+    title: `${enableCards ? 'Card / Remove' : 'Remove from Match'} — ${escapeHtml(player.name)}`,
     bodyHtml: `
       <form id="card-form" class="stack">
         <div class="field">
           <label>What happened?</label>
           <select name="kind">
-            <option value="yellow">🟨 Yellow card (logged, stays on)</option>
-            <option value="red">🟥 Red card (logged, removed from the match)</option>
-            <option value="other">Removed — other reason (injury, etc.), no card</option>
+            ${options.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('')}
           </select>
         </div>
-        <button type="submit" class="btn block">Log</button>
+        ${enableCards && priorYellows >= 1 ? `<p class="muted small" style="margin:0;">Already has a yellow card this match — picking Yellow again will automatically send them off.</p>` : ''}
+        <button type="submit" class="btn block">${enableCards ? 'Log' : 'Remove'}</button>
       </form>
     `,
     onMount: (modalEl) => {
       modalEl.querySelector('#card-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const kind = new FormData(e.target).get('kind');
+        let secondYellow = false;
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
           if (kind === 'yellow') {
             g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'card', cardType: 'yellow', playerId: player.id, name: player.name });
+            if (priorYellows >= 1) {
+              // A second yellow is a send-off by the laws of the game, not
+              // a coach's call — apply it automatically rather than making
+              // them separately notice and pick Red/Other themselves.
+              secondYellow = true;
+              removePlayerFromPlay(state, gameId, player.id);
+              g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'send-off', playerId: player.id, name: player.name, reason: 'second yellow' });
+            }
             return;
           }
           removePlayerFromPlay(state, gameId, player.id);
           if (kind === 'red') {
             g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'card', cardType: 'red', playerId: player.id, name: player.name });
           } else {
-            g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'send-off', playerId: player.id, name: player.name });
+            g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'send-off', playerId: player.id, name: player.name, reason: kind === 'injury' ? 'injury' : 'other' });
           }
         });
         closeModal();
+        if (secondYellow) alertDialog(`${player.name} picked up a second yellow card — automatically sent off and excluded from further substitutions.`);
       });
     },
   });
