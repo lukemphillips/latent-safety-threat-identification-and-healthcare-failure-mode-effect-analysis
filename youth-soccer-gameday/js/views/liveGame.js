@@ -1,9 +1,10 @@
 import { getState, update, findGame, saveAutoBackup } from '../store.js';
-import { escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile, matchEligiblePlayers } from '../util.js';
+import { uid, escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile, matchEligiblePlayers } from '../util.js';
 import { writeAutoSaveFile } from '../fileHandle.js';
 import { outfieldTargetCount } from '../formations.js';
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
+import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../subPlan.js';
 
 let selectingInboundId = null;
 let lastGameId = null;
@@ -111,6 +112,9 @@ export function renderLiveGame(app, gameId) {
 
     ${!isCompleted ? fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) : ''}
     ${!isCompleted ? upcomingSubsHtml(team, live, bench, onFieldOutfield) : ''}
+    ${!isCompleted && (onFieldOutfield.length || bench.length)
+      ? subPlanSectionHtml(game.subPlan || [], byId, { elapsedMinutes: live.elapsedSeconds / 60, showExecute: true })
+      : ''}
 
     ${!isCompleted && selectingInboundId ? `
       <div class="banner info spread">
@@ -128,7 +132,7 @@ export function renderLiveGame(app, gameId) {
     ${!isCompleted ? `
       <div class="section-title">Bench (${bench.length})</div>
       <div class="onfield-grid">
-        ${bench.length ? bench.map((p) => benchCardHtml(p, live)).join('') : '<span class="muted small">No one available on the bench.</span>'}
+        ${bench.length ? bench.map((p) => benchCardHtml(p, live, game.subPlan || [])).join('') : '<span class="muted small">No one available on the bench.</span>'}
       </div>
     ` : ''}
 
@@ -215,6 +219,64 @@ export function renderLiveGame(app, gameId) {
         applySub(gameId, suggestBtn.dataset.inId, suggestBtn.dataset.outId, byId, team);
       });
     }
+
+    const addPlanBtn = app.querySelector('[data-action="add-plan-entry"]');
+    if (addPlanBtn) {
+      addPlanBtn.addEventListener('click', () => {
+        openSubPlanEntryForm({
+          outgoingOptions: onFieldOutfield,
+          incomingOptions: bench,
+          onSave: (entry) => {
+            update((state) => {
+              const g = state.games.find((x) => x.id === gameId);
+              g.subPlan = g.subPlan || [];
+              g.subPlan.push({ id: uid(), outId: entry.outId, inId: entry.inId, atMinute: entry.atMinute });
+            });
+          },
+        });
+      });
+    }
+    app.querySelectorAll('[data-action="edit-plan-entry"]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const existing = (game.subPlan || []).find((e) => e.id === el.dataset.planId);
+        if (!existing) return;
+        openSubPlanEntryForm({
+          existing,
+          outgoingOptions: onFieldOutfield,
+          incomingOptions: bench,
+          onSave: (entry) => {
+            update((state) => {
+              const g = state.games.find((x) => x.id === gameId);
+              const idx = (g.subPlan || []).findIndex((e) => e.id === existing.id);
+              if (idx !== -1) g.subPlan[idx] = { ...entry, id: existing.id };
+            });
+          },
+          onDelete: (id) => {
+            update((state) => {
+              const g = state.games.find((x) => x.id === gameId);
+              g.subPlan = (g.subPlan || []).filter((e) => e.id !== id);
+            });
+          },
+        });
+      });
+    });
+    app.querySelectorAll('[data-action="execute-plan-entry"]').forEach((el) => {
+      el.addEventListener('click', async () => {
+        const entry = (game.subPlan || []).find((e) => e.id === el.dataset.planId);
+        if (!entry) return;
+        await applySub(gameId, entry.inId, entry.outId, byId, team);
+        // applySub can bail out (declined stint/rule warning) without making
+        // the swap — only drop the planned entry once it's actually on the
+        // pitch, so a declined attempt leaves the plan untouched to retry.
+        const refreshed = findGame(gameId);
+        if (refreshed?.live?.onField?.includes(entry.inId)) {
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            g.subPlan = (g.subPlan || []).filter((e) => e.id !== entry.id);
+          });
+        }
+      });
+    });
 
     app.querySelectorAll('[data-action="send-off"]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
@@ -458,7 +520,7 @@ function fieldCardHtml(p, live, isCompleted, isOnField, team) {
   `;
 }
 
-function benchCardHtml(p, live) {
+function benchCardHtml(p, live, subPlan) {
   const seconds = live.playingTime[p.id] || 0;
   const selected = selectingInboundId === p.id;
   return `
@@ -469,6 +531,7 @@ function benchCardHtml(p, live) {
       </div>
       <div style="font-weight:700; font-size:13.5px; margin-top:4px;">${escapeHtml(p.name)}</div>
       <div class="pt">⏱ ${formatClock(seconds)}</div>
+      ${benchDueLineHtml(p.id, subPlan, live.elapsedSeconds / 60)}
     </button>
   `;
 }

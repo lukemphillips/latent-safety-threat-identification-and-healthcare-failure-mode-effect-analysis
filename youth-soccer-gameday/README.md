@@ -321,6 +321,23 @@ see everything working immediately. Reset or clear that data any time from
   - Squad rules — configure pairs of players who should never both be on
     the bench at once (e.g. your only two keeper-capable defenders); the
     app warns (but never blocks) a substitution that would break this.
+  - **Substitution Plan** — a manual, coach-written rotation schedule
+    (`js/subPlan.js`), separate from the automatic fair-play suggestions
+    above: entries of "this player on for that player, at minute X,"
+    edited from a section on either the pre-match Squad tab or the live
+    match tracker (the same plan either way — anything set up before
+    kickoff carries straight into the live match). Live, each entry shows
+    a live "due in…" countdown (or "⏰ Due now" once its minute arrives)
+    and a one-tap "✅ Sub Now" button that runs the actual substitution
+    through the normal sub flow (same min-stint and squad-rule warnings
+    apply) and then drops that entry from the plan — but only once the
+    swap has actually happened; declining a warning leaves the entry in
+    place to try again. It's advisory only, exactly like everything else
+    here — nothing in the plan ever subs a player on its own. Each bench
+    player's own card also shows a "🕐 due" line — a static planned
+    minute pre-match, or a live countdown — for whichever plan entry has
+    them coming on next, so "how long until they're on" is visible at a
+    glance without opening the plan itself.
 - **Cards** — an opt-in Settings toggle (aimed at older age groups) that adds
   yellow/red card logging alongside send-offs; card counts show up in Stats.
 - **Stats** — a sortable leaderboard (appearances, minutes, goals, assists,
@@ -480,6 +497,8 @@ js/
   importRoster.js  CSV/Excel parsing + header-alias mapping for bulk import
   errorLog.js      on-device uncaught-error capture for Settings > Diagnostics
   rules.js         "keep at least one on the pitch" pair-rule checking
+  subPlan.js       manual Substitution Plan — shared list/form UI used by
+                   both the pre-match Squad tab and the live match tracker
   trainingGroups.js clusters players by skill stream into training groups
                    (opposite goal from balanceTeams.js's even spread)
   modal.js         small <dialog>-based modal helper, plus confirmDialog()/

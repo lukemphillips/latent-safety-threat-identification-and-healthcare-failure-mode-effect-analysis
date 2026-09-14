@@ -1,8 +1,9 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions, gameNumPeriods, gamePeriodMinutes, matchEligiblePlayers } from '../util.js';
+import { uid, escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions, gameNumPeriods, gamePeriodMinutes, matchEligiblePlayers } from '../util.js';
 import { formationFor } from '../formations.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { openGameForm } from './schedule.js';
+import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../subPlan.js';
 
 let selectingSlotId = null;
 
@@ -296,6 +297,8 @@ function renderSquadTab(container, game) {
       ${bench.length ? bench.map((p) => benchChipHtml(p)).join('') : `<span class="muted small">${present.length ? 'Everyone present is on the pitch.' : 'Mark players present above to build your squad.'}</span>`}
     </div>
 
+    ${present.length ? subPlanSectionHtml(game.subPlan || [], byId, { elapsedMinutes: null, showExecute: false }) : ''}
+
     ${absent.length ? `
       <div class="section-title">Not here (${absent.length})</div>
       <div class="muted small">${absent.map((p) => escapeHtml(p.name)).join(', ')}</div>
@@ -390,6 +393,47 @@ function renderSquadTab(container, game) {
     });
   });
 
+  const addPlanBtn = container.querySelector('[data-action="add-plan-entry"]');
+  if (addPlanBtn) {
+    addPlanBtn.addEventListener('click', () => {
+      openSubPlanEntryForm({
+        outgoingOptions: present,
+        incomingOptions: present,
+        onSave: (entry) => {
+          update((state) => {
+            const g = state.games.find((x) => x.id === game.id);
+            g.subPlan = g.subPlan || [];
+            g.subPlan.push({ id: uid(), outId: entry.outId, inId: entry.inId, atMinute: entry.atMinute });
+          });
+        },
+      });
+    });
+  }
+  container.querySelectorAll('[data-action="edit-plan-entry"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const existing = (game.subPlan || []).find((e) => e.id === el.dataset.planId);
+      if (!existing) return;
+      openSubPlanEntryForm({
+        existing,
+        outgoingOptions: present,
+        incomingOptions: present,
+        onSave: (entry) => {
+          update((state) => {
+            const g = state.games.find((x) => x.id === game.id);
+            const idx = (g.subPlan || []).findIndex((e) => e.id === existing.id);
+            if (idx !== -1) g.subPlan[idx] = { ...entry, id: existing.id };
+          });
+        },
+        onDelete: (id) => {
+          update((state) => {
+            const g = state.games.find((x) => x.id === game.id);
+            g.subPlan = (g.subPlan || []).filter((e) => e.id !== id);
+          });
+        },
+      });
+    });
+  });
+
   function attendanceChipHtml(p, isPresent, rsvpStatus) {
     return `
       <button type="button" class="bench-chip ${isPresent ? 'picking' : ''}" data-attendance-toggle="${p.id}">
@@ -417,6 +461,7 @@ function renderSquadTab(container, game) {
       <button type="button" class="bench-chip ${disabledClass}" data-bench-player="${p.id}">
         <span class="jersey">${p.jerseyNumber ?? '-'}</span>
         ${escapeHtml(p.name)}
+        ${benchDueLineHtml(p.id, game.subPlan || [], null)}
       </button>
     `;
   }

@@ -21,6 +21,7 @@ export function renderHelp(app) {
         <li><strong>RSVP tab</strong> — optional. Track who's said they're In/Maybe/Out ahead of time, if you collect that. Skip it entirely if you don't need it.</li>
         <li><strong>Squad tab</strong> — the fast path on match day: tap players to mark them present, then build the lineup by tapping a pitch position and a player. "Use RSVP List" marks everyone who said they're In as present in one tap.</li>
         <li>Playing two matches back-to-back or at once? Use <strong>+ Add Match Day Opponent</strong> on the game page to set up the second one, prefilled with the same match length.</li>
+        <li>Want to plan your rotations ahead of kickoff rather than deciding on the fly? The <strong>📋 Substitution Plan</strong> at the bottom of the Squad tab lets you write out "this player on for that player at minute X" as many times as you like before the match even starts — it carries straight over into the live match once you start the game.</li>
       </ul>
     `)}
 
@@ -30,6 +31,7 @@ export function renderHelp(app) {
         <li>Log goals, GK saves, and send-offs (or cards, if enabled in Settings) with the buttons on the live screen.</li>
         <li>To sub a player, tap someone on the bench, then tap who they're swapping with on the pitch (or "Add to Pitch" if there's a spare spot).</li>
         <li>If <strong>Equal playing time policy</strong> is on (Settings), a fair-play banner suggests who to bring on/off, and a "🔜 Coming up" bar previews the next couple of swaps before they're actually due — so you can tell a player to get ready.</li>
+        <li>The <strong>📋 Substitution Plan</strong> — your own manual rotation schedule, either set up before kickoff or built as you go — shows every planned swap with a "due in…" countdown (or "⏰ Due now" once its minute arrives) and a one-tap <strong>✅ Sub Now</strong> button that makes the actual substitution for you. It never subs anyone on its own — it's purely a reminder of your own plan, so you can add, edit, or delete entries any time, live or not. Each bench player also shows their own "🕐 due" line under their card when they're next up in the plan.</li>
         <li><strong>End Game</strong> finishes the match (works fine mid-period too, for an early end). <strong>End & Next</strong> appears once a same-day second match exists, and carries fair-play minutes over so the whole day stays balanced, not just one match.</li>
       </ul>
     `)}

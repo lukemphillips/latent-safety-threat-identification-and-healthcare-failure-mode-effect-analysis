@@ -169,6 +169,7 @@ function openPlayerForm(playerId) {
               g.presentIds = (g.presentIds || []).filter((id) => id !== existing.id);
               if (g.captainId === existing.id) g.captainId = null;
               if (g.playerOfMatchId === existing.id) g.playerOfMatchId = null;
+              g.subPlan = (g.subPlan || []).filter((e) => e.outId !== existing.id && e.inId !== existing.id);
               if (g.lineup?.slots) {
                 Object.keys(g.lineup.slots).forEach((slotId) => {
                   if (g.lineup.slots[slotId] === existing.id) g.lineup.slots[slotId] = null;
