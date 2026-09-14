@@ -8,10 +8,6 @@ import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../s
 
 let selectingInboundId = null;
 let lastGameId = null;
-// Module-level so a drag in progress survives the pointermove/pointerup
-// listeners living on `document` (they need to outlast any one render).
-let dragState = null;
-let suppressNextClick = false;
 
 export function renderLiveGame(app, gameId) {
   if (lastGameId !== gameId) {
@@ -141,7 +137,7 @@ export function renderLiveGame(app, gameId) {
           ${formationOptions.map((f) => `<option value="${f.id}" ${formation.id === f.id ? 'selected' : ''}>${escapeHtml(f.label)}${f.custom ? ' (yours)' : ''}</option>`).join('')}
         </select>
       </div>
-      <div class="muted small" style="margin:0 0 8px;">Drag a player to move them, or drag a bench player onto a pitch spot to bring them on.</div>
+      <div class="muted small" style="margin:0 0 8px;">Tap a player on the pitch to substitute them — pick who's coming on from the list, no need to scroll to the bench. Change the formation any time with the dropdown above.</div>
       <div class="pitch-wrap">
         <div class="pitch" id="live-pitch">
           ${formation.slots.map((slot) => livePitchSlotHtml(slot, slot.role === 'GK' ? currentGk : byId[game.lineup?.slots?.[slot.id]])).join('')}
@@ -381,24 +377,11 @@ export function renderLiveGame(app, gameId) {
       });
     }
 
-    attachPitchDragHandlers(app, gameId, byId, team);
-
-    // Suppresses the synthetic click a browser fires right after a drag's
-    // pointerup on the same element — without this, e.g. dropping a bench
-    // player onto a pitch slot would also fire that bench card's own
-    // tap-to-select click handler immediately afterward. `app` itself is
-    // reused across re-renders (only its innerHTML is replaced), so this
-    // capturing listener is attached at most once per container rather
-    // than piling up a duplicate on every render.
-    if (!app.dataset.dragClickGuard) {
-      app.dataset.dragClickGuard = '1';
-      app.addEventListener('click', (e) => {
-        if (suppressNextClick) {
-          e.stopImmediatePropagation();
-          e.preventDefault();
-        }
-      }, true);
-    }
+    app.querySelectorAll('[data-live-pitch-slot] [data-open-sub]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        openPitchSubModal(gameId, chip.dataset.openSub, byId, team, bench);
+      });
+    });
   }
 
   return undefined;
@@ -433,131 +416,52 @@ function remapLiveFormation(oldSlots, onFieldIds, gkId, newFormation) {
 
 function livePitchSlotHtml(slot, player) {
   const initials = player ? (player.jerseyNumber ?? player.name.slice(0, 2).toUpperCase()) : (slot.role === 'GK' ? '🧤' : '+');
-  // GK positioning isn't draggable here — goalkeeper changes go through
-  // the dedicated Change/Assign button above, which also handles the
-  // stint-warning and gk-change logging that a plain drag would skip.
-  const draggable = player && slot.role !== 'GK';
+  // The GK spot isn't tappable here — goalkeeper changes go through the
+  // dedicated Change/Assign button above, which also handles the
+  // stint-warning and gk-change logging a plain sub would skip.
+  const subbable = player && slot.role !== 'GK';
   return `
     <div class="pitch-slot ${player ? '' : 'empty'}" data-live-pitch-slot="${slot.id}" style="left:${slot.x}%; top:${slot.y}%;">
-      <div class="chip" ${draggable ? `data-drag-player="${player.id}"` : ''}>${initials}</div>
+      <div class="chip ${subbable ? 'subbable' : ''}" ${subbable ? `data-open-sub="${player.id}"` : ''}>${initials}</div>
       <div class="slot-label">${player ? escapeHtml(player.name.split(' ')[0]) : slot.role}</div>
     </div>
   `;
 }
 
-// Custom pointer-event-based drag & drop (not native HTML5 DnD, which
-// touch browsers support poorly) covering two live interactions:
-//  - dragging an on-field chip to another pitch spot repositions them
-//    (or swaps with whoever's there) — pure positioning, no substitution.
-//  - dragging a bench card onto a pitch spot brings that player on: onto
-//    an empty spot it's a straight add, onto an occupied one it's a real
-//    substitution (routed through applySub so stint/rule warnings still
-//    apply).
-function attachPitchDragHandlers(app, gameId, byId, team) {
-  const DRAG_THRESHOLD = 8;
-
-  function startDrag(e, sourceType, playerId, sourceSlotId, originEl) {
-    if (e.button !== undefined && e.button !== 0) return;
-    dragState = { sourceType, playerId, sourceSlotId, originEl, startX: e.clientX, startY: e.clientY, moved: false, ghostEl: null };
-    const onMove = (ev) => handleMove(ev);
-    const onUp = (ev) => {
-      handleUp(ev);
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-    };
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
+// Tapping a player straight off the pitch, rather than needing to
+// scroll down to the bench first — opens a small dropdown of who's
+// available to bring on and runs the substitution through the normal
+// flow (so min-stint and squad-rule warnings still apply).
+function openPitchSubModal(gameId, outId, byId, team, benchPlayers) {
+  const outPlayer = byId[outId];
+  if (!outPlayer) return;
+  if (!benchPlayers.length) {
+    alertDialog(`No bench players available to sub in for ${outPlayer.name}.`);
+    return;
   }
-
-  function handleMove(e) {
-    if (!dragState) return;
-    const dx = e.clientX - dragState.startX;
-    const dy = e.clientY - dragState.startY;
-    if (!dragState.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
-      dragState.moved = true;
-      dragState.originEl.classList.add('dragging-source');
-      const ghost = dragState.originEl.cloneNode(true);
-      ghost.classList.add('drag-ghost');
-      ghost.style.width = `${dragState.originEl.offsetWidth}px`;
-      ghost.style.height = `${dragState.originEl.offsetHeight}px`;
-      document.body.appendChild(ghost);
-      dragState.ghostEl = ghost;
-    }
-    if (dragState.moved && dragState.ghostEl) {
-      dragState.ghostEl.style.left = `${e.clientX - dragState.ghostEl.offsetWidth / 2}px`;
-      dragState.ghostEl.style.top = `${e.clientY - dragState.ghostEl.offsetHeight / 2}px`;
-      autoScrollNearEdge(e.clientY);
-    }
-  }
-
-  // On a phone the pitch and the bench it's dragged from/to are often not
-  // both on-screen at once — without this, dragging a bench player up to
-  // the pitch (or a pitch player down to the bench) would require letting
-  // go, scrolling, and starting over. Nudges the page when the pointer
-  // gets near the top/bottom edge, same convention as most drag-and-drop
-  // lists.
-  function autoScrollNearEdge(clientY) {
-    const margin = 70;
-    const vh = window.innerHeight;
-    if (clientY < margin) window.scrollBy(0, -(margin - clientY) / 4);
-    else if (clientY > vh - margin) window.scrollBy(0, (margin - (vh - clientY)) / 4);
-  }
-
-  function handleUp(e) {
-    if (!dragState) return;
-    const { sourceType, playerId, sourceSlotId, originEl, moved, ghostEl } = dragState;
-    if (ghostEl) ghostEl.remove();
-    originEl.classList.remove('dragging-source');
-    if (moved) {
-      suppressNextClick = true;
-      setTimeout(() => { suppressNextClick = false; }, 300);
-      const dropEl = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-live-pitch-slot]');
-      if (dropEl) handleDrop(sourceType, playerId, sourceSlotId, dropEl.dataset.livePitchSlot);
-    }
-    dragState = null;
-  }
-
-  function handleDrop(sourceType, playerId, sourceSlotId, targetSlotId) {
-    if (!targetSlotId || targetSlotId === 'gk') return;
-    if (sourceType === 'pitch' && sourceSlotId === targetSlotId) return;
-    const game = findGame(gameId);
-    const targetOccupantId = game.lineup?.slots?.[targetSlotId] || null;
-
-    if (sourceType === 'pitch') {
-      update((state) => {
-        const g = state.games.find((x) => x.id === gameId);
-        g.lineup.slots[sourceSlotId] = targetOccupantId || null;
-        g.lineup.slots[targetSlotId] = playerId;
+  openModal({
+    title: `Substitute — ${escapeHtml(outPlayer.name)}`,
+    bodyHtml: `
+      <form id="pitch-sub-form" class="stack">
+        <div class="field">
+          <label>Bring on</label>
+          <select name="inId" required>
+            <option value="" disabled selected>Select player</option>
+            ${benchPlayers.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button type="submit" class="btn block">Substitute</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#pitch-sub-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const inId = new FormData(e.target).get('inId');
+        if (!inId) return;
+        closeModal();
+        applySub(gameId, inId, outId, byId, team);
       });
-      return;
-    }
-
-    if (targetOccupantId) {
-      applySub(gameId, playerId, targetOccupantId, byId, team);
-    } else {
-      const inPlayer = byId[playerId];
-      update((state) => {
-        const g = state.games.find((x) => x.id === gameId);
-        g.live.onField.push(playerId);
-        g.live.stintStart = g.live.stintStart || {};
-        g.live.stintStart[playerId] = g.live.elapsedSeconds;
-        g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'add', inId: playerId, inName: inPlayer?.name || '' });
-        g.lineup.slots[targetSlotId] = playerId;
-      });
-    }
-  }
-
-  app.querySelectorAll('[data-live-pitch-slot] [data-drag-player]').forEach((chip) => {
-    chip.addEventListener('pointerdown', (e) => {
-      const slotEl = chip.closest('[data-live-pitch-slot]');
-      startDrag(e, 'pitch', chip.dataset.dragPlayer, slotEl.dataset.livePitchSlot, slotEl);
-    });
-  });
-
-  app.querySelectorAll('[data-bench-player]').forEach((benchEl) => {
-    benchEl.addEventListener('pointerdown', (e) => {
-      startDrag(e, 'bench', benchEl.dataset.benchPlayer, null, benchEl);
-    });
+    },
   });
 }
 
