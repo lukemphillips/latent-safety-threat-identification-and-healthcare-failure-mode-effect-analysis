@@ -34,12 +34,29 @@ export function renderHelp(app) {
       </ul>
     `)}
 
+    ${section('⚖️ Fair play &amp; substitutions', `
+      <ul class="stack" style="margin:0; padding-left:18px;">
+        <li><strong>Equal playing time policy</strong> (Settings) turns on the fair-play banner and suggestions during live games — a nudge, never an enforced rule.</li>
+        <li><strong>Minimum stint</strong> (Settings, default 4 min) stops a suggestion from firing before a player's had a fair block of time on, and warns if you try to sub someone off early anyway.</li>
+        <li><strong>Squad Rules</strong> (Settings) let you flag pairs of players who shouldn't both be on the bench at once (e.g. your only two keeper-capable defenders) — advisory, you can always override.</li>
+        <li>If your roster has <strong>skill streams</strong> (A/B/C/D, set per player in Roster), swap suggestions prefer a like-for-like replacement where the bench allows it, and try not to leave two players from the same stream resting at once.</li>
+      </ul>
+    `)}
+
+    ${section('🏆 After the match', `
+      <ul class="stack" style="margin:0; padding-left:18px;">
+        <li>Set <strong>Captain</strong> and <strong>Player of the Match</strong> from the game's page, any time.</li>
+        <li><strong>Player of the Week</strong> (Stats page) groups completed games into Monday-to-Sunday weeks and lets you pick one or more standout players once that week's matches are done.</li>
+        <li><strong>Stats</strong> has a sortable leaderboard, full match history, and head-to-head records per opponent — tap a column heading to sort by it.</li>
+      </ul>
+    `)}
+
     ${section('🏃 Training sessions', `
       <p class="muted small mt-0">The <a href="#/training">Training</a> tab is separate from match day — use it to plan practices.</p>
       <ul class="stack" style="margin:0; padding-left:18px;">
         <li><strong>+ Add Training</strong> creates a session with a date, time, and location.</li>
         <li><strong>Attendance tab</strong> — tap players to mark who's actually shown up, same as a game's Squad tab.</li>
-        <li><strong>Groups tab</strong> — <strong>Auto-Build Groups</strong> clusters players of similar skill stream together (the opposite of Balance Teams, which spreads streams evenly for a fair match). Leave "Number of groups" blank for one group per stream present, or set a number to merge or split streams to fit. If a group ends up too big or small, tap a player to select them, then tap "Move here" on another group to move them across.</li>
+        <li><strong>Groups tab</strong> — <strong>Auto-Build Groups</strong> clusters players of similar skill stream together (the opposite of Balance Teams, which spreads streams evenly for a fair match). Leave "Number of groups" blank for one group per stream present, or set a number to merge or split streams to fit. "⚖️ Balance numbers across groups" (on by default) evens out group sizes afterward, moving a player to a neighboring group where needed so no group ends up much bigger than another. If a group still ends up too big or small for what you want, tap a player to select them, then tap "Move here" on another group to move them across by hand.</li>
         <li><strong>Plan tab</strong> — build a running order of blocks (warm-up, drills, scrimmage, etc.), each with a duration. A block can be one activity for the whole squad, or a different activity per group, run in parallel. Each activity field has a "📚 Fill from Drill Library…" dropdown to pull in a saved drill by name instead of typing it fresh every time. The tab shows a running total time and an estimated finish time. This is a static plan to work from — there's no live countdown clock.</li>
         <li><strong>Rotating stations</strong> — tick "Rotate groups through each activity" on a grouped block to run it as a circuit: every group works through every station in turn rather than staying on just one. The minutes field becomes "per rotation," and the block's total time (and the session's running total) automatically scales up to minutes × number of stations, since that's how long it actually takes for every group to get through all of them.</li>
         <li><strong>Breaks</strong> — tick "This is a break" on a block for a water/rest stop; it shows a ☕ marker and skips the activity-type/groups fields, just a duration and an optional note.</li>
@@ -52,7 +69,7 @@ export function renderHelp(app) {
     ${section('⚽ Small-sided matches', `
       <p class="muted small mt-0">The <strong>Matches</strong> tab on a training session sets up who plays who for a scrimmage — a different concept from the Groups tab's coaching stations.</p>
       <ul class="stack" style="margin:0; padding-left:18px;">
-        <li>Pick a number of teams (2–4) and tap <strong>Build Match Teams</strong>. <strong>Randomize Again</strong> re-rolls the split.</li>
+        <li>Pick a number of teams and tap <strong>Build Match Teams</strong>. <strong>Randomize Again</strong> re-rolls the split. The most teams you can make is set by who's actually here — enough for every team to have at least 2 players.</li>
         <li><strong>Same stream</strong> clusters similar-ability players onto the same team — handy for running two matches side by side at different intensities. <strong>Mixed ability</strong> spreads every skill stream evenly across all teams instead, for one fair, competitive match.</li>
         <li>Match teams are separate from coaching Groups and from the Plan — set them up independently, and they show up in Copy to Share alongside everything else.</li>
       </ul>
@@ -68,23 +85,7 @@ export function renderHelp(app) {
         <li>When building a session's Plan, each activity field can pull a drill's name straight in via its "📚 Fill from Drill Library…" dropdown.</li>
         <li>Tap a drill's attachment name to view it — opens in a new tab (an image displays directly; a PDF opens in your browser's PDF viewer).</li>
         <li>A drill with an attachment also gets a "📤 Share / Download" button — on a phone that supports it, this opens the native share sheet with the actual image or PDF attached (so it can go straight into WhatsApp or Messages); everywhere else it downloads the file instead so you can attach it manually.</li>
-      </ul>
-    `)}
-
-    ${section('⚖️ Fair play &amp; substitutions', `
-      <ul class="stack" style="margin:0; padding-left:18px;">
-        <li><strong>Equal playing time policy</strong> (Settings) turns on the fair-play banner and suggestions during live games — a nudge, never an enforced rule.</li>
-        <li><strong>Minimum stint</strong> (Settings, default 4 min) stops a suggestion from firing before a player's had a fair block of time on, and warns if you try to sub someone off early anyway.</li>
-        <li><strong>Squad Rules</strong> (Settings) let you flag pairs of players who shouldn't both be on the bench at once (e.g. your only two keeper-capable defenders) — advisory, you can always override.</li>
-        <li>If your roster has <strong>skill streams</strong> (A/B/C/D, set per player in Roster), swap suggestions prefer a like-for-like replacement where the bench allows it, and try not to leave two players from the same stream resting at once.</li>
-      </ul>
-    `)}
-
-    ${section('🏆 After the match', `
-      <ul class="stack" style="margin:0; padding-left:18px;">
-        <li>Set <strong>Captain</strong> and <strong>Player of the Match</strong> from the game's page, any time.</li>
-        <li><strong>Player of the Week</strong> (Stats page) groups completed games into Monday-to-Sunday weeks and lets you pick one or more standout players once that week's matches are done.</li>
-        <li><strong>Stats</strong> has a sortable leaderboard, full match history, and head-to-head records per opponent — tap a column heading to sort by it.</li>
+        <li><strong>📦 Export ZIP</strong> bundles every drill (including attachments, as real files rather than embedded text) into one .zip file to hand to another coach; that coach uses <strong>📦 Import ZIP</strong> on their own device to load them straight into their Drill Library. Needs an internet connection the first time (it loads a small ZIP library from a CDN).</li>
       </ul>
     `)}
 

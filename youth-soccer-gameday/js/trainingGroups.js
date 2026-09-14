@@ -15,7 +15,14 @@ const STREAM_LABEL = { A: 'A', B: 'B', C: 'C', D: 'D', null: 'Unclassified' };
 // jumbling everything together. If the target is more, the largest group
 // is split roughly in half, repeatedly, so a single oversized stream can
 // still be broken into coachable sub-groups.
-export function buildGroupsByStream(players, targetCount = null) {
+//
+// `balance`, when true, runs a final pass that evens out group sizes —
+// repeatedly moving one player from the current largest group into
+// whichever group tied for smallest sits closest to it (in stream order),
+// until no group has more than one extra player over any other. This can
+// mix a player into a neighbouring stream, trading a little of the
+// same-ability clustering for fairer numbers.
+export function buildGroupsByStream(players, targetCount = null, balance = false) {
   let buckets = STREAM_ORDER
     .map((stream) => ({ streams: [stream], players: players.filter((p) => (p.skillStream || null) === stream) }))
     .filter((b) => b.players.length);
@@ -51,6 +58,8 @@ export function buildGroupsByStream(players, targetCount = null) {
       { streams: big.streams, players: big.players.slice(mid) });
   }
 
+  if (balance) buckets = balanceBucketSizes(buckets);
+
   const labelOf = (b) => b.streams.map((s) => STREAM_LABEL[s]).join('+');
   const countByLabel = {};
   buckets.forEach((b) => { const l = labelOf(b); countByLabel[l] = (countByLabel[l] || 0) + 1; });
@@ -61,4 +70,22 @@ export function buildGroupsByStream(players, targetCount = null) {
     const name = countByLabel[label] > 1 ? `${label} (${seen[label]})` : label;
     return { id: uid(), name, playerIds: b.players.map((p) => p.id) };
   });
+}
+
+function balanceBucketSizes(buckets) {
+  const work = buckets.map((b) => ({ ...b, players: [...b.players] }));
+  for (let guard = 0; guard < 1000; guard++) {
+    let maxIdx = 0;
+    work.forEach((b, i) => { if (b.players.length > work[maxIdx].players.length) maxIdx = i; });
+    const minSize = Math.min(...work.map((b) => b.players.length));
+    if (work[maxIdx].players.length - minSize <= 1) break;
+
+    let minIdx = -1;
+    work.forEach((b, i) => {
+      if (b.players.length !== minSize) return;
+      if (minIdx === -1 || Math.abs(i - maxIdx) < Math.abs(minIdx - maxIdx)) minIdx = i;
+    });
+    work[minIdx].players.push(work[maxIdx].players.pop());
+  }
+  return work;
 }

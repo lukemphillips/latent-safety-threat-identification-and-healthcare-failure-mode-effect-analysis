@@ -287,7 +287,11 @@ function renderGroupsTab(container, training) {
         </div>
         <button class="btn secondary" data-action="auto-build-groups">🎲 ${groups.length ? 'Rebuild Groups' : 'Auto-Build Groups'}</button>
       </div>
-      <div class="muted small" style="margin-top:6px;">Groups cluster players of similar ability together. Leave "Number of groups" blank for one group per skill stream present, or set a number to merge or split streams to fit.</div>
+      <label class="checkbox-row" style="margin-top:8px;">
+        <input type="checkbox" id="group-balance-numbers" checked />
+        ⚖️ Balance numbers across groups
+      </label>
+      <div class="muted small" style="margin-top:6px;">Groups cluster players of similar ability together. Leave "Number of groups" blank for one group per skill stream present, or set a number to merge or split streams to fit. With balancing on, sizes are then evened out (moving a player to a neighbouring group where needed) so no group ends up much bigger than another.</div>
     </div>
 
     ${groups.length ? `
@@ -301,7 +305,8 @@ function renderGroupsTab(container, training) {
   container.querySelector('[data-action="auto-build-groups"]').addEventListener('click', () => {
     const raw = container.querySelector('#group-target-count').value;
     const targetCount = raw ? Number(raw) : null;
-    const newGroups = buildGroupsByStream(present, targetCount);
+    const balance = container.querySelector('#group-balance-numbers').checked;
+    const newGroups = buildGroupsByStream(present, targetCount, balance);
     selectingPlayerId = null;
     selectingSourceGroupId = null;
     update((state) => {
@@ -378,7 +383,7 @@ function groupCardHtml(group, byId) {
 }
 
 const MATCH_MIN_TEAMS = 2;
-const MATCH_MAX_TEAMS = 4;
+const MATCH_MIN_PLAYERS_PER_TEAM = 2;
 
 // Small-sided match teams are a separate concept from coaching Groups: a
 // Group is about running a station at the right ability level, a Match
@@ -401,7 +406,8 @@ function renderMatchesTab(container, training) {
   const presentIds = new Set(training.presentIds || []);
   const present = players.filter((p) => p.active && presentIds.has(p.id));
   const byId = Object.fromEntries(present.map((p) => [p.id, p]));
-  const teamCount = training.matchTeamCount || MATCH_MIN_TEAMS;
+  const maxTeams = Math.max(MATCH_MIN_TEAMS, Math.floor(present.length / MATCH_MIN_PLAYERS_PER_TEAM));
+  const teamCount = Math.min(training.matchTeamCount || MATCH_MIN_TEAMS, maxTeams);
   const mode = training.matchMode || 'same';
   const teams = training.matchTeams || [];
 
@@ -415,10 +421,11 @@ function renderMatchesTab(container, training) {
       <div class="field-row" style="align-items:flex-end;">
         <div class="field" style="max-width:160px;">
           <label>Number of teams</label>
-          <input type="number" id="match-team-count" min="${MATCH_MIN_TEAMS}" max="${MATCH_MAX_TEAMS}" value="${teamCount}" />
+          <input type="number" id="match-team-count" min="${MATCH_MIN_TEAMS}" max="${maxTeams}" value="${teamCount}" />
         </div>
         <button class="btn secondary" data-action="build-matches">🎲 ${teams.length ? 'Randomize Again' : 'Build Match Teams'}</button>
       </div>
+      <div class="muted small" style="margin-top:6px;">Up to ${maxTeams} team${maxTeams === 1 ? '' : 's'} with ${present.length} present (at least ${MATCH_MIN_PLAYERS_PER_TEAM} players each).</div>
       <div class="tabs" style="margin-top:10px; max-width:360px;">
         <div class="tab ${mode === 'same' ? 'active' : ''}" data-match-mode="same">Same stream</div>
         <div class="tab ${mode === 'mixed' ? 'active' : ''}" data-match-mode="mixed">Mixed ability</div>
@@ -446,7 +453,7 @@ function renderMatchesTab(container, training) {
 
   container.querySelector('[data-action="build-matches"]').addEventListener('click', () => {
     const countInput = container.querySelector('#match-team-count');
-    const count = Math.max(MATCH_MIN_TEAMS, Math.min(MATCH_MAX_TEAMS, Number(countInput.value) || MATCH_MIN_TEAMS));
+    const count = Math.max(MATCH_MIN_TEAMS, Math.min(maxTeams, Number(countInput.value) || MATCH_MIN_TEAMS));
     const currentMode = training.matchMode || 'same';
     const newTeams = buildMatchTeams(present, count, currentMode);
     update((state) => {

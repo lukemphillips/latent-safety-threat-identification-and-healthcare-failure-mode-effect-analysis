@@ -1,5 +1,5 @@
 import { getState, update, findDrill, hasStorageRoomFor } from '../store.js';
-import { uid, escapeHtml, resizeImageFile, formatBytes } from '../util.js';
+import { uid, escapeHtml, resizeImageFile, formatBytes, todayIso } from '../util.js';
 import { openModal, closeModal, confirmDialog } from '../modal.js';
 
 // Everything here lives in localStorage alongside the rest of the team's
@@ -51,8 +51,19 @@ export function renderDrillLibrary(app) {
         <h1>Drill Library</h1>
         <div class="sub">Reusable drills you can pull into any training session's plan.</div>
       </div>
-      <button class="btn" data-action="add-drill">+ Add Drill</button>
+      <div class="row" style="gap:8px; flex-wrap:wrap;">
+        <button class="btn" data-action="add-drill">+ Add Drill</button>
+      </div>
     </div>
+
+    <div class="row" style="gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <button class="btn ghost sm" data-action="export-zip" ${drills.length ? '' : 'disabled'}>📦 Export ZIP</button>
+      <label class="btn ghost sm" style="cursor:pointer;">
+        📦 Import ZIP
+        <input type="file" accept=".zip" id="drill-zip-import-input" hidden />
+      </label>
+    </div>
+    <div id="drill-zip-status" class="muted small" style="margin-bottom:12px;" hidden></div>
 
     ${drills.length ? `
       <div class="field" style="margin-bottom:12px;">
@@ -73,6 +84,47 @@ export function renderDrillLibrary(app) {
   `;
 
   app.querySelector('[data-action="add-drill"]').addEventListener('click', () => openDrillForm());
+
+  const zipStatusEl = app.querySelector('#drill-zip-status');
+  const showZipStatus = (msg) => { zipStatusEl.textContent = msg; zipStatusEl.hidden = false; };
+
+  const exportBtn = app.querySelector('[data-action="export-zip"]');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', async () => {
+      exportBtn.disabled = true;
+      exportBtn.textContent = 'Preparing…';
+      try {
+        await exportDrillsZip(getState().drills);
+      } catch (e) {
+        showZipStatus(e.message || 'Could not build the ZIP file.');
+      }
+      exportBtn.disabled = false;
+      exportBtn.textContent = '📦 Export ZIP';
+    });
+  }
+
+  const importInput = app.querySelector('#drill-zip-import-input');
+  if (importInput) {
+    importInput.addEventListener('change', async () => {
+      const file = importInput.files[0];
+      importInput.value = '';
+      if (!file) return;
+      showZipStatus('Importing…');
+      let message;
+      try {
+        message = await importDrillsZip(file);
+      } catch (e) {
+        message = e.message || 'Could not read that ZIP file.';
+      }
+      // Re-render refreshes the drill list to include anything just
+      // imported, which also rebuilds (and re-hides) the status element —
+      // so the message has to be applied to the fresh one, after.
+      renderDrillLibrary(app);
+      const freshStatusEl = app.querySelector('#drill-zip-status');
+      freshStatusEl.textContent = message;
+      freshStatusEl.hidden = false;
+    });
+  }
 
   const searchInput = app.querySelector('#drill-search');
   if (searchInput) {
@@ -226,6 +278,146 @@ function readFileAsDataUrl(file) {
     reader.onload = () => resolve(reader.result);
     reader.readAsDataURL(file);
   });
+}
+
+// Lazy-loaded the same way importRoster.js loads SheetJS for Excel files —
+// only fetched the first time a coach actually exports or imports a ZIP,
+// so nobody pays for it just by opening the Drill Library.
+let jsZipLoadPromise = null;
+function ensureJsZipLoaded() {
+  if (window.JSZip) return Promise.resolve(true);
+  if (jsZipLoadPromise) return jsZipLoadPromise;
+  jsZipLoadPromise = new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    script.onload = () => resolve(Boolean(window.JSZip));
+    script.onerror = () => resolve(false);
+    document.head.appendChild(script);
+  });
+  return jsZipLoadPromise;
+}
+
+// Bundles every drill into one .zip: a manifest (drills.json) plus each
+// attachment as a real file under attachments/ — a coach can hand the
+// whole thing to another coach, who loads it with Import ZIP below.
+// Attachments ship as actual files rather than staying base64-in-JSON so
+// the zip is a normal, inspectable bundle (and roughly 25% smaller).
+async function exportDrillsZip(drills) {
+  const loaded = await ensureJsZipLoaded();
+  if (!loaded) throw new Error('Could not load the ZIP export tool — needs an internet connection. Try again in a moment.');
+
+  const zip = new window.JSZip();
+  const manifest = [];
+  for (const d of drills) {
+    const entry = { name: d.name, description: d.description || '', link: d.link || '', tags: d.tags || [] };
+    if (d.attachment) {
+      const ext = d.attachment.type === 'pdf' ? '.pdf' : '.jpg';
+      const zipPath = `attachments/${d.id}${ext}`;
+      const blob = await (await fetch(d.attachment.dataUrl)).blob();
+      zip.file(zipPath, blob);
+      entry.attachment = { file: zipPath, name: d.attachment.name, type: d.attachment.type };
+    }
+    manifest.push(entry);
+  }
+  zip.file('drills.json', JSON.stringify({ version: 1, drills: manifest }, null, 2));
+
+  const content = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(content);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `boot-room-drills-${todayIso()}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// Reads a ZIP produced by exportDrillsZip (or one shaped the same way) and
+// adds its drills to this device's library — always as new drills with
+// fresh ids, since these are coming from someone else's library, not a
+// backup of this one. Applies the same size caps and storage-quota check
+// as adding a drill by hand, skipping just the attachment (keeping the
+// drill's text) or the whole drill, whichever still fits, rather than
+// failing the entire import over one oversized file.
+async function importDrillsZip(file) {
+  const loaded = await ensureJsZipLoaded();
+  if (!loaded) throw new Error('Could not load the ZIP import tool — needs an internet connection. Try again in a moment.');
+
+  let zip;
+  try {
+    zip = await window.JSZip.loadAsync(file);
+  } catch (e) {
+    throw new Error("That doesn't look like a valid ZIP file.");
+  }
+
+  const manifestFile = zip.file('drills.json');
+  if (!manifestFile) throw new Error("That ZIP doesn't contain a drills.json — it doesn't look like a Boot Room drill export.");
+
+  let manifest;
+  try {
+    manifest = JSON.parse(await manifestFile.async('string'));
+  } catch (e) {
+    throw new Error("Could not read that ZIP's drill list.");
+  }
+  const entries = Array.isArray(manifest.drills) ? manifest.drills : [];
+  if (!entries.length) return 'That ZIP had no drills in it.';
+
+  const startingState = getState();
+  const working = [...startingState.drills];
+  let imported = 0, attachmentsSkipped = 0, drillsSkipped = 0;
+
+  for (const entry of entries) {
+    let attachment = null;
+    if (entry.attachment && entry.attachment.file) {
+      const fileEntry = zip.file(entry.attachment.file);
+      if (fileEntry) {
+        try {
+          const blob = await fileEntry.async('blob');
+          const dataUrl = await readFileAsDataUrl(blob);
+          if (dataUrl.length <= MAX_ATTACHMENT_DATA_URL_LENGTH) {
+            attachment = { name: entry.attachment.name || entry.attachment.file, type: entry.attachment.type === 'pdf' ? 'pdf' : 'image', dataUrl };
+          }
+        } catch (e) {
+          // Unreadable attachment — fall through and import the drill without it.
+        }
+      }
+    }
+
+    const drill = {
+      id: uid(),
+      name: (entry.name || 'Imported Drill').trim() || 'Imported Drill',
+      description: entry.description || '',
+      link: normalizeLink(entry.link || ''),
+      tags: Array.isArray(entry.tags) ? entry.tags : [],
+      attachment,
+    };
+
+    if (attachment && !hasStorageRoomFor({ ...startingState, drills: [...working, drill] })) {
+      const withoutAttachment = { ...drill, attachment: null };
+      if (hasStorageRoomFor({ ...startingState, drills: [...working, withoutAttachment] })) {
+        working.push(withoutAttachment);
+        imported += 1;
+        attachmentsSkipped += 1;
+        continue;
+      }
+      drillsSkipped += 1;
+      continue;
+    }
+    if (!hasStorageRoomFor({ ...startingState, drills: [...working, drill] })) {
+      drillsSkipped += 1;
+      continue;
+    }
+
+    working.push(drill);
+    imported += 1;
+  }
+
+  update((state) => { state.drills = working; });
+
+  const parts = [`Imported ${imported} drill${imported === 1 ? '' : 's'}.`];
+  if (attachmentsSkipped) parts.push(`${attachmentsSkipped} attachment${attachmentsSkipped === 1 ? '' : 's'} left out (too large for this device).`);
+  if (drillsSkipped) parts.push(`${drillsSkipped} drill${drillsSkipped === 1 ? '' : 's'} skipped (storage full).`);
+  return parts.join(' ');
 }
 
 function attachmentStatusHtml(attachment) {

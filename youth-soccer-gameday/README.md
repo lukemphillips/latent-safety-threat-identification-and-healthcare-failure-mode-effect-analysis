@@ -110,17 +110,25 @@ see everything working immediately. Reset or clear that data any time from
     together so each group can be coached at its own level. Leave "Number
     of groups" blank for one group per stream present, or set a specific
     number — fewer than the streams present merges the smallest adjacent
-    pair, more splits the largest group roughly in half. If an auto-built
-    group ends up too big or too small, tap a player to select them, then
-    tap "Move here" on a different group's card to move them across by hand.
+    pair, more splits the largest group roughly in half. "⚖️ Balance
+    numbers across groups" (checked by default) runs a follow-up pass that
+    repeatedly moves one player from the largest group into whichever
+    smallest group sits closest to it in ability, until no group has more
+    than one extra player over any other — trading a little clustering
+    purity for fairer numbers, automatically. If a group still ends up
+    too big or too small for what you want, tap a player to select them,
+    then tap "Move here" on a different group's card to move them across
+    by hand.
   - **Matches** — sets up small-sided scrimmage teams, a separate concept
-    from coaching Groups. Pick a number of teams (2–4) and tap "Build Match
-    Teams"; "Randomize Again" re-rolls it. **Same stream** clusters similar
-    ability onto the same team (good for two matches at different
-    intensities, reusing the Groups clustering algorithm); **Mixed
-    ability** spreads every stream evenly across teams instead, for one
-    fair match (reusing Balance Teams' even-spread algorithm). Match teams
-    are independent of Groups and the Plan, and show up in Copy to Share.
+    from coaching Groups. Pick a number of teams and tap "Build Match
+    Teams"; "Randomize Again" re-rolls it. The most teams offered scales
+    with who's actually present (at least 2 players per team), rather than
+    a fixed cap. **Same stream** clusters similar ability onto the same
+    team (good for two matches at different intensities, reusing the
+    Groups clustering algorithm); **Mixed ability** spreads every stream
+    evenly across teams instead, for one fair match (reusing Balance
+    Teams' even-spread algorithm). Match teams are independent of Groups
+    and the Plan, and show up in Copy to Share.
   - **Plan** — a session planner: an ordered list of timed blocks (warm-up,
     a drill, a scrimmage, cool-down, etc.), each either one activity for
     the whole squad or a different activity per group running in parallel.
@@ -185,7 +193,17 @@ see everything working immediately. Reset or clear that data any time from
   sharing files (most current Android/iOS), it opens the native share
   sheet with the actual image or PDF attached, ready to send straight into
   WhatsApp or Messages; everywhere else (most desktop browsers, older iOS)
-  it downloads the file instead.
+  it downloads the file instead. "📦 Export ZIP" bundles every drill —
+  attachments included, each as a real file under an `attachments/`
+  folder rather than embedded as text — into one .zip to hand to another
+  coach; they use "📦 Import ZIP" on their own device to load them
+  straight into their library, always as new drills with fresh ids (never
+  overwriting anything already there), applying the same size caps and a
+  per-drill storage-quota check as adding one by hand — an attachment
+  that won't fit is left out (the drill still imports with its text) and
+  the after-import summary says what happened. Needs an internet
+  connection the first time, since it lazy-loads a small ZIP library
+  (JSZip, from cdnjs) the same way Excel import lazy-loads SheetJS.
 - **Captain & Player of the Match** — set per game from that game's page
   (pulled from whoever's marked present, or the full roster if attendance
   isn't set yet). Both show up as season totals in Stats.

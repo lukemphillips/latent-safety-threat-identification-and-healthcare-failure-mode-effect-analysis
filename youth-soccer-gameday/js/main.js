@@ -27,8 +27,8 @@ const NAV_ITEMS = [
   { match: (p) => p.length === 0, path: '#/', label: 'Home', icon: '🏠' },
   { match: (p) => p[0] === 'roster' || p[0] === 'balance', path: '#/roster', label: 'Roster', icon: '👥' },
   { match: (p) => p[0] === 'schedule' || p[0] === 'game', path: '#/schedule', label: 'Schedule', icon: '📅' },
-  { match: (p) => p[0] === 'training' || p[0] === 'drills', path: '#/training', label: 'Training', icon: '🏃' },
   { match: (p) => p[0] === 'stats', path: '#/stats', label: 'Stats', icon: '📊' },
+  { match: (p) => p[0] === 'training' || p[0] === 'drills', path: '#/training', label: 'Training', icon: '🏃' },
   { match: (p) => p[0] === 'settings', path: '#/settings', label: 'Settings', icon: '⚙️' },
 ];
 
