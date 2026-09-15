@@ -1163,6 +1163,23 @@ function openBlockForm(training, groups, existing) {
         `;
       }
 
+      // Typed text and drill links only ever live in the DOM inputs —
+      // stationsState is just the seed/order. Any add/remove re-renders
+      // the whole list from stationsState, so without this, whatever the
+      // coach had already typed into other stations would be wiped back
+      // to its stale starting value the moment they added or removed one.
+      function syncStationsStateFromDom() {
+        stationsState = stationsState.map((s) => {
+          const input = form.querySelector(`[name="station-${s.id}"]`);
+          const linkField = form.querySelector(`[name="station-${s.id}-drillId"]`);
+          return {
+            id: s.id,
+            activity: input ? input.value : s.activity,
+            drillId: linkField ? (linkField.value || null) : s.drillId,
+          };
+        });
+      }
+
       function renderStationsList() {
         stationsListEl.innerHTML = stationsState.map((s, i) => stationRowHtml(s, i)).join('');
         wireDrillFillSelectsWithin(stationsListEl);
@@ -1170,6 +1187,7 @@ function openBlockForm(training, groups, existing) {
         stationsListEl.querySelectorAll('[data-action="remove-station"]').forEach((btn) => {
           btn.addEventListener('click', () => {
             if (stationsState.length <= 1) return;
+            syncStationsStateFromDom();
             stationsState = stationsState.filter((s) => s.id !== btn.dataset.stationId);
             renderStationsList();
           });
@@ -1235,6 +1253,7 @@ function openBlockForm(training, groups, existing) {
         const addStationBtn = form.querySelector('[data-action="add-station"]');
         if (addStationBtn) {
           addStationBtn.addEventListener('click', () => {
+            syncStationsStateFromDom();
             stationsState.push({ id: uid(), activity: '', drillId: null });
             renderStationsList();
           });
