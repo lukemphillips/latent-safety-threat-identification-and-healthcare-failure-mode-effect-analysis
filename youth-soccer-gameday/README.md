@@ -157,12 +157,25 @@ see everything working immediately. Reset or clear that data any time from
     a drill, a scrimmage, cool-down, etc.), each either one activity for
     the whole squad or a different activity per group running in parallel.
     A grouped block can also be set to **rotate**: instead of every group
-    staying at one activity for the block's whole duration, groups rotate
-    through every station in turn (a circuit), and the minutes field
-    becomes "per rotation" — the block's total time, the session running
-    total, and the estimated finish time all scale to minutes × number of
-    stations automatically, since that's genuinely how long it takes for
-    every group to get through every station. A block can also be marked
+    staying at one activity for the block's whole duration, groups cycle
+    through stations in turn (a circuit). Stations are their own list
+    (`block.stations`, each `{id, activity, drillId}`) — add/remove them
+    with "+ Add Station"/🗑, independent of how many groups there are —
+    and a **Number of rotations** field (`block.rotationCount`) sets how
+    many legs actually run, defaulting to the station count so everyone
+    visits each one once. Having fewer stations than groups is exactly
+    what makes two or more groups share a station at the same time —
+    group `i` sits at station `(i + legIndex) mod stations.length` each
+    leg (`rotationAssignment` in `training.js`), so 4 groups over 3
+    stations always puts two of them on the same station together, no
+    separate "pairing" step needed. A block saved before stations were
+    decoupled from groups (or the sample seed data) still works exactly
+    as it did — `resolveStations`/`resolveRotationCount` fall back to one
+    station per group with an activity set, matching the old station
+    count precisely, and opening it for editing seeds the new stations
+    list from that automatically. The minutes field is "per rotation" —
+    the block's total time, the session running total, and the estimated
+    finish time all scale to minutes × number of rotations. A block can also be marked
     as a **break** (water/rest stop) — shown with a ☕ marker, skipping the
     activity-type and group fields entirely, just a duration and an
     optional note. Each activity field has a "📚 Fill from Drill Library…"

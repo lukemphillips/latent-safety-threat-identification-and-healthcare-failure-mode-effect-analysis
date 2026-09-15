@@ -528,19 +528,36 @@ function addMinutesToTime(hhmm, minutes) {
 
 // A rotation block runs the same activities as a normal grouped block, but
 // instead of every group staying at its own activity for the whole block,
-// groups rotate through every station in turn — so the block actually
-// takes as long as one rotation × however many stations there are, not
-// just one rotation's worth. Station count is the number of groups with
-// an activity actually set, falling back to the group count so an
-// in-progress block (no activities typed yet) still shows a sane total.
-function rotationStationCount(block, groups) {
-  const active = groups.filter((g) => ((block.groupActivities || {})[g.id] || '').trim());
-  return active.length || groups.length;
+// groups rotate through every station in turn. Stations are their own
+// list (block.stations), independent of how many groups there are — a
+// group is just whichever index the round-robin formula below points it
+// at each leg. That's what lets fewer stations than groups happen at
+// all: with 4 groups and 3 stations, two groups always land on the same
+// station index together, i.e. they run that rotation side by side.
+// Falls back to deriving one station per group with an activity actually
+// set, for a block saved before stations were their own list — keeps an
+// old rotate block (where station count always equalled group count)
+// behaving exactly as it did.
+function resolveStations(block, groups) {
+  if (block.stations && block.stations.length) return block.stations;
+  return groups
+    .filter((g) => ((block.groupActivities || {})[g.id] || '').trim())
+    .map((g) => ({ id: g.id, activity: (block.groupActivities || {})[g.id], drillId: (block.groupActivityDrillIds || {})[g.id] || null }));
+}
+
+// How many rotations (legs) actually run. An explicit, coach-set count
+// when given — e.g. 4 groups sharing 3 stations might still only run 3
+// rotations rather than continuing to cycle — otherwise one rotation per
+// station, so everyone visits every station exactly once by default.
+function resolveRotationCount(block, groups) {
+  const stations = resolveStations(block, groups);
+  const explicit = Number(block.rotationCount);
+  return Math.max(1, explicit > 0 ? explicit : (stations.length || groups.length || 1));
 }
 
 function blockEffectiveMinutes(block, groups) {
   if (block.mode === 'grouped' && block.rotate) {
-    return (block.minutes || 0) * rotationStationCount(block, groups);
+    return (block.minutes || 0) * resolveRotationCount(block, groups);
   }
   return block.minutes || 0;
 }
@@ -574,11 +591,11 @@ function currentTimelineEntry(timeline, elapsedSeconds) {
 // Within a rotation block, which "leg" (0-indexed rotation) is current and
 // how much of it remains.
 function rotationLegInfo(block, groups, secondsIntoBlock) {
-  const stations = rotationStationCount(block, groups);
+  const totalLegs = resolveRotationCount(block, groups);
   const legSeconds = Math.max(1, block.minutes || 1) * 60;
-  const legIndex = Math.min(stations - 1, Math.floor(secondsIntoBlock / legSeconds));
+  const legIndex = Math.min(totalLegs - 1, Math.floor(secondsIntoBlock / legSeconds));
   const secondsIntoLeg = secondsIntoBlock - legIndex * legSeconds;
-  return { legIndex, stations, secondsIntoLeg, legSeconds };
+  return { legIndex, totalLegs, secondsIntoLeg, legSeconds };
 }
 
 // Falls back to matching the activity's own text against a saved drill's
@@ -596,21 +613,24 @@ function resolveActivityDrillId(activityText, explicitDrillId) {
   return match ? match.id : null;
 }
 
-// What each real group is actually doing during a given rotation leg: at
-// leg 0 every group is at its own station; at leg L each group has moved
-// on to the station that was L groups ahead of it, cycling back around —
-// i.e. everyone visits every station exactly once by the last leg.
+// What every group is actually doing during a given rotation leg: group
+// i sits at station (i + legIndex) mod (number of stations). When there
+// are as many stations as groups this is a full round-robin — everyone
+// visits every station exactly once. When there are FEWER stations than
+// groups (e.g. 4 groups, 3 stations this week), two groups' indices land
+// on the same station index every leg, so those two groups run that
+// station together at the same time — which is exactly what makes
+// "some groups share a rotation" fall out with no separate pairing step.
 function rotationAssignment(block, groups, legIndex) {
-  const activeGroups = groups.filter((g) => ((block.groupActivities || {})[g.id] || '').trim());
-  const n = activeGroups.length;
-  if (!n) return [];
-  return activeGroups.map((g, i) => {
-    const stationGroup = activeGroups[(i + legIndex) % n];
-    const activity = (block.groupActivities || {})[stationGroup.id];
+  const stations = resolveStations(block, groups);
+  const n = stations.length;
+  if (!n || !groups.length) return [];
+  return groups.map((g, i) => {
+    const station = stations[(i + legIndex) % n];
     return {
       group: g,
-      activity,
-      drillId: resolveActivityDrillId(activity, (block.groupActivityDrillIds || {})[stationGroup.id]),
+      activity: station.activity,
+      drillId: resolveActivityDrillId(station.activity, station.drillId),
     };
   });
 }
@@ -681,15 +701,21 @@ function formatTrainingForShare(training, players, teamName) {
         lines.push(`  ${i + 1}. ${b.minutes} min — ☕ Break${b.activity ? ': ' + b.activity : ''}`);
       } else if (b.mode === 'grouped') {
         if (b.rotate) {
-          const stations = rotationStationCount(b, groups);
-          lines.push(`  ${i + 1}. ${b.minutes} min × ${stations} rotations (${b.minutes * stations} min) — rotate through:`);
+          const rotations = resolveRotationCount(b, groups);
+          lines.push(`  ${i + 1}. ${b.minutes} min × ${rotations} rotation${rotations === 1 ? '' : 's'} (${b.minutes * rotations} min) — stations:`);
+          resolveStations(b, groups).forEach((s, si) => {
+            if (s.activity) lines.push(`     Station ${si + 1}: ${s.activity}`);
+          });
+          if (groups.length > resolveStations(b, groups).length) {
+            lines.push(`     (${groups.length} groups over ${resolveStations(b, groups).length} stations — some groups share a station at once)`);
+          }
         } else {
           lines.push(`  ${i + 1}. ${b.minutes} min — per group:`);
+          groups.forEach((g) => {
+            const activity = (b.groupActivities || {})[g.id];
+            if (activity) lines.push(`     ${g.name}: ${activity}`);
+          });
         }
-        groups.forEach((g) => {
-          const activity = (b.groupActivities || {})[g.id];
-          if (activity) lines.push(`     ${g.name}: ${activity}`);
-        });
       } else {
         lines.push(`  ${i + 1}. ${b.minutes} min — ${b.activity || '—'}`);
       }
@@ -829,10 +855,10 @@ function renderLiveTimer(container, training) {
     activityHtml = `<div style="text-align:center; font-size:16px; font-weight:700;">☕ Break${block.activity ? ': ' + escapeHtml(block.activity) : ''}</div>`;
   } else if (block.mode === 'grouped') {
     if (isRotation) {
-      const { stations, secondsIntoLeg, legSeconds } = rotationLegInfo(block, groups, secondsIntoBlock);
+      const { totalLegs, secondsIntoLeg, legSeconds } = rotationLegInfo(block, groups, secondsIntoBlock);
       const assignments = rotationAssignment(block, groups, legIndex);
       activityHtml = `
-        <div class="muted small" style="text-align:center; margin-bottom:6px;">Rotation ${legIndex + 1} of ${stations} · <span id="live-timer-rotation-clock">${formatClock(Math.max(0, legSeconds - secondsIntoLeg))}</span> left this rotation</div>
+        <div class="muted small" style="text-align:center; margin-bottom:6px;">Rotation ${legIndex + 1} of ${totalLegs} · <span id="live-timer-rotation-clock">${formatClock(Math.max(0, legSeconds - secondsIntoLeg))}</span> left this rotation</div>
         <div class="stack">
           ${assignments.map(({ group, activity, drillId }) => `<div class="small" style="text-align:center;"><strong>${escapeHtml(group.name)}:</strong> ${escapeHtml(activity || '—')} ${viewDrillButtonHtml(drillId)}</div>`).join('')}
         </div>
@@ -934,12 +960,13 @@ function moveBlock(training, blockId, direction) {
 function blockCardHtml(block, index, total, groups) {
   const groupsById = Object.fromEntries(groups.map((g) => [g.id, g]));
   const isRotation = block.mode === 'grouped' && block.rotate;
-  const stations = isRotation ? rotationStationCount(block, groups) : null;
+  const stations = isRotation ? resolveStations(block, groups) : null;
+  const rotations = isRotation ? resolveRotationCount(block, groups) : null;
   const effectiveMinutes = blockEffectiveMinutes(block, groups);
   return `
     <div class="card" style="${block.isBreak ? 'border-style:dashed;' : ''}">
       <div class="spread" style="margin-bottom:6px;">
-        <span class="badge">${block.isBreak ? '☕ ' : ''}${effectiveMinutes} min${isRotation ? ` (${block.minutes} × ${stations} rotations)` : ''}</span>
+        <span class="badge">${block.isBreak ? '☕ ' : ''}${effectiveMinutes} min${isRotation ? ` (${block.minutes} × ${rotations} rotation${rotations === 1 ? '' : 's'})` : ''}</span>
         <div class="row" style="gap:2px;">
           <button type="button" class="icon-btn" data-action="move-block-up" data-block-id="${block.id}" aria-label="Move up" ${index === 0 ? 'disabled' : ''}>⬆️</button>
           <button type="button" class="icon-btn" data-action="move-block-down" data-block-id="${block.id}" aria-label="Move down" ${index === total - 1 ? 'disabled' : ''}>⬇️</button>
@@ -949,8 +976,18 @@ function blockCardHtml(block, index, total, groups) {
       </div>
       ${block.isBreak
         ? `<div class="muted small">Break${block.activity ? ': ' + escapeHtml(block.activity) : ''}</div>`
-        : block.mode === 'grouped' ? `
-        <div class="muted small" style="margin-bottom:4px; font-weight:600;">${isRotation ? 'Rotation — every group does each, in turn:' : 'Per group:'}</div>
+        : block.mode === 'grouped' ? (isRotation ? `
+        <div class="muted small" style="margin-bottom:4px; font-weight:600;">Stations — every group rotates through${groups.length > stations.length ? ', some groups sharing a station at once' : ''}:</div>
+        <div class="stack">
+          ${stations.map((s, si) => `
+            <div class="small">
+              <strong>Station ${si + 1}:</strong> ${escapeHtml(s.activity || '—')}
+              ${viewDrillButtonHtml(resolveActivityDrillId(s.activity, s.drillId))}
+            </div>
+          `).join('') || '<span class="muted small">No stations set.</span>'}
+        </div>
+      ` : `
+        <div class="muted small" style="margin-bottom:4px; font-weight:600;">Per group:</div>
         <div class="stack">
           ${Object.entries(block.groupActivities || {}).filter(([gid]) => groupsById[gid]).map(([gid, text]) => `
             <div class="small">
@@ -959,7 +996,7 @@ function blockCardHtml(block, index, total, groups) {
             </div>
           `).join('') || '<span class="muted small">No group activities set.</span>'}
         </div>
-      ` : `<div>${escapeHtml(block.activity || '—')} ${viewDrillButtonHtml(resolveActivityDrillId(block.activity, block.activityDrillId))}</div>`}
+      `) : `<div>${escapeHtml(block.activity || '—')} ${viewDrillButtonHtml(resolveActivityDrillId(block.activity, block.activityDrillId))}</div>`}
     </div>
   `;
 }
@@ -995,6 +1032,24 @@ function openBlockForm(training, groups, existing) {
   const hasGroups = groups.length > 0;
   const { drills } = getState();
 
+  // Seeds the stations list the coach edits: a saved rotate block's own
+  // stations first, then (for a block saved before stations existed)
+  // one station per group that already has an activity — same shape a
+  // pre-decoupling rotate block always had — and only for a genuinely
+  // new rotate setup, one blank station per group as a convenient
+  // starting point (still freely add/removable from there).
+  let stationsState = (pf.stations && pf.stations.length)
+    ? pf.stations.map((s) => ({ ...s }))
+    : (() => {
+        const fromGroupActivities = groups
+          .filter((g) => ((pf.groupActivities || {})[g.id] || '').trim())
+          .map((g) => ({ id: uid(), activity: (pf.groupActivities || {})[g.id], drillId: (pf.groupActivityDrillIds || {})[g.id] || null }));
+        if (fromGroupActivities.length) return fromGroupActivities;
+        return groups.length
+          ? groups.map(() => ({ id: uid(), activity: '', drillId: null }))
+          : [{ id: uid(), activity: '', drillId: null }];
+      })();
+
   openModal({
     title: existing ? 'Edit Block' : 'Add Block',
     bodyHtml: `
@@ -1029,14 +1084,27 @@ function openBlockForm(training, groups, existing) {
             Rotate groups through each activity (a circuit — every group does every station in turn)
           </label>
           <div class="muted small" data-rotate-hint style="margin-bottom:8px;"></div>
-          ${groups.map((g) => `
+
+          <div data-per-group-fields ${pf.rotate ? 'hidden' : ''}>
+            ${groups.map((g) => `
+              <div class="field">
+                <label>${escapeHtml(g.name)}</label>
+                <input type="text" name="group-${g.id}" value="${escapeHtml((pf.groupActivities || {})[g.id] || '')}" placeholder="Activity for this group" />
+                ${drillFillHtml(`group-${g.id}`, drills)}
+                ${drillLinkFieldHtml(`group-${g.id}`, (pf.groupActivityDrillIds || {})[g.id])}
+              </div>
+            `).join('')}
+          </div>
+
+          <div data-stations-fields ${pf.rotate ? '' : 'hidden'}>
             <div class="field">
-              <label>${escapeHtml(g.name)}</label>
-              <input type="text" name="group-${g.id}" value="${escapeHtml((pf.groupActivities || {})[g.id] || '')}" placeholder="Activity for this group" />
-              ${drillFillHtml(`group-${g.id}`, drills)}
-              ${drillLinkFieldHtml(`group-${g.id}`, (pf.groupActivityDrillIds || {})[g.id])}
+              <label>Number of rotations</label>
+              <input type="number" name="rotationCount" min="1" value="${pf.rotationCount || ''}" placeholder="Defaults to number of stations" />
             </div>
-          `).join('')}
+            <div class="muted small" style="margin:0 0 8px;">One row per station/activity. If there are more groups than stations, extra groups share a station at the same time — e.g. 4 groups over 3 stations means one station runs with two groups together.</div>
+            <div data-stations-list></div>
+            <button type="button" class="btn ghost sm" data-action="add-station" style="margin-top:4px;">+ Add Station</button>
+          </div>
         </div>
         ${drills.length ? '' : '<div class="muted small">No drills saved yet — <a href="#/drills">add some to the Drill Library</a> to quick-fill activities from here next time.</div>'}
         <button type="submit" class="btn block">${existing ? 'Save' : 'Add Block'}</button>
@@ -1050,24 +1118,84 @@ function openBlockForm(training, groups, existing) {
       const wholeField = form.querySelector('[data-whole-field]');
       const wholeActivityLabel = form.querySelector('[data-whole-activity-label]');
       const groupedFields = form.querySelector('[data-grouped-fields]');
+      const perGroupFields = form.querySelector('[data-per-group-fields]');
+      const stationsFields = form.querySelector('[data-stations-fields]');
+      const stationsListEl = form.querySelector('[data-stations-list]');
       const minutesInput = form.querySelector('[name="minutes"]');
       const minutesLabel = form.querySelector('[data-minutes-label]');
       const rotateCheckbox = form.querySelector('[name="rotate"]');
       const rotateHint = form.querySelector('[data-rotate-hint]');
+      const rotationCountInput = form.querySelector('[name="rotationCount"]');
+
+      function wireDrillFillSelectsWithin(root) {
+        root.querySelectorAll('[data-drill-fill]').forEach((select) => {
+          const fieldName = select.dataset.drillFill;
+          const input = form.querySelector(`[name="${fieldName}"]`);
+          const linkField = form.querySelector(`[name="${fieldName}-drillId"]`);
+          select.addEventListener('change', () => {
+            const drill = findDrill(select.value);
+            if (drill && input) input.value = drill.name;
+            if (linkField) linkField.value = drill ? drill.id : '';
+            select.value = '';
+            refreshRotateUi();
+          });
+          // Typing over a filled-in activity by hand means it may no longer
+          // describe the linked drill — drop the link rather than leave
+          // "View Drill" pointing at something the text doesn't match.
+          if (input && linkField) {
+            input.addEventListener('input', () => { linkField.value = ''; });
+          }
+        });
+      }
+
+      function stationRowHtml(station, index) {
+        const fieldName = `station-${station.id}`;
+        return `
+          <div class="field" data-station-row="${station.id}" style="margin-bottom:10px;">
+            <label>Station ${index + 1}</label>
+            <div class="row" style="gap:6px; align-items:center;">
+              <input type="text" name="${fieldName}" value="${escapeHtml(station.activity || '')}" placeholder="Activity for this station" style="flex:1;" />
+              <button type="button" class="icon-btn" data-action="remove-station" data-station-id="${station.id}" aria-label="Remove station" ${stationsState.length <= 1 ? 'disabled' : ''}>🗑</button>
+            </div>
+            ${drillFillHtml(fieldName, drills)}
+            ${drillLinkFieldHtml(fieldName, station.drillId)}
+          </div>
+        `;
+      }
+
+      function renderStationsList() {
+        stationsListEl.innerHTML = stationsState.map((s, i) => stationRowHtml(s, i)).join('');
+        wireDrillFillSelectsWithin(stationsListEl);
+        stationsListEl.querySelectorAll('input[type="text"]').forEach((inp) => inp.addEventListener('input', refreshRotateUi));
+        stationsListEl.querySelectorAll('[data-action="remove-station"]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            if (stationsState.length <= 1) return;
+            stationsState = stationsState.filter((s) => s.id !== btn.dataset.stationId);
+            renderStationsList();
+          });
+        });
+        refreshRotateUi();
+      }
 
       function activeStationCount() {
-        const withText = groups.filter((g) => (form.querySelector(`[name="group-${g.id}"]`)?.value || '').trim());
-        return withText.length || groups.length;
+        const withText = stationsState.filter((s) => (form.querySelector(`[name="station-${s.id}"]`)?.value || '').trim());
+        return withText.length || stationsState.length || 1;
       }
 
       function refreshRotateUi() {
         const grouped = !isBreakCheckbox.checked && modeSelect.value === 'grouped';
         const rotating = grouped && rotateCheckbox.checked;
         minutesLabel.textContent = rotating ? 'Minutes per rotation' : 'Duration (minutes)';
+        if (perGroupFields) perGroupFields.hidden = rotating;
+        if (stationsFields) stationsFields.hidden = !rotating;
         if (rotating) {
-          const stations = activeStationCount();
+          const stationCount = activeStationCount();
+          const explicitRotations = Number(rotationCountInput?.value);
+          const rotations = explicitRotations > 0 ? explicitRotations : stationCount;
           const mins = Number(minutesInput.value) || 0;
-          rotateHint.textContent = `${stations} station${stations === 1 ? '' : 's'} × ${mins} min = ${stations * mins} min for this block.`;
+          const sharing = groups.length > stationCount;
+          rotateHint.textContent = `${stationCount} station${stationCount === 1 ? '' : 's'} × ${rotations} rotation${rotations === 1 ? '' : 's'} × ${mins} min = ${rotations * mins} min for this block.`
+            + (sharing ? ` ${groups.length} groups over ${stationCount} stations — some groups will share a station at the same time.` : '');
         } else {
           rotateHint.textContent = '';
         }
@@ -1099,31 +1227,24 @@ function openBlockForm(training, groups, existing) {
         });
         rotateCheckbox.addEventListener('change', refreshRotateUi);
         minutesInput.addEventListener('input', refreshRotateUi);
+        if (rotationCountInput) rotationCountInput.addEventListener('input', refreshRotateUi);
         groups.forEach((g) => {
           const input = form.querySelector(`[name="group-${g.id}"]`);
           if (input) input.addEventListener('input', refreshRotateUi);
         });
+        const addStationBtn = form.querySelector('[data-action="add-station"]');
+        if (addStationBtn) {
+          addStationBtn.addEventListener('click', () => {
+            stationsState.push({ id: uid(), activity: '', drillId: null });
+            renderStationsList();
+          });
+        }
       }
       refreshBreakUi();
+      renderStationsList();
 
-      form.querySelectorAll('[data-drill-fill]').forEach((select) => {
-        const fieldName = select.dataset.drillFill;
-        const input = form.querySelector(`[name="${fieldName}"]`);
-        const linkField = form.querySelector(`[name="${fieldName}-drillId"]`);
-        select.addEventListener('change', () => {
-          const drill = findDrill(select.value);
-          if (drill && input) input.value = drill.name;
-          if (linkField) linkField.value = drill ? drill.id : '';
-          select.value = '';
-          refreshRotateUi();
-        });
-        // Typing over a filled-in activity by hand means it may no longer
-        // describe the linked drill — drop the link rather than leave
-        // "View Drill" pointing at something the text doesn't match.
-        if (input && linkField) {
-          input.addEventListener('input', () => { linkField.value = ''; });
-        }
-      });
+      wireDrillFillSelectsWithin(form.querySelector('[data-whole-field]'));
+      wireDrillFillSelectsWithin(form.querySelector('[data-per-group-fields]') || form);
 
       form.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -1142,6 +1263,19 @@ function openBlockForm(training, groups, existing) {
             groupActivityDrillIds[g.id] = (fd.get(`group-${g.id}-drillId`) || '').trim() || null;
           });
         }
+        let stations = [];
+        let rotationCount = null;
+        if (!isBreak && mode === 'grouped' && rotate) {
+          stations = stationsState
+            .map((s) => ({
+              id: s.id,
+              activity: (fd.get(`station-${s.id}`) || '').trim(),
+              drillId: (fd.get(`station-${s.id}-drillId`) || '').trim() || null,
+            }))
+            .filter((s) => s.activity);
+          const explicit = Number(fd.get('rotationCount'));
+          rotationCount = explicit > 0 ? explicit : null;
+        }
 
         update((state) => {
           const t = state.trainings.find((x) => x.id === training.id);
@@ -1155,8 +1289,10 @@ function openBlockForm(training, groups, existing) {
             b.groupActivityDrillIds = groupActivityDrillIds;
             b.rotate = rotate;
             b.isBreak = isBreak;
+            b.stations = stations;
+            b.rotationCount = rotationCount;
           } else {
-            t.blocks.push({ id: uid(), minutes, mode, activity, activityDrillId, groupActivities, groupActivityDrillIds, rotate, isBreak });
+            t.blocks.push({ id: uid(), minutes, mode, activity, activityDrillId, groupActivities, groupActivityDrillIds, rotate, isBreak, stations, rotationCount });
           }
         });
         closeModal();
