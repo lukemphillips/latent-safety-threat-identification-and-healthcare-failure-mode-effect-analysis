@@ -19,8 +19,13 @@ function shuffle(list) {
 
 export function renderTraining(app) {
   const { trainings } = getState();
-  const upcoming = sortByDateTime(trainings.filter((t) => t.date >= todayIso()));
-  const past = sortByDateTime(trainings.filter((t) => t.date < todayIso())).reverse();
+  // A session you've actually ended (completedAt set by "End Session")
+  // belongs in Past even if its date is today — otherwise ending a
+  // same-day session left it stuck looking "Upcoming" for the rest of
+  // the day. Anything not explicitly ended still falls back to the
+  // plain date check, same as before.
+  const upcoming = sortByDateTime(trainings.filter((t) => !t.completedAt && t.date >= todayIso()));
+  const past = sortByDateTime(trainings.filter((t) => t.completedAt || t.date < todayIso())).reverse();
 
   app.innerHTML = `
     <div class="page-title">
@@ -48,11 +53,14 @@ export function renderTraining(app) {
 function trainingCard(training) {
   const groupCount = (training.groups || []).length;
   const blockCount = (training.blocks || []).length;
+  const statusTag = training.live
+    ? ' · <span style="color:var(--red);">🔴 LIVE</span>'
+    : (training.completedAt ? ' · <span class="muted">✅ Completed</span>' : '');
   return `
-    <a class="card" href="#/training/${training.id}/${training.live ? 'plan' : 'attendance'}" style="display:block;">
+    <a class="card" href="#/training/${training.id}/${training.live || training.completedAt ? 'plan' : 'attendance'}" style="display:block;">
       <div class="card-row">
         <div>
-          <div style="font-weight:700; font-size:15px;">Training${training.live ? ' · <span style="color:var(--red);">🔴 LIVE</span>' : ''}</div>
+          <div style="font-weight:700; font-size:15px;">Training${statusTag}</div>
           <div class="muted small">${formatDate(training.date)} · ${formatTime(training.time)}${training.location ? ' · ' + escapeHtml(training.location) : ''}</div>
           <div class="muted small">${(training.presentIds || []).length} attending${groupCount ? ` · ${groupCount} group${groupCount === 1 ? '' : 's'}` : ''}${blockCount ? ` · ${blockCount} plan block${blockCount === 1 ? '' : 's'}` : ''}</div>
         </div>
@@ -759,6 +767,9 @@ function renderStaticPlan(container, training) {
       update((state) => {
         const t = state.trainings.find((x) => x.id === training.id);
         t.live = { running: true, elapsedSeconds: 0 };
+        // Restarting a previously-ended session means it's active again,
+        // not done — clear whatever "Completed" mark End Session left.
+        t.completedAt = null;
       });
     });
   }
@@ -938,6 +949,10 @@ function renderLiveTimer(container, training) {
     update((state) => {
       const t = state.trainings.find((x) => x.id === training.id);
       t.live = null;
+      // Marks it done so the Training list moves it to Past right away —
+      // otherwise a same-day session stayed under "Upcoming" until the
+      // date itself rolled over, even though it had already finished.
+      t.completedAt = new Date().toISOString();
     });
   });
 

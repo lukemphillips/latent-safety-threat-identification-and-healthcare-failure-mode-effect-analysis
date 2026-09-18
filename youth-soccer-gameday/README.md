@@ -71,7 +71,10 @@ see everything working immediately. Reset or clear that data any time from
   split. Once split, "Copy to Share" copies a plain-text team list you can
   paste into a text/WhatsApp message to other coaches, and on phones that
   support it there's also a native "Text / Share…" button that opens the
-  share sheet directly.
+  share sheet directly. Not happy with the random result? Tap a player on
+  one team, then tap "Move here →" on another team to move them across by
+  hand — the same tap-to-select pattern used for Training groups — without
+  needing to reshuffle everyone.
   "Send to a scheduled match" turns a selection (or one of the split teams)
   into the real thing in one tap: pick a scheduled match from the dropdown,
   hit "→ Set as Match Squad", and it sets who's present for that game and
@@ -207,7 +210,10 @@ see everything working immediately. Reset or clear that data any time from
     view shows exactly which station each group is on and counts down that
     specific leg, with its own "View Drill" button per station where one's
     linked. "⏹ End Session" stops the timer without touching the saved
-    plan; a live session shows a 🔴 LIVE tag on the Training list.
+    plan; a live session shows a 🔴 LIVE tag on the Training list. Ending
+    a session marks it `completedAt` and moves it into the Past list
+    right away (rather than waiting for its date to pass), tagged
+    ✅ Completed; restarting it clears that and moves it back to Upcoming.
   - **Copy to Share / native share** — at the top of any session's page
     (same pattern as Balance Teams' team split), "📋 Copy to Share" copies
     the whole session — attendance, groups, match teams, and the full plan

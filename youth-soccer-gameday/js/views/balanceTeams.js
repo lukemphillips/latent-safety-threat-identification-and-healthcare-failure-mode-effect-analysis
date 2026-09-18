@@ -16,10 +16,17 @@ let lastGameId = null;
 let targetGameId = null;
 let importedSquad = null;
 let importedTeams = {};
+let selectingPlayerId = null;
+let selectingSourceTeamIdx = null;
 
 function resetImportStatus() {
   importedSquad = null;
   importedTeams = {};
+}
+
+function resetTeamSelection() {
+  selectingPlayerId = null;
+  selectingSourceTeamIdx = null;
 }
 
 // Coming from a specific game, default the squad to who's actually
@@ -120,6 +127,7 @@ export function renderBalanceTeams(app, gameId) {
     includedIds = defaultIncludedIds(game, active);
     split = null;
     resetImportStatus();
+    resetTeamSelection();
     lastGameId = gameId || null;
   }
   // Drop anyone no longer active/present in the roster.
@@ -183,6 +191,7 @@ export function renderBalanceTeams(app, gameId) {
         </div>
       </div>
       <textarea id="split-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:12px; padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px;">${escapeHtml(formatSplitForShare(split, team.name))}</textarea>
+      <div class="muted small" style="margin-bottom:12px;">Not happy with the split? Tap a player, then tap "Move here →" on another team to move them.</div>
     ` : ''}
 
     ${matchTargetHtml(upcoming)}
@@ -194,12 +203,14 @@ export function renderBalanceTeams(app, gameId) {
     includedIds = new Set(active.map((p) => p.id));
     split = null;
     resetImportStatus();
+    resetTeamSelection();
     renderBalanceTeams(app, gameId);
   });
   app.querySelector('[data-action="select-none"]').addEventListener('click', () => {
     includedIds = new Set();
     split = null;
     resetImportStatus();
+    resetTeamSelection();
     renderBalanceTeams(app, gameId);
   });
 
@@ -208,6 +219,7 @@ export function renderBalanceTeams(app, gameId) {
       teamCount = Number(el.dataset.teamCount);
       split = null;
       resetImportStatus();
+      resetTeamSelection();
       renderBalanceTeams(app, gameId);
     });
   });
@@ -219,6 +231,7 @@ export function renderBalanceTeams(app, gameId) {
       else includedIds.add(id);
       split = null;
       resetImportStatus();
+      resetTeamSelection();
       renderBalanceTeams(app, gameId);
     });
   });
@@ -228,9 +241,47 @@ export function renderBalanceTeams(app, gameId) {
     splitBtn.addEventListener('click', () => {
       split = splitBalancedTeams(active.filter((p) => includedIds.has(p.id)), teamCount);
       resetImportStatus();
+      resetTeamSelection();
       renderBalanceTeams(app, gameId);
     });
   }
+
+  app.querySelectorAll('[data-team-player]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const playerId = el.dataset.teamPlayer;
+      const sourceIdx = Number(el.dataset.sourceTeamIdx);
+      if (selectingPlayerId === playerId) {
+        resetTeamSelection();
+      } else {
+        selectingPlayerId = playerId;
+        selectingSourceTeamIdx = sourceIdx;
+      }
+      renderBalanceTeams(app, gameId);
+    });
+  });
+
+  app.querySelectorAll('[data-move-to-team]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const targetIdx = Number(el.dataset.moveToTeam);
+      const playerId = selectingPlayerId;
+      const sourceIdx = selectingSourceTeamIdx;
+      if (!playerId || sourceIdx == null || !split) return;
+      resetTeamSelection();
+      const sourceTeam = split[sourceIdx];
+      const targetTeam = split[targetIdx];
+      if (!sourceTeam || !targetTeam) return;
+      const moved = sourceTeam.find((p) => p.id === playerId);
+      if (!moved) return;
+      split[sourceIdx] = sourceTeam.filter((p) => p.id !== playerId);
+      if (!targetTeam.some((p) => p.id === playerId)) targetTeam.push(moved);
+      // Either team's roster just changed — a previous "✅ Sent to X" tag
+      // would now be describing a squad that no longer matches, so drop
+      // it and let the coach re-send once they're happy with the move.
+      delete importedTeams[sourceIdx];
+      delete importedTeams[targetIdx];
+      renderBalanceTeams(app, gameId);
+    });
+  });
 
   const copyBtn = app.querySelector('[data-action="copy-split"]');
   const shareBtn = app.querySelector('[data-action="share-split"]');
@@ -338,20 +389,24 @@ function teamsHtml(teams, upcoming) {
 function teamCardHtml(label, team, idx, upcoming) {
   const counts = streamCounts(team);
   const imported = importedTeams[idx];
+  const isSourceTeam = selectingSourceTeamIdx === idx;
   return `
     <div class="card" style="flex:1 1 260px;">
-      <div style="font-weight:700; margin-bottom:6px;">${label} (${team.length})</div>
+      <div class="spread" style="margin-bottom:6px;">
+        <div style="font-weight:700;">${label} (${team.length})</div>
+        ${selectingPlayerId && !isSourceTeam ? `<button type="button" class="btn ghost sm" data-move-to-team="${idx}">Move here →</button>` : ''}
+      </div>
       <div class="muted small" style="margin-bottom:10px;">A:${counts.A} · B:${counts.B} · C:${counts.C} · D:${counts.D}${counts.none ? ` · Unclassified:${counts.none}` : ''}</div>
       <div class="stack">
         ${team.length ? team.map((p) => `
-          <div class="player-row">
+          <button type="button" class="player-row" data-team-player="${p.id}" data-source-team-idx="${idx}" style="width:100%; text-align:left; background:none; border:none; cursor:pointer; padding:10px 6px; border-radius:8px; ${selectingPlayerId === p.id ? 'outline:2px solid var(--green-600);' : ''}">
             <div class="jersey">${p.jerseyNumber ?? '-'}</div>
             <div class="player-meta">
               <div class="player-name">${escapeHtml(p.name)}</div>
               <div class="player-sub">${formatPositions(p)}</div>
             </div>
             ${streamBadgeHtml(p.skillStream)}
-          </div>
+          </button>
         `).join('') : '<span class="muted small">No one on this team.</span>'}
       </div>
       ${upcoming.length ? `
