@@ -174,3 +174,33 @@ table.admin-table .mini-btn { font-size: 0.78rem; padding: 0.25rem 0.6rem; min-h
 .checklist { display: flex; flex-direction: column; gap: 0.4rem; }
 .checklist label { display: flex; align-items: center; gap: 0.6rem; font-size: 0.92rem; min-height: 2.2rem; }
 .checklist input[type=checkbox] { width: 1.2rem; height: 1.2rem; }
+
+/* Numeric keypad popup -- JS positions this beside the modal/content that
+   opened it (never overlapping it), so it can't cover a Save button. */
+.numpad-popup { position: fixed; z-index: 300; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,0.3); padding: 0.6rem; width: 240px; }
+.numpad-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+.numpad-key { min-height: 2.6rem; border: 1px solid var(--line); background: var(--surface-alt); border-radius: 8px; font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.numpad-key:active { background: var(--accent-soft); }
+.numpad-row2 { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+.numpad-back { flex: 1; min-height: 2.6rem; }
+.numpad-done { flex: 1; }
+
+/* Persistent patient/MTP header banner */
+.patient-banner { display: flex; align-items: center; gap: 1rem; background: var(--surface); border-bottom: 1px solid var(--line); padding: 0.5rem 1rem; flex-wrap: wrap; }
+.patient-banner .pb-field { font-size: 0.92rem; }
+.patient-banner .pb-field b { color: var(--accent-strong); }
+.patient-banner button.edit-patient { background: none; border: 1px dashed var(--line); border-radius: 8px; padding: 0.35rem 0.7rem; font-size: 0.8rem; color: var(--accent); }
+.mtp-badge { margin-left: auto; font-weight: 800; letter-spacing: .03em; font-size: 0.82rem; border-radius: 999px; padding: 0.35rem 0.9rem; }
+.mtp-badge.none { display: none; }
+.mtp-badge.standby { background: var(--amber-soft); color: var(--amber); }
+.mtp-badge.active { background: var(--red); color: #fff; animation: pulse 1.6s infinite; }
+@media (prefers-reduced-motion: reduce) { .mtp-badge.active { animation: none; } }
+
+.criteria-group { margin-bottom: 1rem; padding-bottom: 0.8rem; border-bottom: 1px dashed var(--line); }
+.criteria-group:last-child { border-bottom: none; }
+.tier-banner { border-radius: 10px; padding: 0.8rem 1rem; margin: 0.8rem 0; font-weight: 700; }
+.tier-banner.hospital { background: var(--red-soft); color: var(--red); }
+.tier-banner.ed { background: var(--amber-soft); color: var(--amber); }
+.tier-banner.regular { background: var(--green-soft); color: var(--green); }
+.time-field-row { display: flex; align-items: center; gap: 0.5rem; }
+.time-field-row input { max-width: 6rem; }

@@ -16,38 +16,43 @@ let lastRender = 0;
   setInterval(render, 1000);
 })();
 
-function mtpActive() {
+function mtpStatus() {
   const events = Store.state.timeline.filter((e) => e.kind === "mtp");
-  if (events.length === 0) return false;
-  return events[events.length - 1].active;
+  if (events.length === 0) return "none";
+  return events[events.length - 1].status;
 }
 
 function render() {
   const rec = Store.state.record;
   const timeline = Store.state.timeline;
 
-  document.getElementById("d-caseid").textContent = rec.caseId ? `Case ${rec.caseId} — Resus bay ${rec.preAlert.bay || "?"}` : "No active case";
+  document.getElementById("d-caseid").textContent = rec.caseId ? `Case ${rec.caseId} — ${rec.patient.name || "Name not yet entered"}` : "No active case";
   document.getElementById("d-elapsed").textContent = fmtElapsed(rec.startedAt);
   document.getElementById("d-updated").textContent = "Last update: " + new Date().toLocaleTimeString("en-IE");
 
   // Vitals
-  const vitalsEvents = timeline.filter((e) => e.kind === "vitals").sort((a, b) => b.ts - a.ts);
+  const vitalsEvents = timeline.filter((e) => e.kind === "vitals").sort((a, b) => b.createdAt - a.createdAt);
   const vDiv = document.getElementById("d-vitals");
   if (vitalsEvents.length === 0) {
     vDiv.innerHTML = `<p style="opacity:.6">No vitals recorded yet.</p>`;
   } else {
     const latest = vitalsEvents[0];
-    vDiv.innerHTML = h`
-      <div class="display-vital"><span class="l">HR</span><span>${esc(latest.hr || "–")}</span></div>
-      <div class="display-vital"><span class="l">BP</span><span>${esc(latest.bp || "–")}</span></div>
-      <div class="display-vital"><span class="l">RR</span><span>${esc(latest.rr || "–")}</span></div>
-      <div class="display-vital"><span class="l">SpO2</span><span>${esc(latest.spo2 || "–")}%</span></div>
-      <div class="display-vital"><span class="l">GCS</span><span>${esc(latest.gcs || "–")}</span></div>
-      <div style="opacity:.6;font-size:.85rem;margin-top:.5rem">${vitalsEvents.length} reading(s) &middot; last ${fmtTime(latest.ts)}</div>`;
+    if (latest.cardiacArrest) {
+      vDiv.innerHTML = `<div class="mtp-indicator active">CARDIAC ARREST</div><div style="opacity:.6;font-size:.85rem;margin-top:.5rem">Logged ${fmtTime(latest.ts)} · no vitals obtained</div>`;
+    } else {
+      vDiv.innerHTML = h`
+        <div class="display-vital"><span class="l">HR</span><span>${esc(latest.hr || "–")}</span></div>
+        <div class="display-vital"><span class="l">BP</span><span>${esc(latest.bp || "–")}</span></div>
+        <div class="display-vital"><span class="l">RR</span><span>${esc(latest.rr || "–")}</span></div>
+        <div class="display-vital"><span class="l">SpO2</span><span>${esc(latest.spo2 || "–")}%</span></div>
+        <div class="display-vital"><span class="l">GCS</span><span>${esc(latest.gcs || "–")}</span></div>
+        ${latest.intubated ? `<div class="display-vital"><span class="l">ETCO2</span><span>${esc(latest.etco2 || "–")}</span></div>` : ""}
+        <div style="opacity:.6;font-size:.85rem;margin-top:.5rem">${vitalsEvents.length} reading(s) &middot; last ${fmtTime(latest.ts)}</div>`;
+    }
   }
 
   // Gas
-  const gasEvents = timeline.filter((e) => e.kind === "gas").sort((a, b) => b.ts - a.ts);
+  const gasEvents = timeline.filter((e) => e.kind === "gas").sort((a, b) => b.createdAt - a.createdAt);
   const gDiv = document.getElementById("d-gas");
   if (gasEvents.length === 0) {
     gDiv.innerHTML = `<p style="opacity:.6">No blood gas yet.</p>`;
@@ -62,17 +67,18 @@ function render() {
   // Blood products / MTP
   const bloodEvents = timeline.filter((e) => e.kind === "blood");
   const bDiv = document.getElementById("d-blood");
-  const active = mtpActive();
+  const status = mtpStatus();
+  const label = status === "active" ? "MTP ACTIVE" : status === "standby" ? "MTP ON STANDBY" : "MTP not active";
   const totals = {};
   bloodEvents.forEach((e) => { totals[e.product] = (totals[e.product] || 0) + Number(e.units || 1); });
   bDiv.innerHTML = h`
-    <div style="margin-bottom:1rem"><span class="mtp-indicator ${active ? "active" : "inactive"}">${active ? "MTP ACTIVE" : "MTP not active"}</span></div>
+    <div style="margin-bottom:1rem"><span class="mtp-indicator ${status === "active" ? "active" : "inactive"}">${label}</span></div>
     ${Object.keys(totals).length === 0 ? `<p style="opacity:.6">No blood products given yet.</p>` :
       Object.entries(totals).map(([k, v]) => `<div class="display-vital"><span class="l">${esc(k)}</span><span>${v} unit(s)</span></div>`).join("")}`;
 
   // Patient / injuries / interventions summary
-  const interventions = timeline.filter((e) => e.kind === "intervention").sort((a, b) => b.ts - a.ts);
-  const meds = timeline.filter((e) => e.kind === "medication").sort((a, b) => b.ts - a.ts);
+  const interventions = timeline.filter((e) => e.kind === "intervention").sort((a, b) => b.createdAt - a.createdAt);
+  const meds = timeline.filter((e) => e.kind === "medication").sort((a, b) => b.createdAt - a.createdAt);
   const sDiv = document.getElementById("d-summary");
   sDiv.innerHTML = h`
     <p style="opacity:.85"><b>Suspected injuries:</b> ${esc(rec.preAlert.suspectedInjuries.join(", ") || "none logged")}</p>
