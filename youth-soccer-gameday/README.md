@@ -336,7 +336,13 @@ see everything working immediately. Reset or clear that data any time from
 - **Live game day**:
   - A match clock that keeps running in real time no matter what screen
     you're on — step away to the Squad tab, Roster, wherever, and it's
-    still accurate when you come back.
+    still accurate when you come back. It's anchored to an actual
+    timestamp rather than counting ticks, so locking the phone or
+    backgrounding the tab (both of which mobile browsers throttle or
+    fully suspend) doesn't lose that stretch of time — the clock (and
+    playing time) catches straight up to the real elapsed time the
+    moment anything touches the app again, instead of quietly falling
+    behind while the screen was off.
   - The big clock display always shows time elapsed in the **current
     half/period only**, resetting to 0:00 the moment a new period starts
     — so the 2nd half's clock can't look like it's carrying on from

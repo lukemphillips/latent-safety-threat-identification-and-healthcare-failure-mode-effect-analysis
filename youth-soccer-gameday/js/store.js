@@ -63,12 +63,41 @@ function persist() {
   }
 }
 
+// A live match's clock used to advance purely by counting +1 ticks from
+// main.js's once-a-second setInterval — which mobile browsers throttle or
+// fully suspend while the screen is locked or the tab is backgrounded, so
+// the whole locked/backgrounded stretch was simply never counted and the
+// clock fell behind real time. live.runStartedAt (a real Date.now()
+// timestamp) and live.elapsedAtRunStart (the seconds banked before this
+// run began) are set once, when the clock is started; every update()
+// after that recomputes elapsedSeconds from the actual wall-clock gap
+// instead of a tick count, so it always catches up in one jump the moment
+// anything touches state again — a ticker firing late, or just the coach
+// tapping a button — no matter how long the screen was locked.
+function syncRunningClocks(s) {
+  const now = Date.now();
+  (s.games || []).forEach((g) => {
+    if (g.status !== 'live' || !g.live || !g.live.running || !g.live.runStartedAt) return;
+    const wallElapsed = (g.live.elapsedAtRunStart || 0) + Math.floor((now - g.live.runStartedAt) / 1000);
+    const delta = wallElapsed - g.live.elapsedSeconds;
+    if (delta <= 0) return;
+    g.live.elapsedSeconds = wallElapsed;
+    const gk = g.live.gkByPeriod[g.live.currentPeriod];
+    g.live.playingTime = g.live.playingTime || {};
+    (g.live.onField || []).forEach((pid) => {
+      g.live.playingTime[pid] = (g.live.playingTime[pid] || 0) + delta;
+    });
+    if (gk) g.live.playingTime[gk] = (g.live.playingTime[gk] || 0) + delta;
+  });
+}
+
 export function getState() {
   if (!state) state = load();
   return state;
 }
 
 export function update(mutator) {
+  syncRunningClocks(getState());
   mutator(getState());
   persist();
   listeners.forEach((fn) => fn(state));

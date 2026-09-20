@@ -230,6 +230,14 @@ export function renderLiveGame(app, gameId) {
       update((state) => {
         const g = state.games.find((x) => x.id === gameId);
         g.live.running = !g.live.running;
+        // Anchors the clock to a real timestamp the moment it starts, so
+        // it can catch up correctly even if the screen locks or the tab
+        // gets backgrounded (see syncRunningClocks in store.js) — a plain
+        // tick counter would just lose that whole stretch of time.
+        if (g.live.running) {
+          g.live.runStartedAt = Date.now();
+          g.live.elapsedAtRunStart = g.live.elapsedSeconds;
+        }
       });
     });
 

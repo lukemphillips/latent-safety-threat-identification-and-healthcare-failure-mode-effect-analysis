@@ -116,12 +116,11 @@ setInterval(() => {
     update((state) => {
       const g = state.games.find((x) => x.id === liveGame.id);
       if (!g || !g.live || !g.live.running) return;
-      g.live.elapsedSeconds += 1;
+      // elapsedSeconds and playingTime are already caught up by update()'s
+      // own syncRunningClocks (store.js), which recomputes them from a
+      // real timestamp rather than counting ticks — this tick's own job
+      // is just the sub-due alert check below.
       const gk = g.live.gkByPeriod[g.live.currentPeriod];
-      g.live.onField.forEach((pid) => {
-        g.live.playingTime[pid] = (g.live.playingTime[pid] || 0) + 1;
-      });
-      if (gk) g.live.playingTime[gk] = (g.live.playingTime[gk] || 0) + 1;
 
       const presentIds = new Set(g.presentIds || []);
       const sentOffIds = new Set(g.live.sentOff || []);
