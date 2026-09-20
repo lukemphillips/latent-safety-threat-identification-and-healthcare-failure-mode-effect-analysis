@@ -624,6 +624,48 @@ see everything working immediately. Reset or clear that data any time from
     an automatic on-device backup of the combined result, same as a match
     ending would — the merged data is protected right away rather than
     waiting on the next match or a manual Backup Team Data tap.
+- **Cloud Sync** (`js/cloudSync.js`, Settings > Cloud Sync) — season-long
+  shared access across several coaches' own devices, without Boot Room
+  growing a server or account system of its own. A small Google Apps
+  Script "Web App", deployed by one coach against a blank Google Sheet,
+  stands in as the shared store; this app talks to it with plain `fetch()`
+  calls, no npm dependency added. Two access levels, each its own
+  generated link:
+  - **Full Edit** can push anything — team settings, roster, matches,
+    training, the Drill Library.
+  - **Matchday** can push match data and add brand-new players (e.g. a
+    late arrival), but nothing else — the script itself rejects any other
+    change a Matchday-token request sends, regardless of what this app
+    posts, so it's a real permission boundary, not just something the UI
+    hides. The UI additionally disables Roster and Team Settings editing
+    on a Matchday device, so a change never looks like it saved when it
+    silently wouldn't have.
+
+  Setup is designed so the coach never invents or hand-edits anything: the
+  app generates both access tokens, builds the complete Apps Script source
+  with them already baked in (`buildAppsScript` in `cloudSync.js` — copy
+  exactly as-is, nothing to fill in), and assembles both share links once
+  the coach pastes back the one URL Google gives them after deploying. The
+  only step that can't be automated away is Google's own Deploy flow
+  (Extensions > Apps Script > Deploy > Web app), since that requires the
+  Sheet's owner to interactively authorize it — everything else is
+  generated, not typed.
+
+  Every device's own connection (which link, which role, last synced) is
+  kept in its own separate `localStorage` key, deliberately apart from the
+  synced team data itself, so a Matchday device's local storage never even
+  contains the Full Edit token. Pulling adopts the cloud's team, roster,
+  training, and drills wholesale (the Apps Script guarantees only a Full
+  Edit push can have changed those), keeping any player added locally but
+  not yet pushed rather than dropping it; games reconcile with the same
+  "most complete wins" comparison Merge (above) already uses, since
+  whichever device is actually running a live match may be ahead of what
+  was last synced. Sync happens automatically after every match ends and
+  when the app opens, plus a manual "Sync Now" — each pulls first, then
+  pushes, so a device that's been offline a while doesn't overwrite
+  changes it never saw. It's a genuine live share of the same data, not a
+  backup — Backup/Restore and the automatic on-device snapshots above are
+  still worth keeping in case the Sheet itself is ever deleted.
 - **Help & How-To** — an in-app guide (❓ icon on the Dashboard, or the link
   at the top of Settings) covering getting started, running a live match,
   fair play, keeping data safe, and troubleshooting, so a coach doesn't

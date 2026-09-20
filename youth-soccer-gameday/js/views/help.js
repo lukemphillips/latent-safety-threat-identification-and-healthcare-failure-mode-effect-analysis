@@ -111,6 +111,17 @@ export function renderHelp(app) {
       <p class="muted small">Get in the habit of backing up before a big change, and whenever you're not sure the data will still be there next time.</p>
     `)}
 
+    ${section('🔗 Cloud Sync — sharing with other coaches', `
+      <p class="muted small mt-0">For a season-long team run by more than one coach, Cloud Sync (Settings &gt; Cloud Sync) keeps everyone's data in step automatically, instead of passing backup files around each time something changes. It uses a free Google Sheet as the shared storage — Boot Room still has no server or account of its own, this is just a place for your team's data to live that every coach's device can reach.</p>
+      <ul class="stack" style="margin:0; padding-left:18px;">
+        <li><strong>Setting it up</strong> is one coach's job, done once: "🔗 Set Up Cloud Sync" walks through creating a blank Google Sheet, pasting in a script Boot Room generates for your team (already has your team's own access tokens baked in — nothing to type or edit), and deploying it as a Google "Web App", which is the one step Google requires you to click through yourself. Paste the resulting URL back in and you're set up with <strong>Full Edit</strong> access on that device.</li>
+        <li><strong>Adding another coach</strong> is just sending them a link — "📋 Show Share Links" gives you a Matchday link to copy and send (text, WhatsApp, email, whatever's easiest) and your own Full Edit link, which stays private to you. Whoever you send the Matchday link to opens Settings &gt; Cloud Sync &gt; "🔑 I Have a Cloud Sync Link", pastes it in, and they're connected — no account or sign-in needed on their end either.</li>
+        <li><strong>Full Edit</strong> can change anything — roster, team settings, formations, squad rules, training, the Drill Library — and run matches. <strong>Matchday</strong> can run matches (start a game, log everything live, mark attendance, add a late arrival) and see the whole team, but can't change the roster or team settings — the Team section shows why when you're on a Matchday device, and a change to Training or Drills from one won't be saved to the shared team even if the button's still there. This is enforced by the Google Sheet script itself, not just hidden in the app — a Matchday link genuinely cannot write those changes, even if someone tried the URL directly.</li>
+        <li><strong>Syncing</strong> happens automatically after every match ends and whenever the app opens, plus a "🔄 Sync Now" button in Settings for whenever you want it. It always pulls what's new before pushing your own changes, so a device that's been offline a while doesn't accidentally overwrite something it never saw. Match data merges match-by-match (whichever copy has more logged wins, same as Merge in Another Coach's Backup below); team settings and the roster always come from whoever last synced with Full Edit access.</li>
+        <li>Cloud Sync is a genuine share of the same shared data, not a backup — it's worth keeping the backups below going too, in case the Sheet itself is ever deleted or a link needs regenerating.</li>
+      </ul>
+    `)}
+
     ${section('🛠️ Troubleshooting', `
       <ul class="stack" style="margin:0; padding-left:18px;">
         <li><strong>My team/roster disappeared</strong> — open Settings; if an automatic backup exists on this device, the Dashboard offers to restore it. Otherwise check Settings &gt; Data for a manual backup you copied earlier, or a downloaded backup file.</li>

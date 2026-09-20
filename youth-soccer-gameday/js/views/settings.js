@@ -5,12 +5,14 @@ import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
 import { autoSaveFileSupported, chooseAutoSaveFile, getAutoSaveFileName, clearAutoSaveFile } from '../fileHandle.js';
+import { getSyncConfig, isMatchdayOnly, buildAppsScript, generateSyncTokens, setUpAsFullEditor, joinWithLink, syncNow, disconnectCloudSync } from '../cloudSync.js';
 
 export function renderSettings(app) {
   const { team, players } = getState();
   const errorLog = getErrorLog();
   const autoBackups = getAutoBackups();
   const fileSaveSupported = autoSaveFileSupported();
+  const syncConfig = getSyncConfig();
 
   app.innerHTML = `
     <div class="page-title"><h1>Settings</h1></div>
@@ -29,7 +31,9 @@ export function renderSettings(app) {
     </div>
 
     <div class="section-title">Team</div>
+    ${isMatchdayOnly() ? `<p class="muted small" style="margin:-4px 0 10px;">Team settings can only be changed from a Full Edit device — ask whoever set up Cloud Sync for that link if you need something changed here.</p>` : ''}
     <form id="team-form" class="card stack">
+      <fieldset ${isMatchdayOnly() ? 'disabled' : ''} style="border:none; padding:0; margin:0; display:contents;">
       <div class="row" style="align-items:center; margin-bottom:4px;">
         <span class="jersey" style="width:52px; height:52px; overflow:hidden; font-size:24px; background:${team.logoDataUrl ? '#fff' : ''};">
           ${team.logoDataUrl ? `<img src="${team.logoDataUrl}" alt="Club logo" style="width:100%; height:100%; object-fit:contain;" />` : '⚽'}
@@ -94,6 +98,7 @@ export function renderSettings(app) {
         Log yellow/red cards (recommended for older age groups)
       </label>
       <button type="submit" class="btn block">Save Team Settings</button>
+      </fieldset>
     </form>
 
     <details class="card">
@@ -168,6 +173,9 @@ export function renderSettings(app) {
       <button class="btn secondary block" data-action="reset-sample">Reload Sample Data</button>
       <button class="btn danger block" data-action="clear-data">Clear All Data</button>
     </div>
+
+    <div class="section-title">Cloud Sync</div>
+    ${cloudSyncSectionHtml(syncConfig)}
 
     <div class="section-title">Diagnostics</div>
     <div class="card stack">
@@ -295,6 +303,42 @@ export function renderSettings(app) {
   });
   app.querySelector('[data-action="restore-data"]').addEventListener('click', () => openRestoreModal());
   app.querySelector('[data-action="merge-data"]').addEventListener('click', () => openMergeModal(app));
+
+  const cloudSetupBtn = app.querySelector('[data-action="cloud-sync-setup"]');
+  if (cloudSetupBtn) cloudSetupBtn.addEventListener('click', () => openCloudSyncSetupModal(app));
+  const cloudJoinBtn = app.querySelector('[data-action="cloud-sync-join"]');
+  if (cloudJoinBtn) cloudJoinBtn.addEventListener('click', () => openCloudSyncJoinModal(app));
+  const cloudSyncNowBtn = app.querySelector('[data-action="cloud-sync-now"]');
+  if (cloudSyncNowBtn) {
+    cloudSyncNowBtn.addEventListener('click', async () => {
+      cloudSyncNowBtn.disabled = true;
+      cloudSyncNowBtn.textContent = 'Syncing…';
+      try {
+        await syncNow();
+        renderSettings(app);
+      } catch (err) {
+        cloudSyncNowBtn.disabled = false;
+        cloudSyncNowBtn.textContent = '🔄 Sync Now';
+        alertDialog(err.message || 'Sync failed — check the connection and try again.');
+      }
+    });
+  }
+  const cloudShowLinksBtn = app.querySelector('[data-action="cloud-sync-show-links"]');
+  if (cloudShowLinksBtn) {
+    cloudShowLinksBtn.addEventListener('click', () => {
+      const cfg = getSyncConfig();
+      if (!cfg || !cfg.baseUrl) return;
+      openShareLinksModal(`${cfg.baseUrl}?token=${cfg.fullEditToken}`, `${cfg.baseUrl}?token=${cfg.matchdayToken}`);
+    });
+  }
+  const cloudDisconnectBtn = app.querySelector('[data-action="cloud-sync-disconnect"]');
+  if (cloudDisconnectBtn) {
+    cloudDisconnectBtn.addEventListener('click', async () => {
+      if (!(await confirmDialog('Disconnect Cloud Sync on this device? Your data here stays as-is — this just stops it syncing with the shared team. You can reconnect with the same link any time.', { okLabel: 'Disconnect' }))) return;
+      disconnectCloudSync();
+      renderSettings(app);
+    });
+  }
   app.querySelectorAll('[data-action="restore-auto-backup"]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!(await confirmDialog('Restore this automatic backup? It replaces everything currently in the app on this device.', { okLabel: 'Restore', danger: true }))) return;
@@ -602,6 +646,174 @@ function openRestoreModal() {
         if (!(await confirmDialog('Restore this backup? It replaces everything currently in the app on this device.', { okLabel: 'Restore', danger: true }))) return;
         restoreFromBackup(parsed);
         closeModal();
+      });
+    },
+  });
+}
+
+function cloudSyncSectionHtml(syncConfig) {
+  if (!syncConfig) {
+    return `
+      <div class="card stack">
+        <p class="muted small mt-0">Share this team's setup and match data with other coaches all season instead of passing files back and forth — one coach sets it up (a few minutes, one time, using a free Google Sheet), then everyone else just pastes a link. See Help for the full walkthrough, including exactly what each access level can do.</p>
+        <button class="btn secondary block" data-action="cloud-sync-setup">🔗 Set Up Cloud Sync — I'm setting this up for the team</button>
+        <button class="btn ghost block" data-action="cloud-sync-join">🔑 I Have a Cloud Sync Link</button>
+      </div>
+    `;
+  }
+  const roleLabel = syncConfig.role === 'editor' ? 'Full Edit' : 'Matchday';
+  return `
+    <div class="card stack">
+      <p class="muted small mt-0">This device has <strong>${roleLabel}</strong> access${syncConfig.coachName ? ` (as ${escapeHtml(syncConfig.coachName)})` : ''}.${syncConfig.role === 'matchday' ? ' Roster, team settings, training, and drills can only be changed from a Full Edit device — those controls are hidden here, and a change to them wouldn\'t save to the shared team anyway.' : ''}</p>
+      <div class="small">${syncConfig.lastSyncedAt ? `Last synced: ${new Date(syncConfig.lastSyncedAt).toLocaleString()}` : 'Not synced yet'}</div>
+      <button class="btn secondary block" data-action="cloud-sync-now">🔄 Sync Now</button>
+      ${syncConfig.role === 'editor' ? '<button class="btn ghost block" data-action="cloud-sync-show-links">📋 Show Share Links</button>' : ''}
+      <button class="btn ghost block" data-action="cloud-sync-disconnect">Disconnect This Device</button>
+    </div>
+  `;
+}
+
+function openCloudSyncSetupModal(app) {
+  openModal({
+    title: 'Set Up Cloud Sync',
+    bodyHtml: `
+      <ol class="stack" style="margin:0; padding-left:18px;">
+        <li>Create a new, blank Google Sheet (<a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a>) — the name doesn't matter.</li>
+        <li>In it, open <strong>Extensions → Apps Script</strong>, delete anything already there, and paste in the script below (generated just now for your team — nothing to edit).</li>
+      </ol>
+      <textarea id="cloud-sync-script" readonly style="width:100%; min-height:140px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px; margin:10px 0;"></textarea>
+      <button type="button" class="btn ghost sm" data-action="copy-cloud-script" style="margin-bottom:10px;">📋 Copy Script</button>
+      <ol class="stack" style="margin:0; padding-left:18px;" start="3">
+        <li>Click <strong>Deploy → New deployment</strong>, choose type <strong>Web app</strong>, set "Execute as" to <strong>Me</strong> and "Who has access" to <strong>Anyone</strong>, then Deploy. Google may show an "unverified app" warning for your own script — click <strong>Advanced → Go to (unsafe)</strong> to allow it.</li>
+        <li>Paste the URL it gives you (ending in <code>/exec</code>) below.</li>
+      </ol>
+      <form id="cloud-sync-setup-form" class="stack">
+        <div class="field">
+          <label>Web App URL</label>
+          <input type="url" name="baseUrl" placeholder="https://script.google.com/macros/s/.../exec" required />
+        </div>
+        <div class="field">
+          <label>Your name (optional — shown to other coaches when you sync)</label>
+          <input type="text" name="coachName" />
+        </div>
+        <div id="cloud-sync-setup-error" class="small" style="color:var(--red);" hidden></div>
+        <button type="submit" class="btn block">Finish Setup</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      const tokens = generateSyncTokens();
+      modalEl.querySelector('#cloud-sync-script').value = buildAppsScript(tokens);
+
+      modalEl.querySelector('[data-action="copy-cloud-script"]').addEventListener('click', async (e) => {
+        const btn = e.target;
+        await copyToClipboard(modalEl.querySelector('#cloud-sync-script').value, {
+          onSuccess: () => { btn.textContent = '✅ Copied'; },
+          onFallback: () => { modalEl.querySelector('#cloud-sync-script').select(); btn.textContent = 'Select the text above and copy it'; },
+        });
+        setTimeout(() => { btn.textContent = '📋 Copy Script'; }, 2500);
+      });
+
+      const errorEl = modalEl.querySelector('#cloud-sync-setup-error');
+      const showError = (msg) => { errorEl.textContent = msg; errorEl.hidden = false; };
+
+      modalEl.querySelector('#cloud-sync-setup-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorEl.hidden = true;
+        const fd = new FormData(e.target);
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Setting up…';
+        try {
+          const { fullEditUrl, matchdayUrl } = await setUpAsFullEditor(fd.get('baseUrl'), fd.get('coachName'), tokens);
+          closeModal();
+          renderSettings(app);
+          openShareLinksModal(fullEditUrl, matchdayUrl);
+        } catch (err) {
+          showError(err.message || "Couldn't reach that URL — double check it and try again.");
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Finish Setup';
+        }
+      });
+    },
+  });
+}
+
+function openShareLinksModal(fullEditUrl, matchdayUrl) {
+  openModal({
+    title: 'Cloud Sync Is Set Up',
+    bodyHtml: `
+      <p class="muted small mt-0">This device is connected with Full Edit access. Copy the link below and send it (text, WhatsApp, email — however's easiest) to each other coach.</p>
+      <div class="field">
+        <label>Matchday link — for other coaches</label>
+        <textarea id="matchday-link-text" readonly style="width:100%; min-height:50px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;">${escapeHtml(matchdayUrl)}</textarea>
+      </div>
+      <button type="button" class="btn secondary block" data-action="copy-matchday-link" style="margin:8px 0 14px;">📋 Copy Matchday Link</button>
+      <div class="field">
+        <label>Your own Full Edit link — keep this one private</label>
+        <textarea id="full-edit-link-text" readonly style="width:100%; min-height:50px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;">${escapeHtml(fullEditUrl)}</textarea>
+      </div>
+      <button type="button" class="btn ghost block" data-action="copy-fulledit-link">📋 Copy Full Edit Link</button>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('[data-action="copy-matchday-link"]').addEventListener('click', async (e) => {
+        const btn = e.target;
+        await copyToClipboard(matchdayUrl, {
+          onSuccess: () => { btn.textContent = '✅ Copied'; },
+          onFallback: () => { modalEl.querySelector('#matchday-link-text').select(); },
+        });
+        setTimeout(() => { btn.textContent = '📋 Copy Matchday Link'; }, 2500);
+      });
+      modalEl.querySelector('[data-action="copy-fulledit-link"]').addEventListener('click', async (e) => {
+        const btn = e.target;
+        await copyToClipboard(fullEditUrl, {
+          onSuccess: () => { btn.textContent = '✅ Copied'; },
+          onFallback: () => { modalEl.querySelector('#full-edit-link-text').select(); },
+        });
+        setTimeout(() => { btn.textContent = '📋 Copy Full Edit Link'; }, 2500);
+      });
+    },
+  });
+}
+
+function openCloudSyncJoinModal(app) {
+  openModal({
+    title: 'Connect to Cloud Sync',
+    bodyHtml: `
+      <p class="muted small mt-0">Paste the link another coach sent you. Whether you get Matchday or Full Edit access depends on which link they gave you.</p>
+      <form id="cloud-sync-join-form" class="stack">
+        <div class="field">
+          <label>Cloud Sync link</label>
+          <input type="url" name="url" placeholder="https://script.google.com/macros/s/...?token=..." required />
+        </div>
+        <div class="field">
+          <label>Your name (optional — shown to other coaches when you sync)</label>
+          <input type="text" name="coachName" />
+        </div>
+        <div id="cloud-sync-join-error" class="small" style="color:var(--red);" hidden></div>
+        <button type="submit" class="btn block">Connect</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      const errorEl = modalEl.querySelector('#cloud-sync-join-error');
+      const showError = (msg) => { errorEl.textContent = msg; errorEl.hidden = false; };
+
+      modalEl.querySelector('#cloud-sync-join-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorEl.hidden = true;
+        const fd = new FormData(e.target);
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Connecting…';
+        try {
+          const result = await joinWithLink(fd.get('url'), fd.get('coachName'));
+          closeModal();
+          renderSettings(app);
+          alertDialog(`Connected with ${result.role === 'editor' ? 'Full Edit' : 'Matchday'} access. The shared team's data has been brought in.`);
+        } catch (err) {
+          showError(err.message || "Couldn't connect — double check the link and try again.");
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Connect';
+        }
       });
     },
   });

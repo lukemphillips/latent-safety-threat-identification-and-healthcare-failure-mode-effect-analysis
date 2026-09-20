@@ -265,6 +265,53 @@ export function mergeBackup(data) {
   return { playersAdded, gamesAdded, gamesUpdated, awardsAdded, trainingsAdded, drillsAdded };
 }
 
+// Folds in data just pulled from Cloud Sync (see cloudSync.js) — distinct
+// from mergeBackup above because the two have different trust models.
+// mergeBackup combines two coaches' separately-run matches and
+// deliberately never touches local team settings, since either side could
+// be the "right" one. Cloud Sync data only ever reaches the shared sheet
+// through the Full Edit token (the Apps Script itself enforces that — see
+// apps-script/Code.gs), so once it's here it IS the authoritative copy of
+// team settings, the roster, training plans, and drills: they're adopted
+// wholesale rather than reconciled field by field. A player added locally
+// but not yet pushed (e.g. a late-arrival on a Matchday device) is kept
+// alongside the cloud's roster rather than dropped. Games still use the
+// same "most complete wins" comparison as mergeBackup, since whichever
+// device is actually running a live match right now may be ahead of what
+// was last pushed.
+export function applyCloudSync(cloudData) {
+  if (!cloudData || !cloudData.team || !Array.isArray(cloudData.players) || !Array.isArray(cloudData.games)) return null;
+  const s = getState();
+  let gamesAdded = 0, gamesUpdated = 0;
+
+  s.team = cloudData.team;
+  s.trainings = Array.isArray(cloudData.trainings) ? cloudData.trainings : (s.trainings || []);
+  s.drills = Array.isArray(cloudData.drills) ? cloudData.drills : (s.drills || []);
+
+  const cloudPlayerIds = new Set(cloudData.players.map((p) => p.id));
+  const localOnlyPlayers = s.players.filter((p) => !cloudPlayerIds.has(p.id));
+  s.players = [...cloudData.players, ...localOnlyPlayers];
+
+  const localGamesById = new Map(s.games.map((g) => [g.id, g]));
+  cloudData.games.forEach((incoming) => {
+    const existing = localGamesById.get(incoming.id);
+    if (!existing) {
+      s.games.push(incoming);
+      localGamesById.set(incoming.id, incoming);
+      gamesAdded += 1;
+    } else if (gameCompleteness(incoming) > gameCompleteness(existing)) {
+      const idx = s.games.indexOf(existing);
+      s.games[idx] = incoming;
+      localGamesById.set(incoming.id, incoming);
+      gamesUpdated += 1;
+    }
+  });
+
+  persist();
+  listeners.forEach((fn) => fn(state));
+  return { gamesAdded, gamesUpdated };
+}
+
 // Best-effort check for whether a candidate state would actually fit in
 // localStorage before committing to it — used before saving a drill with an
 // attachment, since a PDF/image (unlike the rest of this app's data) can be

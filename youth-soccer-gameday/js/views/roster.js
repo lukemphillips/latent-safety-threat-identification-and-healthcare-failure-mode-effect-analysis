@@ -2,6 +2,17 @@ import { getState, update, findPlayer } from '../store.js';
 import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, copyToClipboard } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { parseRosterFile, TEMPLATE_CSV } from '../importRoster.js';
+import { isMatchdayOnly } from '../cloudSync.js';
+
+// A Matchday-access device's roster edits are rejected by Cloud Sync's
+// Apps Script regardless of what this app sends (see cloudSync.js), so
+// opening the edit form here would just look like it worked and then
+// quietly get overwritten on the next sync — better to explain up front.
+function blockIfMatchdayOnly() {
+  if (!isMatchdayOnly()) return false;
+  alertDialog("The roster can only be changed from a Full Edit device — ask whoever set up Cloud Sync for that link if a player needs adding or editing.");
+  return true;
+}
 
 const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'];
 const STREAMS = ['A', 'B', 'C', 'D'];
@@ -31,10 +42,10 @@ export function renderRoster(app) {
     </div>
   `;
 
-  app.querySelector('[data-action="add-player"]').addEventListener('click', () => openPlayerForm());
-  app.querySelector('[data-action="import-roster"]').addEventListener('click', () => openImportModal());
+  app.querySelector('[data-action="add-player"]').addEventListener('click', () => { if (!blockIfMatchdayOnly()) openPlayerForm(); });
+  app.querySelector('[data-action="import-roster"]').addEventListener('click', () => { if (!blockIfMatchdayOnly()) openImportModal(); });
   app.querySelectorAll('[data-action="edit-player"]').forEach((el) => {
-    el.addEventListener('click', () => openPlayerForm(el.dataset.id));
+    el.addEventListener('click', () => { if (!blockIfMatchdayOnly()) openPlayerForm(el.dataset.id); });
   });
 }
 

@@ -13,6 +13,7 @@ import { renderBalanceTeams } from './views/balanceTeams.js';
 import { renderHelp } from './views/help.js';
 import { renderTraining, renderTrainingDetail, advanceTrainingLive, patchLiveTimerClock } from './views/training.js';
 import { renderDrillLibrary } from './views/drills.js';
+import { isCloudSyncConnected, syncSilently } from './cloudSync.js';
 
 initErrorLogging();
 
@@ -99,6 +100,15 @@ window.addEventListener('DOMContentLoaded', route);
 subscribe(route);
 
 if (document.readyState !== 'loading') route();
+
+// If this device is connected to Cloud Sync (see Settings), bring in
+// whatever other coaches have synced since this device last opened —
+// silent/best-effort, so a slow or failed connection never blocks
+// getting into the app. notifyListeners() re-renders once it finishes,
+// picking up anything that changed.
+if (isCloudSyncConnected()) {
+  syncSilently().then((ok) => { if (ok) notifyListeners(); });
+}
 
 // Ticks any running live match once a second, regardless of which screen is
 // showing — so the clock (and playing time) keeps moving while the coach
