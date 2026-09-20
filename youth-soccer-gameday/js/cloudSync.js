@@ -20,11 +20,10 @@ import { getState, applyCloudSync } from './store.js';
 //     UI additionally hides those controls on a Matchday device (see
 //     isMatchdayOnly, used by roster.js/settings.js) so an edit never
 //     looks like it saved when it didn't.
-// Training sessions and the Drill Library are NOT part of that split —
-// every coach, either role, has their own and can push new ones; the
-// script merges each side's list additively (new entries only, matched by
-// id) rather than one role's copy replacing the other's. See mergeById_
-// below and store.js's mergeById.
+// Training sessions and the Drill Library are NOT part of Cloud Sync at
+// all — each coach's plans and drills stay entirely on their own device;
+// pushToCloud never even sends them, so there's nothing for the shared
+// Sheet to store or for another device to pick up.
 //
 // This device's own connection (which URL, which role, when it last
 // synced) lives in its own localStorage key — deliberately separate from
@@ -151,28 +150,6 @@ function doGet(e) {
   return jsonResponse_({ role: role, data: stored.data, meta: stored.meta });
 }
 
-// Unions "current" and "incoming" by id — used for training sessions and
-// drills, which are each coach's own content rather than one role-owned
-// list (see the comment near the top of this file). A brand new id is just
-// added; an id present on both sides keeps whichever copy has the later
-// updatedAt, since a session/drill genuinely gets edited after it's first
-// created (attendance, groups, the plan itself) — without this, only a
-// session's first, near-empty version would ever sync, never anything
-// edited into it afterward.
-function mergeById_(current, incoming) {
-  var result = (current || []).slice();
-  (incoming || []).forEach(function (x) {
-    var idx = -1;
-    for (var i = 0; i < result.length; i++) { if (result[i].id === x.id) { idx = i; break; } }
-    if (idx === -1) {
-      result.push(x);
-    } else if ((x.updatedAt || 0) > (result[idx].updatedAt || 0)) {
-      result[idx] = x;
-    }
-  });
-  return result;
-}
-
 function doPost(e) {
   var token = (e && e.parameter && e.parameter.token) || '';
   var role = roleForToken_(token);
@@ -209,12 +186,6 @@ function doPost(e) {
       games: posted.games,
     };
   }
-
-  // Training sessions and the Drill Library are shared peer-to-peer
-  // regardless of role — every coach's own new entries merge in
-  // additively, never overwriting or dropping what's already there.
-  toStore.trainings = mergeById_(current ? current.trainings : [], posted.trainings);
-  toStore.drills = mergeById_(current ? current.drills : [], posted.drills);
 
   writeStored_(toStore, posted.syncedByName || '');
   return jsonResponse_({ ok: true, role: role });
@@ -253,15 +224,17 @@ export function pullFromCloud(url) {
   return callAppsScript(url, { method: 'GET' });
 }
 
-// POST always sends this device's full local state; the Apps Script
-// itself decides how much of it actually gets written, based on which
+// POST always sends this device's team/roster/matches; the Apps Script
+// itself decides how much of that actually gets written, based on which
 // token the URL carries (see buildAppsScript above) — this file doesn't
 // need to duplicate that logic, only trust the server to enforce it.
+// Training sessions and drills are deliberately never included — see the
+// comment near the top of this file.
 export function pushToCloud(url, coachName) {
-  const { team, players, games, trainings, drills } = getState();
+  const { team, players, games } = getState();
   return callAppsScript(url, {
     method: 'POST',
-    body: JSON.stringify({ team, players, games, trainings, drills, syncedByName: coachName || '' }),
+    body: JSON.stringify({ team, players, games, syncedByName: coachName || '' }),
   });
 }
 

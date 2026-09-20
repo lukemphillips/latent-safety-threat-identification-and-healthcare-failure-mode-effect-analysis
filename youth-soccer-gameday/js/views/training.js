@@ -8,18 +8,6 @@ import { splitBalancedTeams } from './balanceTeams.js';
 let selectingPlayerId = null;
 let selectingSourceGroupId = null;
 
-// Every mutation below goes through this rather than a plain
-// state.trainings.find, so every edit (attendance, groups, the plan
-// itself) stamps updatedAt — that's what lets Cloud Sync (store.js's
-// mergeById) tell a genuinely newer edit apart from a stale copy of the
-// same session, instead of only ever syncing a session's first, near-empty
-// version. See cloudSync.js's applyCloudSync/mergeById.
-function touchTraining(state, id) {
-  const t = state.trainings.find((x) => x.id === id);
-  if (t) t.updatedAt = Date.now();
-  return t;
-}
-
 function shuffle(list) {
   const arr = [...list];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -117,7 +105,7 @@ export function openTrainingForm(existing) {
         const loc = (fd.get('location') || '').trim();
         if (existing) {
           update((state) => {
-            const t = touchTraining(state, existing.id);
+            const t = state.trainings.find((x) => x.id === existing.id);
             t.date = date;
             t.time = time;
             t.location = loc;
@@ -126,7 +114,7 @@ export function openTrainingForm(existing) {
         } else {
           const id = uid();
           update((state) => {
-            state.trainings.push({ id, date, time, location: loc, presentIds: [], groups: [], blocks: [], updatedAt: Date.now() });
+            state.trainings.push({ id, date, time, location: loc, presentIds: [], groups: [], blocks: [] });
           });
           closeModal();
           location.hash = `#/training/${id}/attendance`;
@@ -252,13 +240,13 @@ function renderAttendanceTab(container, training) {
 
   container.querySelector('[data-action="mark-all-present"]').addEventListener('click', () => {
     update((state) => {
-      const t = touchTraining(state, training.id);
+      const t = state.trainings.find((x) => x.id === training.id);
       t.presentIds = state.players.filter((p) => p.active).map((p) => p.id);
     });
   });
   container.querySelector('[data-action="mark-none-present"]').addEventListener('click', () => {
     update((state) => {
-      const t = touchTraining(state, training.id);
+      const t = state.trainings.find((x) => x.id === training.id);
       t.presentIds = [];
     });
   });
@@ -267,7 +255,7 @@ function renderAttendanceTab(container, training) {
     el.addEventListener('click', () => {
       const playerId = el.dataset.attendanceToggle;
       update((state) => {
-        const t = touchTraining(state, training.id);
+        const t = state.trainings.find((x) => x.id === training.id);
         const set = new Set(t.presentIds || []);
         if (set.has(playerId)) set.delete(playerId);
         else set.add(playerId);
@@ -346,7 +334,7 @@ function renderGroupsTab(container, training) {
   container.querySelectorAll('[data-group-mode]').forEach((el) => {
     el.addEventListener('click', () => {
       update((state) => {
-        const t = touchTraining(state, training.id);
+        const t = state.trainings.find((x) => x.id === training.id);
         t.groupMode = el.dataset.groupMode;
       });
     });
@@ -361,7 +349,7 @@ function renderGroupsTab(container, training) {
     selectingPlayerId = null;
     selectingSourceGroupId = null;
     update((state) => {
-      const t = touchTraining(state, training.id);
+      const t = state.trainings.find((x) => x.id === training.id);
       t.groups = newGroups;
       // Clear any per-group activities from the Plan tab that pointed at
       // groups which no longer exist after a rebuild — a stale id there
@@ -401,7 +389,7 @@ function renderGroupsTab(container, training) {
       selectingPlayerId = null;
       selectingSourceGroupId = null;
       update((state) => {
-        const t = touchTraining(state, training.id);
+        const t = state.trainings.find((x) => x.id === training.id);
         const source = t.groups.find((g) => g.id === sourceGroupId);
         const target = t.groups.find((g) => g.id === targetGroupId);
         if (!source || !target) return;
@@ -499,7 +487,7 @@ function renderMatchesTab(container, training) {
   container.querySelectorAll('[data-match-mode]').forEach((el) => {
     el.addEventListener('click', () => {
       update((state) => {
-        const t = touchTraining(state, training.id);
+        const t = state.trainings.find((x) => x.id === training.id);
         t.matchMode = el.dataset.matchMode;
       });
     });
@@ -511,7 +499,7 @@ function renderMatchesTab(container, training) {
     const currentMode = training.matchMode || 'same';
     const newTeams = buildMatchTeams(present, count, currentMode);
     update((state) => {
-      const t = touchTraining(state, training.id);
+      const t = state.trainings.find((x) => x.id === training.id);
       t.matchTeamCount = count;
       t.matchTeams = newTeams;
     });
@@ -777,7 +765,7 @@ function renderStaticPlan(container, training) {
   if (startBtn) {
     startBtn.addEventListener('click', () => {
       update((state) => {
-        const t = touchTraining(state, training.id);
+        const t = state.trainings.find((x) => x.id === training.id);
         t.live = { running: true, elapsedSeconds: 0 };
         // Restarting a previously-ended session means it's active again,
         // not done — clear whatever "Completed" mark End Session left.
@@ -797,7 +785,7 @@ function renderStaticPlan(container, training) {
     el.addEventListener('click', async () => {
       if (!(await confirmDialog('Remove this block from the plan?', { okLabel: 'Remove', danger: true }))) return;
       update((state) => {
-        const t = touchTraining(state, training.id);
+        const t = state.trainings.find((x) => x.id === training.id);
         t.blocks = t.blocks.filter((b) => b.id !== el.dataset.blockId);
       });
     });
@@ -927,15 +915,15 @@ function renderLiveTimer(container, training) {
 
   const pauseBtn = container.querySelector('[data-action="pause-live"]');
   if (pauseBtn) pauseBtn.addEventListener('click', () => {
-    update((state) => { const t = touchTraining(state, training.id); t.live.running = false; });
+    update((state) => { const t = state.trainings.find((x) => x.id === training.id); t.live.running = false; });
   });
   const resumeBtn = container.querySelector('[data-action="resume-live"]');
   if (resumeBtn) resumeBtn.addEventListener('click', () => {
-    update((state) => { const t = touchTraining(state, training.id); t.live.running = true; });
+    update((state) => { const t = state.trainings.find((x) => x.id === training.id); t.live.running = true; });
   });
   container.querySelector('[data-action="prev-block"]').addEventListener('click', () => {
     update((state) => {
-      const t = touchTraining(state, training.id);
+      const t = state.trainings.find((x) => x.id === training.id);
       const tl = planTimeline(t);
       const cur = currentTimelineEntry(tl, t.live.elapsedSeconds);
       const i = tl.indexOf(cur);
@@ -944,7 +932,7 @@ function renderLiveTimer(container, training) {
   });
   container.querySelector('[data-action="skip-block"]').addEventListener('click', () => {
     update((state) => {
-      const t = touchTraining(state, training.id);
+      const t = state.trainings.find((x) => x.id === training.id);
       const tl = planTimeline(t);
       const cur = currentTimelineEntry(tl, t.live.elapsedSeconds);
       const i = tl.indexOf(cur);
@@ -959,7 +947,7 @@ function renderLiveTimer(container, training) {
   container.querySelector('[data-action="end-live"]').addEventListener('click', async () => {
     if (!(await confirmDialog('End this live session? The plan itself stays saved — you can start it again later.', { okLabel: 'End Session' }))) return;
     update((state) => {
-      const t = touchTraining(state, training.id);
+      const t = state.trainings.find((x) => x.id === training.id);
       t.live = null;
       // Marks it done so the Training list moves it to Past right away —
       // otherwise a same-day session stayed under "Upcoming" until the
@@ -975,7 +963,7 @@ function renderLiveTimer(container, training) {
 
 function moveBlock(training, blockId, direction) {
   update((state) => {
-    const t = touchTraining(state, training.id);
+    const t = state.trainings.find((x) => x.id === training.id);
     const idx = t.blocks.findIndex((b) => b.id === blockId);
     const newIdx = idx + direction;
     if (idx === -1 || newIdx < 0 || newIdx >= t.blocks.length) return;
@@ -1324,7 +1312,7 @@ function openBlockForm(training, groups, existing) {
         }
 
         update((state) => {
-          const t = touchTraining(state, training.id);
+          const t = state.trainings.find((x) => x.id === training.id);
           if (existing) {
             const b = t.blocks.find((x) => x.id === existing.id);
             b.minutes = minutes;

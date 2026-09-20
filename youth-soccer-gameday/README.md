@@ -620,19 +620,18 @@ see everything working immediately. Reset or clear that data any time from
   generated link:
   - **Full Edit** can push anything — team settings, roster, matches.
   - **Matchday** can push match data and add brand-new players (e.g. a
-    late arrival), but nothing else beyond that split (see below) — the
-    script itself rejects any other change a Matchday-token request
-    sends, regardless of what this app posts, so it's a real permission
-    boundary, not just something the UI hides. The UI additionally
-    disables Roster and Team Settings editing on a Matchday device, so a
-    change never looks like it saved when it silently wouldn't have.
-  - **Training sessions and the Drill Library sit outside that split
-    entirely** — every coach, either access level, has their own and can
-    add to it freely; the script merges each side's list additively
-    (`mergeById_` in the generated Apps Script, mirrored client-side by
-    `mergeById` in `store.js`) rather than one role's copy replacing the
-    other's, so nobody's plans or drills get silently dropped and every
-    addition reaches everyone else on the next sync.
+    late arrival), but nothing else — the script itself rejects any other
+    change a Matchday-token request sends, regardless of what this app
+    posts, so it's a real permission boundary, not just something the UI
+    hides. The UI additionally disables Roster and Team Settings editing
+    on a Matchday device, so a change never looks like it saved when it
+    silently wouldn't have.
+  - **Training sessions and the Drill Library are not part of Cloud Sync
+    at all** — they stay purely local to each device, exactly as they did
+    before Cloud Sync existed. `pushToCloud` never includes them, so
+    there's nothing to merge or overwrite; a coach who wants to hand
+    another coach a specific plan or drill uses that item's own
+    Share/Download option instead.
 
   Setup is designed so the coach never invents or hand-edits anything: the
   app generates both access tokens, builds the complete Apps Script source
@@ -650,10 +649,10 @@ see everything working immediately. Reset or clear that data any time from
   contains the Full Edit token. Pulling adopts the cloud's team and roster
   wholesale (the Apps Script guarantees only a Full Edit push can have
   changed those), keeping any player added locally but not yet pushed
-  rather than dropping it; training and drills merge additively instead
-  (see above), and games reconcile with the same "most complete wins"
-  comparison Merge (above) already uses, since whichever device is
+  rather than dropping it; games reconcile with the same "most complete
+  wins" comparison Merge (above) already uses, since whichever device is
   actually running a live match may be ahead of what was last synced.
+  Training sessions and drills are untouched by any of this — see above.
   Sync happens automatically after every match ends and
   when the app opens, plus a manual "Sync Now" — each pulls first, then
   pushes, so a device that's been offline a while doesn't overwrite

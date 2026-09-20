@@ -578,9 +578,7 @@ function openMergeModal(app) {
         if (summary.playersAdded) parts.push(`${summary.playersAdded} player${summary.playersAdded === 1 ? '' : 's'} added`);
         if (summary.awardsAdded) parts.push(`${summary.awardsAdded} weekly award${summary.awardsAdded === 1 ? '' : 's'} added`);
         if (summary.trainingsAdded) parts.push(`${summary.trainingsAdded} training session${summary.trainingsAdded === 1 ? '' : 's'} added`);
-        if (summary.trainingsUpdated) parts.push(`${summary.trainingsUpdated} training session${summary.trainingsUpdated === 1 ? '' : 's'} updated`);
         if (summary.drillsAdded) parts.push(`${summary.drillsAdded} drill${summary.drillsAdded === 1 ? '' : 's'} added`);
-        if (summary.drillsUpdated) parts.push(`${summary.drillsUpdated} drill${summary.drillsUpdated === 1 ? '' : 's'} updated`);
         alertDialog(parts.length ? `Merged: ${parts.join(', ')}. An automatic backup of the combined data was just saved on this device too.` : 'Nothing new to merge in — this device already had everything from that backup.');
         renderSettings(app);
       });
@@ -643,7 +641,7 @@ function cloudSyncSectionHtml(syncConfig) {
   const roleLabel = syncConfig.role === 'editor' ? 'Full Edit' : 'Matchday';
   return `
     <div class="card stack">
-      <p class="muted small mt-0">This device has <strong>${roleLabel}</strong> access${syncConfig.coachName ? ` (as ${escapeHtml(syncConfig.coachName)})` : ''}.${syncConfig.role === 'matchday' ? ' Roster and team settings can only be changed from a Full Edit device — those controls are hidden here, and a change to them wouldn\'t save to the shared team anyway. Training sessions and drills are different: add your own here and they\'ll sync out to every other coach too.' : ''}</p>
+      <p class="muted small mt-0">This device has <strong>${roleLabel}</strong> access${syncConfig.coachName ? ` (as ${escapeHtml(syncConfig.coachName)})` : ''}.${syncConfig.role === 'matchday' ? ' Roster and team settings can only be changed from a Full Edit device — those controls are hidden here, and a change to them wouldn\'t save to the shared team anyway.' : ''} Training sessions and the Drill Library aren't part of Cloud Sync — they stay on this device only.</p>
       <div class="small">${syncConfig.lastSyncedAt ? `Last synced: ${new Date(syncConfig.lastSyncedAt).toLocaleString()}` : 'Not synced yet'}</div>
       <div class="banner warn">⚠️ Running two matches at once (e.g. two pitches) is fine — each match syncs back independently. Just never have <strong>two devices both live-tracking the same match</strong> at the same time: sync isn't real-time, so whichever device syncs first can silently overwrite the other's events for that match. One device per live match.</div>
       <button class="btn secondary block" data-action="cloud-sync-now">🔄 Sync Now</button>

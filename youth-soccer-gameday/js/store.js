@@ -195,7 +195,7 @@ export function mergeBackup(data) {
     throw new Error('That doesn\'t look like a Boot Room backup — expected an object with team, players, and games.');
   }
   const s = getState();
-  let playersAdded = 0, gamesAdded = 0, gamesUpdated = 0, awardsAdded = 0, trainingsAdded = 0, trainingsUpdated = 0, drillsAdded = 0, drillsUpdated = 0;
+  let playersAdded = 0, gamesAdded = 0, gamesUpdated = 0, awardsAdded = 0, trainingsAdded = 0, drillsAdded = 0;
 
   const localPlayerIds = new Set(s.players.map((p) => p.id));
   data.players.forEach((p) => {
@@ -234,51 +234,36 @@ export function mergeBackup(data) {
     });
   }
 
-  // Training sessions do get edited after they're first created — attendance
-  // marked, groups built, the plan filled in — so a plain "add if missing"
-  // union would only ever pick up a session's very first, near-empty
-  // version and never any edit made after that first sync. Whichever side
-  // has the later updatedAt wins for an id that exists on both; brand new
-  // ids are just added. See touchTraining in training.js for where
-  // updatedAt gets stamped.
+  // Training sessions aren't co-edited the way a live match can be (there's
+  // no "further along" to compare), so this is a plain union by id: add
+  // whatever the incoming side has that isn't already here, and otherwise
+  // leave the local copy alone.
   const incomingTrainings = data.trainings || [];
   if (incomingTrainings.length) {
     s.trainings = s.trainings || [];
-    const localTrainingsById = new Map(s.trainings.map((t) => [t.id, t]));
+    const localTrainingIds = new Set(s.trainings.map((t) => t.id));
     incomingTrainings.forEach((t) => {
-      const existingT = localTrainingsById.get(t.id);
-      if (!existingT) {
+      if (!localTrainingIds.has(t.id)) {
         s.trainings.push(t);
-        localTrainingsById.set(t.id, t);
+        localTrainingIds.add(t.id);
         trainingsAdded += 1;
-      } else if ((t.updatedAt || 0) > (existingT.updatedAt || 0)) {
-        const idx = s.trainings.indexOf(existingT);
-        s.trainings[idx] = t;
-        localTrainingsById.set(t.id, t);
-        trainingsUpdated += 1;
       }
     });
   }
 
   // Drills are a shared reference library rather than per-match data, but
-  // the same "newest edit wins" logic applies — an edit to a drill that's
-  // already here (a fixed typo, an added attachment) should still come
-  // through, not just brand-new drills.
+  // the same "add whatever's missing, never overwrite" union still applies
+  // — a coach's own edits to a drill already on this device shouldn't be
+  // clobbered by a merge.
   const incomingDrills = data.drills || [];
   if (incomingDrills.length) {
     s.drills = s.drills || [];
-    const localDrillsById = new Map(s.drills.map((d) => [d.id, d]));
+    const localDrillIds = new Set(s.drills.map((d) => d.id));
     incomingDrills.forEach((d) => {
-      const existingD = localDrillsById.get(d.id);
-      if (!existingD) {
+      if (!localDrillIds.has(d.id)) {
         s.drills.push(d);
-        localDrillsById.set(d.id, d);
+        localDrillIds.add(d.id);
         drillsAdded += 1;
-      } else if ((d.updatedAt || 0) > (existingD.updatedAt || 0)) {
-        const idx = s.drills.indexOf(existingD);
-        s.drills[idx] = d;
-        localDrillsById.set(d.id, d);
-        drillsUpdated += 1;
       }
     });
   }
@@ -289,30 +274,8 @@ export function mergeBackup(data) {
   // that doesn't exist anywhere else yet — snapshot it immediately rather
   // than leaving it unprotected until the next match end or a manual
   // Backup Team Data tap.
-  if (playersAdded || gamesAdded || gamesUpdated || awardsAdded || trainingsAdded || trainingsUpdated || drillsAdded || drillsUpdated) saveAutoBackup();
-  return { playersAdded, gamesAdded, gamesUpdated, awardsAdded, trainingsAdded, trainingsUpdated, drillsAdded, drillsUpdated };
-}
-
-// Unions "local" and "incoming" by id — added for training sessions and the
-// Drill Library, which are each coach's own content rather than one shared,
-// Full-Edit-owned list (see applyCloudSync below). A brand new id is just
-// added; an id present on both sides keeps whichever copy has the later
-// updatedAt, since a session/drill genuinely does get edited after it's
-// first created (attendance, groups, the plan itself) — a plain "add if
-// missing" union would only ever sync a session's first, near-empty
-// version and never pick up anything edited into it afterward. See
-// touchTraining in training.js for where updatedAt gets stamped.
-function mergeById(local, incoming) {
-  const result = local.slice();
-  incoming.forEach((inc) => {
-    const idx = result.findIndex((x) => x.id === inc.id);
-    if (idx === -1) {
-      result.push(inc);
-    } else if ((inc.updatedAt || 0) > (result[idx].updatedAt || 0)) {
-      result[idx] = inc;
-    }
-  });
-  return result;
+  if (playersAdded || gamesAdded || gamesUpdated || awardsAdded || trainingsAdded || drillsAdded) saveAutoBackup();
+  return { playersAdded, gamesAdded, gamesUpdated, awardsAdded, trainingsAdded, drillsAdded };
 }
 
 // Folds in data just pulled from Cloud Sync (see cloudSync.js) — distinct
@@ -326,9 +289,9 @@ function mergeById(local, incoming) {
 // wholesale rather than reconciled field by field. A player added locally
 // but not yet pushed (e.g. a late-arrival on a Matchday device) is kept
 // alongside the cloud's roster rather than dropped. Training sessions and
-// drills are different — every coach contributes their own, so they merge
-// by id (mergeById) instead of one side's copy replacing the other's, with
-// the later-edited copy winning when an id exists on both sides.
+// drills are NOT part of Cloud Sync at all — each coach's device keeps its
+// own, entirely local; the payload from cloudData never even carries them
+// (see cloudSync.js's pushToCloud), so there's nothing to merge here.
 // Games still use the same "most complete wins" comparison as mergeBackup,
 // since whichever device is actually running a live match right now may be
 // ahead of what was last pushed.
@@ -338,8 +301,6 @@ export function applyCloudSync(cloudData) {
   let gamesAdded = 0, gamesUpdated = 0;
 
   s.team = cloudData.team;
-  s.trainings = mergeById(s.trainings || [], cloudData.trainings || []);
-  s.drills = mergeById(s.drills || [], cloudData.drills || []);
 
   const cloudPlayerIds = new Set(cloudData.players.map((p) => p.id));
   const localOnlyPlayers = s.players.filter((p) => !cloudPlayerIds.has(p.id));
