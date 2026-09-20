@@ -339,14 +339,19 @@ see everything working immediately. Reset or clear that data any time from
     still accurate when you come back.
   - Rolling substitutions: unlimited subs, paired ("who's on, then who's
     off") with an "add to pitch" option when there's a spare spot.
-  - **Live pitch + tap-to-substitute** — the same visual pitch from the
-    pre-match Squad tab carries into the live match, kept in sync with
-    who's actually on the field (including subs and send-offs as they
-    happen). Tap any on-field player on the pitch to open a small
-    "Substitute" dropdown of bench players — pick one and the swap runs
-    through the normal sub flow (min-stint and squad-rule warnings still
-    apply) — no need to scroll down to the bench section first. An **empty
-    spot** works the same way: tap it to open a "Bring On" dropdown and
+  - **Live pitch + tap-to-substitute (or swap)** — the same visual pitch
+    from the pre-match Squad tab carries into the live match, kept in sync
+    with who's actually on the field (including subs and send-offs as
+    they happen). Tap any on-field player on the pitch to open a dropdown
+    with two option groups: "Bring on from bench" — pick a bench player
+    and the swap runs through the normal sub flow (min-stint and
+    squad-rule warnings still apply), no need to scroll down to the bench
+    section first — or "Swap positions with" — pick another on-field
+    teammate and the two of them simply trade formation slots, no one
+    comes off, nothing about playing time or the bench changes, just a
+    tactical reshuffle logged as its own event. With no bench players
+    present, the dropdown falls back to swap-only. An **empty
+    spot** works the bring-on way too: tap it to open a "Bring On" dropdown and
     place a bench player straight into that exact position, no separate
     outgoing player needed. The goalkeeper spot — filled or empty — always
     opens the dedicated Change/Assign Goalkeeper dialog instead of the

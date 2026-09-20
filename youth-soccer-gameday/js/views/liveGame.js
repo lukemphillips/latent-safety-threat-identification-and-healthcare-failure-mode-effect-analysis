@@ -8,10 +8,19 @@ import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../s
 
 let selectingInboundId = null;
 let lastGameId = null;
+// Whether the Playing Time / Match Events <details> are expanded — tracked
+// here rather than left to the browser's own `open` attribute, because the
+// live match clock re-renders this whole view every second (see main.js's
+// ticker). Without this, the freshly rendered HTML always starts collapsed,
+// so tapping one open just had it snap shut again within a second.
+let playingTimeOpen = false;
+let matchEventsOpen = false;
 
 export function renderLiveGame(app, gameId) {
   if (lastGameId !== gameId) {
     selectingInboundId = null;
+    playingTimeOpen = false;
+    matchEventsOpen = false;
     lastGameId = gameId;
   }
 
@@ -180,7 +189,7 @@ export function renderLiveGame(app, gameId) {
     ` : ''}
 
     ${hasCarryover ? '<div class="muted small" style="margin:8px 0 -4px;">Playing Time below includes minutes from earlier match(es) today, so fair-play suggestions stay balanced across the whole match day.</div>' : ''}
-    <details class="card" style="margin-top:12px;">
+    <details class="card" style="margin-top:12px;" data-details-section="playing-time" ${playingTimeOpen ? 'open' : ''}>
       <summary style="cursor:pointer; font-weight:700; font-size:13px;">⏱ Playing Time</summary>
       <div style="margin-top:10px;">
         ${playingTimeRows(active, live, presentIds)}
@@ -188,7 +197,7 @@ export function renderLiveGame(app, gameId) {
     </details>
 
     ${live.subLog.length ? `
-      <details class="card" style="margin-top:10px;">
+      <details class="card" style="margin-top:10px;" data-details-section="match-events" ${matchEventsOpen ? 'open' : ''}>
         <summary style="cursor:pointer; font-weight:700; font-size:13px;">📋 Match Events (${live.subLog.length})</summary>
         <div style="margin-top:10px;">
           ${live.subLog.slice().reverse().map((entry) => eventRowHtml(entry, numPeriods)).join('')}
@@ -401,7 +410,9 @@ export function renderLiveGame(app, gameId) {
 
     app.querySelectorAll('[data-live-pitch-slot] [data-open-sub]').forEach((chip) => {
       chip.addEventListener('click', () => {
-        openPitchSubModal(gameId, chip.dataset.openSub, byId, team, bench);
+        const outId = chip.dataset.openSub;
+        const teammates = onFieldOutfield.filter((p) => p.id !== outId);
+        openPitchSubModal(gameId, outId, byId, team, bench, teammates);
       });
     });
 
@@ -425,6 +436,16 @@ export function renderLiveGame(app, gameId) {
       });
     });
   }
+
+  // Keeps the Playing Time / Match Events <details> open across the
+  // once-a-second re-render the live match clock triggers — otherwise
+  // opening one just had it collapse again a moment later.
+  app.querySelectorAll('[data-details-section]').forEach((el) => {
+    el.addEventListener('toggle', () => {
+      if (el.dataset.detailsSection === 'playing-time') playingTimeOpen = el.open;
+      else if (el.dataset.detailsSection === 'match-events') matchEventsOpen = el.open;
+    });
+  });
 
   return undefined;
 }
@@ -482,40 +503,75 @@ function livePitchSlotHtml(slot, player) {
   `;
 }
 
-// Tapping a player straight off the pitch, rather than needing to
-// scroll down to the bench first — opens a small dropdown of who's
-// available to bring on and runs the substitution through the normal
-// flow (so min-stint and squad-rule warnings still apply).
-function openPitchSubModal(gameId, outId, byId, team, benchPlayers) {
+// Tapping a player straight off the pitch, rather than needing to scroll
+// down to the bench first — opens a dropdown offering two kinds of
+// options: bringing someone on from the bench (runs the normal sub flow,
+// so min-stint and squad-rule warnings still apply), or swapping pitch
+// positions with another on-field teammate (a tactical reshuffle — both
+// players stay on, nothing about playing time or the bench changes).
+function openPitchSubModal(gameId, outId, byId, team, benchPlayers, onFieldTeammates = []) {
   const outPlayer = byId[outId];
   if (!outPlayer) return;
-  if (!benchPlayers.length) {
-    alertDialog(`No bench players available to sub in for ${outPlayer.name}.`);
+  if (!benchPlayers.length && !onFieldTeammates.length) {
+    alertDialog(`No one else available to sub in or swap positions with for ${outPlayer.name}.`);
     return;
   }
   openModal({
-    title: `Substitute — ${escapeHtml(outPlayer.name)}`,
+    title: `${escapeHtml(outPlayer.name)}`,
     bodyHtml: `
       <form id="pitch-sub-form" class="stack">
         <div class="field">
-          <label>Bring on</label>
-          <select name="inId" required>
+          <label>Bring on, or swap positions with</label>
+          <select name="targetId" required>
             <option value="" disabled selected>Select player</option>
-            ${benchPlayers.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+            ${benchPlayers.length ? `
+              <optgroup label="Bring on from bench">
+                ${benchPlayers.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+              </optgroup>
+            ` : ''}
+            ${onFieldTeammates.length ? `
+              <optgroup label="Swap positions with (both stay on)">
+                ${onFieldTeammates.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+              </optgroup>
+            ` : ''}
           </select>
         </div>
-        <button type="submit" class="btn block">Substitute</button>
+        <button type="submit" class="btn block">Confirm</button>
       </form>
     `,
     onMount: (modalEl) => {
       modalEl.querySelector('#pitch-sub-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        const inId = new FormData(e.target).get('inId');
-        if (!inId) return;
+        const targetId = new FormData(e.target).get('targetId');
+        if (!targetId) return;
         closeModal();
-        applySub(gameId, inId, outId, byId, team);
+        if (onFieldTeammates.some((p) => p.id === targetId)) {
+          swapPitchPositions(gameId, outId, targetId, byId);
+        } else {
+          applySub(gameId, targetId, outId, byId, team);
+        }
       });
     },
+  });
+}
+
+// Exchanges two on-field players' formation slots — no one comes off,
+// nothing about playing time, stint, or the bench changes, just which
+// spot each one occupies. Logged as its own event type so the match
+// record shows a tactical reshuffle rather than looking like a sub that
+// somehow never happened.
+function swapPitchPositions(gameId, playerAId, playerBId, byId) {
+  const aName = byId[playerAId]?.name || '';
+  const bName = byId[playerBId]?.name || '';
+  update((state) => {
+    const g = state.games.find((x) => x.id === gameId);
+    if (!g.lineup?.slots) return;
+    const slotIdA = Object.keys(g.lineup.slots).find((sid) => g.lineup.slots[sid] === playerAId);
+    const slotIdB = Object.keys(g.lineup.slots).find((sid) => g.lineup.slots[sid] === playerBId);
+    if (!slotIdA || !slotIdB) return;
+    g.lineup.slots[slotIdA] = playerBId;
+    g.lineup.slots[slotIdB] = playerAId;
+    g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'position-swap', aId: playerAId, aName, bId: playerBId, bName });
   });
 }
 
@@ -917,6 +973,7 @@ function playingTimeRows(active, live, presentIds) {
 const EVENT_ICONS = {
   'goal-us': '⚽', 'goal-them': '🥅', save: '🧤', sub: '🔄', add: '⬆️',
   'send-off': '🟥', 'period-start': '⏱', 'gk-change': '🧤', recovered: '↩️',
+  'position-swap': '🔃',
 };
 
 function eventRowHtml(entry, numPeriods) {
@@ -954,6 +1011,9 @@ function eventRowHtml(entry, numPeriods) {
       break;
     case 'gk-change':
       label = `Goalkeeper: ${escapeHtml(entry.inName)} on${entry.outName ? `, ${escapeHtml(entry.outName)} off` : ''} (${periodLabel(numPeriods, entry.period)})`;
+      break;
+    case 'position-swap':
+      label = `Swapped positions: ${escapeHtml(entry.aName)} ↔ ${escapeHtml(entry.bName)}`;
       break;
     default:
       label = entry.type;
