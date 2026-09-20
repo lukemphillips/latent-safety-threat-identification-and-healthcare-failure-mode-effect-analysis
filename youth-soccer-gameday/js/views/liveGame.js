@@ -51,7 +51,15 @@ export function renderLiveGame(app, gameId) {
   const presentIds = new Set(game.presentIds || []);
   const sentOffIds = new Set(live.sentOff || []);
   const currentGkId = live.gkByPeriod[live.currentPeriod] || null;
-  const onFieldOutfield = live.onField.map((id) => byId[id]).filter(Boolean);
+  // Defensive display-level cleanup: de-dupe live.onField and drop the
+  // current goalkeeper from it if either ever ended up there (e.g. from a
+  // stale Substitution Plan entry queued up before the eligibility guards
+  // below existed) — keeps an already-affected match from continuing to
+  // show the same player twice even before the coach takes any action.
+  const onFieldOutfield = [...new Set(live.onField)]
+    .filter((id) => id !== currentGkId)
+    .map((id) => byId[id])
+    .filter(Boolean);
   const currentGk = currentGkId ? byId[currentGkId] : null;
   const bench = active.filter((p) => presentIds.has(p.id) && !sentOffIds.has(p.id)
     && !live.onField.includes(p.id) && p.id !== currentGkId);
@@ -343,6 +351,13 @@ export function renderLiveGame(app, gameId) {
     if (addBtn) {
       addBtn.addEventListener('click', () => {
         const inId = selectingInboundId;
+        const ineligible = ineligibleToBringOnReason(game, inId);
+        if (ineligible) {
+          selectingInboundId = null;
+          alertDialog(ineligible);
+          renderLiveGame(app, gameId);
+          return;
+        }
         const inPlayer = byId[inId];
         const inName = inPlayer?.name || '';
         update((state) => {
@@ -543,6 +558,12 @@ function openPitchFillModal(gameId, slotId, byId, benchPlayers) {
 // (min-stint check, squad-rule check, freeing an outgoing slot) applies,
 // just the same "add" logging the existing "⬆ Add to Pitch" button uses.
 function addPlayerToSlot(gameId, inId, slotId, byId) {
+  const game = findGame(gameId);
+  const ineligible = ineligibleToBringOnReason(game, inId);
+  if (ineligible) {
+    alertDialog(ineligible);
+    return;
+  }
   const inName = byId[inId]?.name || '';
   update((state) => {
     const g = state.games.find((x) => x.id === gameId);
@@ -573,8 +594,34 @@ function stintSeconds(live, playerId) {
   return Math.max(0, live.elapsedSeconds - startedAt);
 }
 
+// Guards every path that puts a player onto live.onField against doing so
+// twice — most notably a Substitution Plan entry (or, less often, a
+// fair-play "Use Suggestion" button) that's gone stale by the time it's
+// actually acted on: the "coming on" player may since have been made
+// goalkeeper, already brought on some other way, or sent off. Returns a
+// human-readable reason if they're not eligible right now, or null if
+// they're clear to come on.
+function ineligibleToBringOnReason(game, playerId) {
+  const name = (getState().players.find((p) => p.id === playerId) || {}).name || 'This player';
+  if (game.live.gkByPeriod[game.live.currentPeriod] === playerId) {
+    return `${name} is currently the goalkeeper and can't also be brought on as an outfield player — change the goalkeeper first if they should move to outfield.`;
+  }
+  if (game.live.onField.includes(playerId)) {
+    return `${name} is already on the field.`;
+  }
+  if ((game.live.sentOff || []).includes(playerId)) {
+    return `${name} has been sent off and can't be brought back on.`;
+  }
+  return null;
+}
+
 async function applySub(gameId, inId, outId, byId, team) {
   const game = findGame(gameId);
+  const ineligible = ineligibleToBringOnReason(game, inId);
+  if (ineligible) {
+    alertDialog(ineligible);
+    return;
+  }
   const minStintSeconds = (team.minStintMinutes ?? 4) * 60;
   const outStint = stintSeconds(game.live, outId);
   if (minStintSeconds > 0 && outStint < minStintSeconds) {

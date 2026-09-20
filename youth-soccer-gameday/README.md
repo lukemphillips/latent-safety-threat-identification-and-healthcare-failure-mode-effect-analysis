@@ -458,11 +458,18 @@ see everything working immediately. Reset or clear that data any time from
     apply) and then drops that entry from the plan — but only once the
     swap has actually happened; declining a warning leaves the entry in
     place to try again. It's advisory only, exactly like everything else
-    here — nothing in the plan ever subs a player on its own. Each bench
-    player's own card also shows a "🕐 due" line — a static planned
-    minute pre-match, or a live countdown — for whichever plan entry has
-    them coming on next, so "how long until they're on" is visible at a
-    glance without opening the plan itself.
+    here — nothing in the plan ever subs a player on its own. Every path
+    that brings a player onto the field (this one, the fair-play "Use
+    Suggestion" button, tapping a pitch spot, and "⬆ Add to Pitch")
+    shares one eligibility check first: if the incoming player is already
+    on the field, is the current goalkeeper, or has been sent off, nothing
+    happens except an explanatory alert — so a plan entry that's gone
+    stale (e.g. the planned "coming on" player has since been made
+    goalkeeper) can never put the same player on the field twice at once.
+    Each bench player's own card also shows a "🕐 due" line — a static
+    planned minute pre-match, or a live countdown — for whichever plan
+    entry has them coming on next, so "how long until they're on" is
+    visible at a glance without opening the plan itself.
 - **Cards** — an opt-in Settings toggle (aimed at older age groups) that adds
   yellow/red card logging alongside send-offs; card counts show up in Stats.
 - **Stats** — a sortable leaderboard (appearances, minutes, goals, assists,
