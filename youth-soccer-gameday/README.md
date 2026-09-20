@@ -345,7 +345,13 @@ see everything working immediately. Reset or clear that data any time from
     happen). Tap any on-field player on the pitch to open a small
     "Substitute" dropdown of bench players — pick one and the swap runs
     through the normal sub flow (min-stint and squad-rule warnings still
-    apply) — no need to scroll down to the bench section first. The
+    apply) — no need to scroll down to the bench section first. An **empty
+    spot** works the same way: tap it to open a "Bring On" dropdown and
+    place a bench player straight into that exact position, no separate
+    outgoing player needed. Tapping the empty goalkeeper spot opens the
+    dedicated Assign Goalkeeper dialog instead of a plain add, since that's
+    the only place a keeper's stint tracking and gk-change logging are set
+    up correctly. The
     **Formation** dropdown also works mid-match: switching shapes remaps
     everyone's position onto the new layout without touching who's
     actually on the field, and any on-field player whose old slot id

@@ -388,6 +388,20 @@ export function renderLiveGame(app, gameId) {
         openPitchSubModal(gameId, chip.dataset.openSub, byId, team, bench);
       });
     });
+
+    app.querySelectorAll('[data-live-pitch-slot] [data-open-fill]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        if (chip.dataset.fillRole === 'GK') {
+          // The empty GK spot goes through the same Assign flow as the
+          // goalkeeper card's button — that's the only place a keeper is
+          // properly set (stint tracking, gk-change logging), so a plain
+          // pitch-fill would skip all of it.
+          openGkModal(gameId, active, presentIds, sentOffIds, live.currentPeriod, false);
+        } else {
+          openPitchFillModal(gameId, chip.dataset.openFill, byId, bench);
+        }
+      });
+    });
   }
 
   return undefined;
@@ -422,13 +436,21 @@ function remapLiveFormation(oldSlots, onFieldIds, gkId, newFormation) {
 
 function livePitchSlotHtml(slot, player) {
   const initials = player ? (player.jerseyNumber ?? player.name.slice(0, 2).toUpperCase()) : (slot.role === 'GK' ? '🧤' : '+');
-  // The GK spot isn't tappable here — goalkeeper changes go through the
-  // dedicated Change/Assign button above, which also handles the
-  // stint-warning and gk-change logging a plain sub would skip.
+  // The GK spot isn't tappable for a swap here — goalkeeper changes go
+  // through the dedicated Change/Assign flow (also triggered below when
+  // the GK slot is empty), which handles the stint-warning and gk-change
+  // logging a plain sub would skip.
   const subbable = player && slot.role !== 'GK';
+  // An empty spot — GK or outfield — is just as tappable as a filled one:
+  // pick who's coming on straight into that exact position, the same way
+  // tapping an occupied spot opens a substitute picker.
+  const fillable = !player;
   return `
     <div class="pitch-slot ${player ? '' : 'empty'}" data-live-pitch-slot="${slot.id}" style="left:${slot.x}%; top:${slot.y}%;">
-      <div class="chip ${subbable ? 'subbable' : ''}" ${subbable ? `data-open-sub="${player.id}"` : ''}>${initials}</div>
+      <div class="chip ${subbable ? 'subbable' : ''} ${fillable ? 'fillable' : ''}"
+        ${subbable ? `data-open-sub="${player.id}"` : ''}
+        ${fillable ? `data-open-fill="${slot.id}" data-fill-role="${slot.role}"` : ''}
+      >${initials}</div>
       <div class="slot-label">${player ? escapeHtml(player.name.split(' ')[0]) : slot.role}</div>
     </div>
   `;
@@ -468,6 +490,56 @@ function openPitchSubModal(gameId, outId, byId, team, benchPlayers) {
         applySub(gameId, inId, outId, byId, team);
       });
     },
+  });
+}
+
+// Tapping an EMPTY pitch spot — no swap needed, just pick who's coming
+// on straight into that exact position. Same picker pattern as tapping a
+// filled spot (openPitchSubModal above), just adding rather than swapping.
+function openPitchFillModal(gameId, slotId, byId, benchPlayers) {
+  if (!benchPlayers.length) {
+    alertDialog('No bench players available to bring on here.');
+    return;
+  }
+  openModal({
+    title: 'Bring On',
+    bodyHtml: `
+      <form id="pitch-fill-form" class="stack">
+        <div class="field">
+          <label>Bring on</label>
+          <select name="inId" required>
+            <option value="" disabled selected>Select player</option>
+            ${benchPlayers.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button type="submit" class="btn block">Bring On</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#pitch-fill-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const inId = new FormData(e.target).get('inId');
+        if (!inId) return;
+        closeModal();
+        addPlayerToSlot(gameId, inId, slotId, byId);
+      });
+    },
+  });
+}
+
+// Puts a bench player straight onto the field in the exact slot that was
+// tapped — no outgoing player, so none of applySub's swap bookkeeping
+// (min-stint check, squad-rule check, freeing an outgoing slot) applies,
+// just the same "add" logging the existing "⬆ Add to Pitch" button uses.
+function addPlayerToSlot(gameId, inId, slotId, byId) {
+  const inName = byId[inId]?.name || '';
+  update((state) => {
+    const g = state.games.find((x) => x.id === gameId);
+    g.live.onField.push(inId);
+    g.live.stintStart = g.live.stintStart || {};
+    g.live.stintStart[inId] = g.live.elapsedSeconds;
+    g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'add', inId, inName });
+    if (g.lineup?.slots) g.lineup.slots[slotId] = inId;
   });
 }
 
