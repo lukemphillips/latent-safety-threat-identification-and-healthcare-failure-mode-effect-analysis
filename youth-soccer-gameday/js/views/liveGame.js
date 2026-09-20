@@ -95,6 +95,7 @@ export function renderLiveGame(app, gameId) {
         </div>
         <div class="timer-actions">
           <button class="btn ghost sm" data-action="log-save">🧤 GK Save</button>
+          <button class="btn ghost sm" data-action="open-card-picker">${team.enableCards ? '🟨 Card' : '🚑 Remove'}</button>
           ${live.currentPeriod < numPeriods
             ? `<button class="btn secondary sm" data-action="next-period">Next: ${periodLabel(numPeriods, live.currentPeriod + 1)}</button>`
             : ''}
@@ -205,6 +206,7 @@ export function renderLiveGame(app, gameId) {
       });
     });
     app.querySelector('[data-action="log-save"]').addEventListener('click', () => openSaveModal(gameId, onPitchPool, currentGkId, live.elapsedSeconds));
+    app.querySelector('[data-action="open-card-picker"]').addEventListener('click', () => openQuickCardModal(gameId, onPitchPool, team));
 
     const gkChangeBtn = app.querySelector('[data-action="change-gk"]');
     if (gkChangeBtn) gkChangeBtn.addEventListener('click', () => openGkModal(gameId, active, presentIds, sentOffIds, live.currentPeriod, false));
@@ -1013,20 +1015,8 @@ function openSaveModal(gameId, pool, currentGkId, elapsedSeconds) {
   });
 }
 
-// Covers both "Card / Remove" (cards enabled — yellow/red/injury/other,
-// all four unambiguous about whether the player stays on or is done for
-// the match) and "Remove from Match" (cards disabled — just injury/other,
-// no card bookkeeping). Either way, anything other than a first yellow
-// takes the player out of play the same way: off the pitch, cleared from
-// any goalkeeper slot, and dropped into sentOff so they can never be
-// picked again as a sub for the rest of this match.
-function openRemovalModal(gameId, player, enableCards) {
-  if (!player) return;
-  const game = findGame(gameId);
-  const priorYellows = (game.live.subLog || []).filter(
-    (e) => e.type === 'card' && e.cardType === 'yellow' && e.playerId === player.id
-  ).length;
-  const options = enableCards
+function removalKindOptions(enableCards) {
+  return enableCards
     ? [
         { value: 'yellow', label: '🟨 Yellow card (stays on)' },
         { value: 'red', label: '🟥 Red card (sent off)' },
@@ -1037,6 +1027,55 @@ function openRemovalModal(gameId, player, enableCards) {
         { value: 'injury', label: '🚑 Injury (sent off)' },
         { value: 'other', label: 'Other reason (sent off)' },
       ];
+}
+
+// Logs the actual card/removal outcome and, on a second yellow, applies the
+// automatic send-off — shared by the per-player "⋯" removal modal and the
+// quick "Card" picker (openQuickCardModal) so both enforce the exact same
+// rule: anything other than a first yellow takes the player out of play,
+// off the pitch, cleared from any goalkeeper slot, and dropped into
+// sentOff so they can never be picked again as a sub for the rest of this
+// match. A second yellow is a send-off by the laws of the game, not a
+// coach's call, so it's applied automatically rather than making them
+// separately notice and pick Red/Other themselves.
+function applyCardOutcome(gameId, player, kind) {
+  const game = findGame(gameId);
+  const priorYellows = (game.live.subLog || []).filter(
+    (e) => e.type === 'card' && e.cardType === 'yellow' && e.playerId === player.id
+  ).length;
+  let secondYellow = false;
+  update((state) => {
+    const g = state.games.find((x) => x.id === gameId);
+    if (kind === 'yellow') {
+      g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'card', cardType: 'yellow', playerId: player.id, name: player.name });
+      if (priorYellows >= 1) {
+        secondYellow = true;
+        removePlayerFromPlay(state, gameId, player.id);
+        g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'send-off', playerId: player.id, name: player.name, reason: 'second yellow' });
+      }
+      return;
+    }
+    removePlayerFromPlay(state, gameId, player.id);
+    if (kind === 'red') {
+      g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'card', cardType: 'red', playerId: player.id, name: player.name });
+    } else {
+      g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'send-off', playerId: player.id, name: player.name, reason: kind === 'injury' ? 'injury' : 'other' });
+    }
+  });
+  if (secondYellow) alertDialog(`${player.name} picked up a second yellow card — automatically sent off and excluded from further substitutions.`);
+}
+
+// Covers both "Card / Remove" (cards enabled — yellow/red/injury/other,
+// all four unambiguous about whether the player stays on or is done for
+// the match) and "Remove from Match" (cards disabled — just injury/other,
+// no card bookkeeping).
+function openRemovalModal(gameId, player, enableCards) {
+  if (!player) return;
+  const game = findGame(gameId);
+  const priorYellows = (game.live.subLog || []).filter(
+    (e) => e.type === 'card' && e.cardType === 'yellow' && e.playerId === player.id
+  ).length;
+  const options = removalKindOptions(enableCards);
 
   openModal({
     title: `${enableCards ? 'Card / Remove' : 'Remove from Match'} — ${escapeHtml(player.name)}`,
@@ -1045,7 +1084,7 @@ function openRemovalModal(gameId, player, enableCards) {
         <div class="field">
           <label>What happened?</label>
           <select name="kind">
-            ${options.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('')}
+            ${options.map((o, i) => `<option value="${o.value}" ${i === 0 ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
           </select>
         </div>
         ${enableCards && priorYellows >= 1 ? `<p class="muted small" style="margin:0;">Already has a yellow card this match — picking Yellow again will automatically send them off.</p>` : ''}
@@ -1056,30 +1095,58 @@ function openRemovalModal(gameId, player, enableCards) {
       modalEl.querySelector('#card-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const kind = new FormData(e.target).get('kind');
-        let secondYellow = false;
-        update((state) => {
-          const g = state.games.find((x) => x.id === gameId);
-          if (kind === 'yellow') {
-            g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'card', cardType: 'yellow', playerId: player.id, name: player.name });
-            if (priorYellows >= 1) {
-              // A second yellow is a send-off by the laws of the game, not
-              // a coach's call — apply it automatically rather than making
-              // them separately notice and pick Red/Other themselves.
-              secondYellow = true;
-              removePlayerFromPlay(state, gameId, player.id);
-              g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'send-off', playerId: player.id, name: player.name, reason: 'second yellow' });
-            }
-            return;
-          }
-          removePlayerFromPlay(state, gameId, player.id);
-          if (kind === 'red') {
-            g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'card', cardType: 'red', playerId: player.id, name: player.name });
-          } else {
-            g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'send-off', playerId: player.id, name: player.name, reason: kind === 'injury' ? 'injury' : 'other' });
-          }
-        });
         closeModal();
-        if (secondYellow) alertDialog(`${player.name} picked up a second yellow card — automatically sent off and excluded from further substitutions.`);
+        applyCardOutcome(gameId, player, kind);
+      });
+    },
+  });
+}
+
+// Quick way to log a card/removal without hunting for the player's own
+// "⋯" icon on their card — a single form with a player picker (same
+// simple <select> pattern as the Goalkeeper and GK Save modals) plus the
+// same "What happened?" choice, defaulting to Yellow. Only on-field
+// outfield players and the current goalkeeper are eligible, same pool as
+// the Log Goal / GK Save modals — a card only applies to someone actually
+// playing right now.
+function openQuickCardModal(gameId, pool, team) {
+  if (!pool.length) {
+    alertDialog('No one is on the pitch yet to card or remove.');
+    return;
+  }
+  const enableCards = team.enableCards;
+  const options = removalKindOptions(enableCards);
+
+  openModal({
+    title: enableCards ? 'Card / Remove' : 'Remove from Match',
+    bodyHtml: `
+      <form id="quick-card-form" class="stack">
+        <div class="field">
+          <label>Player</label>
+          <select name="playerId" required>
+            <option value="" disabled selected>Select player</option>
+            ${pool.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>What happened?</label>
+          <select name="kind">
+            ${options.map((o, i) => `<option value="${o.value}" ${i === 0 ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+          </select>
+        </div>
+        <button type="submit" class="btn block">${enableCards ? 'Log' : 'Remove'}</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#quick-card-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const playerId = fd.get('playerId');
+        if (!playerId) return;
+        const player = pool.find((p) => p.id === playerId);
+        if (!player) return;
+        closeModal();
+        applyCardOutcome(gameId, player, fd.get('kind'));
       });
     },
   });

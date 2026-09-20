@@ -381,7 +381,13 @@ see everything working immediately. Reset or clear that data any time from
     Both yellows still count individually toward that player's card
     totals in Stats (a second-yellow send-off is not also counted as a
     red — the FAI/DDSL send-off outcome is the same either way, but it's
-    recorded distinctly from a straight red in the log).
+    recorded distinctly from a straight red in the log). A **🟨 Card** /
+    🚑 Remove button next to 🧤 GK Save offers a quicker path to the same
+    dialog: a player dropdown (same simple `<select>` pattern as the
+    Goalkeeper and Log Goal modals, listing on-field outfield players plus
+    the current keeper) followed by the same "What happened?" choice,
+    defaulting to Yellow — for when it's faster to pick a name from a list
+    than to find that specific player's own "⋯" icon on a busy screen.
   - **Recover** — every name in the "Sent Off" list gets a "↩️ Recover"
     button, for the two situations a send-off isn't actually final: an
     injury that turns out fine, or a card logged against the wrong
