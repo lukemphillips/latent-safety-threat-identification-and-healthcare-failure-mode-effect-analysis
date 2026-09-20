@@ -114,15 +114,10 @@ export function renderLiveGame(app, gameId) {
       ? `<div class="banner warn spread"><span>⏱ Time's up for ${periodLabel(numPeriods, live.currentPeriod)}.</span><button class="btn sm" data-action="next-period">Start ${periodLabel(numPeriods, live.currentPeriod + 1)}</button></div>`
       : ''}
 
-    ${goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted)}
-
     ${isCompleted ? matchSummaryHtml(live) : ''}
 
     ${!isCompleted ? fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) : ''}
     ${!isCompleted ? upcomingSubsHtml(team, live, bench, onFieldOutfield) : ''}
-    ${!isCompleted && (onFieldOutfield.length || bench.length)
-      ? subPlanSectionHtml(game.subPlan || [], byId, { elapsedMinutes: live.elapsedSeconds / 60, showExecute: true })
-      : ''}
 
     ${!isCompleted && selectingInboundId ? `
       <div class="banner info spread">
@@ -148,6 +143,7 @@ export function renderLiveGame(app, gameId) {
     ` : ''}
 
     <div class="section-title">On Field (${onFieldOutfield.length}${isCompleted ? '' : ` / ${targetOutfield} target`})</div>
+    ${goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted)}
     <div class="onfield-grid">
       ${onFieldOutfield.length ? onFieldOutfield.map((p) => fieldCardHtml(p, live, isCompleted, true, team, slotLabelById[slotByPlayerId[p.id]])).join('') : '<span class="muted small">No one is on the field.</span>'}
     </div>
@@ -157,6 +153,9 @@ export function renderLiveGame(app, gameId) {
       <div class="onfield-grid">
         ${bench.length ? bench.map((p) => benchCardHtml(p, live, game.subPlan || [])).join('') : '<span class="muted small">No one available on the bench.</span>'}
       </div>
+      ${(onFieldOutfield.length || bench.length)
+        ? subPlanSectionHtml(game.subPlan || [], byId, { elapsedMinutes: live.elapsedSeconds / 60, showExecute: true })
+        : ''}
     ` : ''}
 
     ${sentOffPlayers.length ? `
