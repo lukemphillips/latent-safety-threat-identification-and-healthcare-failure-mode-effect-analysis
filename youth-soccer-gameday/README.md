@@ -368,7 +368,8 @@ see everything working immediately. Reset or clear that data any time from
     always override it.
   - Goals logged with scorer + optional assist; opponent goals logged with
     one tap.
-  - GK saves logged per player (or "open play"), with an editable minute.
+  - GK saves logged with a single tap — recorded immediately for whoever
+    is currently in goal, at the live clock's current time, no dialog.
   - Removing a player from the match — every on-field player (and the
     goalkeeper) has the same small, deliberately understated "⋯" icon
     (not a full-width red button, so it can't easily be caught by

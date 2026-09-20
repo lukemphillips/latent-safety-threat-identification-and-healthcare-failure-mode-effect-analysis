@@ -222,7 +222,20 @@ export function renderLiveGame(app, gameId) {
         g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'goal-them' });
       });
     });
-    app.querySelector('[data-action="log-save"]').addEventListener('click', () => openSaveModal(gameId, onPitchPool, currentGkId, live.elapsedSeconds));
+    app.querySelector('[data-action="log-save"]').addEventListener('click', () => {
+      // A single tap just records the save right now, credited to whoever
+      // is currently in goal — no dialog to fill in first, matching the
+      // "+1" one-tap pattern already used for the opponent's goal button.
+      update((state) => {
+        const g = state.games.find((x) => x.id === gameId);
+        const gkId = g.live.gkByPeriod[g.live.currentPeriod] || null;
+        const gk = gkId ? active.find((p) => p.id === gkId) : null;
+        g.live.subLog.push({
+          atSeconds: g.live.elapsedSeconds, type: 'save',
+          playerId: gkId, name: gk?.name || '',
+        });
+      });
+    });
     app.querySelector('[data-action="open-card-picker"]').addEventListener('click', () => openQuickCardModal(gameId, onPitchPool, team));
 
     const gkChangeBtn = app.querySelector('[data-action="change-gk"]');
@@ -1083,45 +1096,6 @@ function openGoalModal(gameId, pool) {
   });
 }
 
-function openSaveModal(gameId, pool, currentGkId, elapsedSeconds) {
-  openModal({
-    title: 'GK Save',
-    bodyHtml: `
-      <form id="save-form" class="stack">
-        <div class="field">
-          <label>Who made the save?</label>
-          <select name="player">
-            <option value="">Open play (no specific player)</option>
-            ${pool.map((p) => `<option value="${p.id}" ${p.id === currentGkId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field">
-          <label>Minute (optional — blank uses the clock)</label>
-          <input type="number" name="minute" min="0" placeholder="${Math.floor(elapsedSeconds / 60)}" />
-        </div>
-        <button type="submit" class="btn block">Log Save</button>
-      </form>
-    `,
-    onMount: (modalEl) => {
-      modalEl.querySelector('#save-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const playerId = fd.get('player') || null;
-        const player = playerId ? pool.find((p) => p.id === playerId) : null;
-        const minuteOverride = fd.get('minute') ? Number(fd.get('minute')) * 60 : null;
-        update((state) => {
-          const g = state.games.find((x) => x.id === gameId);
-          g.live.subLog.push({
-            atSeconds: minuteOverride ?? g.live.elapsedSeconds, type: 'save',
-            playerId, name: player?.name || '',
-          });
-        });
-        closeModal();
-      });
-    },
-  });
-}
-
 function removalKindOptions(enableCards) {
   return enableCards
     ? [
@@ -1211,11 +1185,11 @@ function openRemovalModal(gameId, player, enableCards) {
 
 // Quick way to log a card/removal without hunting for the player's own
 // "⋯" icon on their card — a single form with a player picker (same
-// simple <select> pattern as the Goalkeeper and GK Save modals) plus the
-// same "What happened?" choice, defaulting to Yellow. Only on-field
-// outfield players and the current goalkeeper are eligible, same pool as
-// the Log Goal / GK Save modals — a card only applies to someone actually
-// playing right now.
+// simple <select> pattern as the Goalkeeper modal) plus the same
+// "What happened?" choice, defaulting to Yellow. Only on-field outfield
+// players and the current goalkeeper are eligible, same pool as the
+// Log Goal modal — a card only applies to someone actually playing right
+// now.
 function openQuickCardModal(gameId, pool, team) {
   if (!pool.length) {
     alertDialog('No one is on the pitch yet to card or remove.');
