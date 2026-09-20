@@ -337,6 +337,14 @@ see everything working immediately. Reset or clear that data any time from
   - A match clock that keeps running in real time no matter what screen
     you're on — step away to the Squad tab, Roster, wherever, and it's
     still accurate when you come back.
+  - The big clock display always shows time elapsed in the **current
+    half/period only**, resetting to 0:00 the moment a new period starts
+    — so the 2nd half's clock can't look like it's carrying on from
+    wherever you paused it in the 1st. A smaller "Total" reading next to
+    it still tracks the whole match (what a completed game's "Full time"
+    shows), and the "Time's up" banner is keyed off the current period's
+    own elapsed time too, so a period that started early or late still
+    gets its full scheduled length before the banner fires.
   - Rolling substitutions: unlimited subs, paired ("who's on, then who's
     off") with an "add to pitch" option when there's a spare spot.
   - **Live pitch + tap-to-substitute (or swap)** — the same visual pitch

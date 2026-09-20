@@ -47,6 +47,19 @@ export function renderLiveGame(app, gameId) {
   // instead of reading team.numPeriods/periodMinutes directly.
   const numPeriods = gameNumPeriods(game, team);
   const periodMinutes = gamePeriodMinutes(game, team);
+  // live.elapsedSeconds is the whole match's running total (used everywhere
+  // else — stints, the sub plan's minute markers, the event log) and never
+  // resets between periods. For the big on-screen clock, though, a coach
+  // wants to know how far into THIS half they are, not the cumulative
+  // total — showing the total made the 2nd half look like it "continued
+  // from" the 1st half's time instead of starting fresh. periodStartElapsed
+  // records the cumulative total at the moment each period began; older
+  // saved games that predate this field fall back to assuming every prior
+  // period ran its full scheduled length.
+  const periodStartElapsed = (live.periodStartElapsed && live.periodStartElapsed[live.currentPeriod] != null)
+    ? live.periodStartElapsed[live.currentPeriod]
+    : periodMinutes * 60 * (live.currentPeriod - 1);
+  const periodElapsedSeconds = Math.max(0, live.elapsedSeconds - periodStartElapsed);
   const nextMatch = games.find((g) => g.date === game.date && g.id !== game.id && g.status === 'scheduled');
   // A sibling that exists but isn't "scheduled" (already live, or already
   // finished) still means a match day opponent WAS added — worth saying so
@@ -89,8 +102,8 @@ export function renderLiveGame(app, gameId) {
     ${!isCompleted ? `<a class="btn ghost sm" href="#/game/${game.id}/lineup" style="margin-bottom:12px; display:inline-flex;">👤 Squad tab — add a late arrival</a>` : ''}
 
     <div class="card timer-card">
-      <div class="timer-display">${formatClock(live.elapsedSeconds)}</div>
-      <div class="muted small">${isCompleted ? 'Full time' : periodLabel(numPeriods, live.currentPeriod) + ` · ${periodMinutes} min`}</div>
+      <div class="timer-display">${formatClock(isCompleted ? live.elapsedSeconds : periodElapsedSeconds)}</div>
+      <div class="muted small">${isCompleted ? 'Full time' : `${periodLabel(numPeriods, live.currentPeriod)} · ${periodMinutes} min · Total ${formatClock(live.elapsedSeconds)}`}</div>
 
       <div class="score-board">
         <div class="score-team">
@@ -128,7 +141,7 @@ export function renderLiveGame(app, gameId) {
       `}
     </div>
 
-    ${!isCompleted && live.elapsedSeconds >= periodMinutes * 60 * live.currentPeriod && live.currentPeriod < numPeriods
+    ${!isCompleted && periodElapsedSeconds >= periodMinutes * 60 && live.currentPeriod < numPeriods
       ? `<div class="banner warn spread"><span>⏱ Time's up for ${periodLabel(numPeriods, live.currentPeriod)}.</span><button class="btn sm" data-action="next-period">Start ${periodLabel(numPeriods, live.currentPeriod + 1)}</button></div>`
       : ''}
 
@@ -1344,6 +1357,8 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
 
           if (advancePeriod) {
             g.live.currentPeriod = targetPeriod;
+            g.live.periodStartElapsed = g.live.periodStartElapsed || {};
+            g.live.periodStartElapsed[targetPeriod] = g.live.elapsedSeconds;
             g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'period-start', period: targetPeriod });
           }
           if (newGkId !== prevGkId) {

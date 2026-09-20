@@ -644,6 +644,12 @@ async function startGame(game) {
       running: false,
       currentPeriod: 1,
       elapsedSeconds: 0,
+      // When each period's clock actually started, in cumulative match
+      // seconds — lets the live view show time elapsed IN THE CURRENT
+      // PERIOD (e.g. "6:12" into the 2nd half) instead of the confusing
+      // running match total, without changing what elapsedSeconds itself
+      // means everywhere else (stints, sub plan minutes, the event log).
+      periodStartElapsed: { 1: 0 },
       scoreUs: 0,
       scoreThem: 0,
       onField: outfieldIds,
