@@ -1378,6 +1378,11 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
             g.live.currentPeriod = targetPeriod;
             g.live.periodStartElapsed = g.live.periodStartElapsed || {};
             g.live.periodStartElapsed[targetPeriod] = g.live.elapsedSeconds;
+            // The dialog above promises this ("Starting a new period
+            // pauses the clock") — a new period never starts already
+            // ticking, even if the clock was still running when this one
+            // ended, so a fresh "▶ Start Clock" tap is always required.
+            g.live.running = false;
             g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'period-start', period: targetPeriod });
           }
           if (newGkId !== prevGkId) {

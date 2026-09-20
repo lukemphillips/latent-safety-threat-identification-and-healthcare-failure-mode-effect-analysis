@@ -344,7 +344,11 @@ see everything working immediately. Reset or clear that data any time from
     it still tracks the whole match (what a completed game's "Full time"
     shows), and the "Time's up" banner is keyed off the current period's
     own elapsed time too, so a period that started early or late still
-    gets its full scheduled length before the banner fires.
+    gets its full scheduled length before the banner fires. Starting a
+    new period also always pauses the clock — even if it was still
+    running when the previous period ended — so the 2nd half never
+    starts ticking on its own; "▶ Start Clock" always needs a fresh tap
+    once play actually kicks back off.
   - Rolling substitutions: unlimited subs, paired ("who's on, then who's
     off") with an "add to pitch" option when there's a spare spot.
   - **Live pitch + tap-to-substitute (or swap)** — the same visual pitch
