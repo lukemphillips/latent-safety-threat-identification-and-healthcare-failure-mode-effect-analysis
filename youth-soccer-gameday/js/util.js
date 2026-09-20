@@ -190,7 +190,7 @@ export function formatPositions(p) {
 // The roster of players eligible for real fixtures — active players minus
 // any guests. Guests (visiting from another team for a joint training
 // session) are meant to show up in Training's Attendance, Groups, and
-// small-sided Matches tabs, but never in Schedule/RSVP, a game's Squad or
+// small-sided Matches tabs, but never in Matchday/RSVP, a game's Squad or
 // Lineup, Live Game, the squad-rule editor, Balance Teams, or Stats, since
 // they're never actually part of this team's real matches. Everywhere
 // training-related keeps using a plain `p.active` filter instead.

@@ -571,7 +571,7 @@ function matchDayCarryover(games, game) {
 }
 
 // Shared by the quick delete icon (scheduled games only) and the Delete
-// button inside Edit Game (any status). Navigates back to Schedule and
+// button inside Edit Game (any status). Navigates back to Matchday and
 // returns whether the delete went ahead, so callers can decide what else
 // to do (e.g. also close a modal) only on success.
 async function deleteGame(game) {

@@ -10,7 +10,7 @@ export function renderSchedule(app) {
 
   app.innerHTML = `
     <div class="page-title">
-      <h1>Schedule</h1>
+      <h1>Matchday</h1>
       <button class="btn" data-action="add-game">+ Add Game</button>
     </div>
 

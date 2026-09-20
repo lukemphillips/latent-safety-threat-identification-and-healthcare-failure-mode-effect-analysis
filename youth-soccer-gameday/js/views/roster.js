@@ -113,7 +113,7 @@ function openPlayerForm(playerId) {
           <label>Visiting from (optional)</label>
           <input type="text" name="guestTeamName" value="${escapeHtml(p.guestTeamName || '')}" placeholder="e.g. Riverside Rovers" />
         </div>
-        <div class="muted small" style="margin-top:-8px;">Guests show up for Training attendance, groups, and small-sided matches, but never in Schedule, RSVP, a game's Squad/Lineup, Live Game, squad rules, Balance Teams, or Stats — they're not part of this team's actual fixtures.</div>
+        <div class="muted small" style="margin-top:-8px;">Guests show up for Training attendance, groups, and small-sided matches, but never in Matchday, RSVP, a game's Squad/Lineup, Live Game, squad rules, Balance Teams, or Stats — they're not part of this team's actual fixtures.</div>
         <div class="modal-actions">
           <button type="submit" class="btn block">Save</button>
           ${existing ? '<button type="button" class="btn danger" data-action="delete-player">Delete</button>' : ''}

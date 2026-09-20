@@ -29,7 +29,7 @@ see everything working immediately. Reset or clear that data any time from
 ## Features
 
 - **Home** — the next game (with an RSVP summary) and the last result up
-  top, then a Quick Links grid to every other section — Roster, Schedule,
+  top, then a Quick Links grid to every other section — Roster, Matchday,
   Training, Stats, Settings, and Help & How-To.
 - **Roster** — players with jersey number, one or more preferred positions
   (a versatile player can be both DEF and MID, say), guardian contact, a
@@ -50,7 +50,7 @@ see everything working immediately. Reset or clear that data any time from
   combining with another team for a joint training session. A guest shows
   up for Training's Attendance, Groups, and small-sided Matches tabs (so
   numbers work out for drills and scrimmages), but is excluded everywhere
-  match-related: Schedule/RSVP, a game's Squad and Lineup, Live Game, the
+  match-related: Matchday/RSVP, a game's Squad and Lineup, Live Game, the
   squad-rule editor, Balance Teams, and Stats — since they're not actually
   part of your team for real fixtures. The Roster header splits out the
   guest count separately from "active players" for that reason. The
@@ -86,7 +86,7 @@ see everything working immediately. Reset or clear that data any time from
   a shuffled split could vanish if you navigated away before doing anything
   with it — now the split itself is safe to leave and come back to, and
   once you send a team to a match, that choice is saved for good.
-- **Schedule** — League / Friendly / Tournament fixtures (tournament games
+- **Matchday** — League / Friendly / Tournament fixtures (tournament games
   carry a tournament name + stage, e.g. "Summer Cup · Final"), each with its
   own match length: "+ Add Game" pre-fills minutes-per-period and number of
   periods from your team's defaults (set in Settings), but either can be
@@ -120,7 +120,7 @@ see everything working immediately. Reset or clear that data any time from
   match. Once a game is live or completed, deleting it moves to Edit
   Game's Delete button instead, so match history and stats aren't one
   accidental tap away.
-- **Training** — a separate section from Schedule for practices rather than
+- **Training** — a separate section from Matchday for practices rather than
   matches. "+ Add Training" creates a session with a date, time, and
   location; each session has four tabs:
   - **Attendance** — tap players to mark who's actually shown up, same
