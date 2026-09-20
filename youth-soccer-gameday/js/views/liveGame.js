@@ -1,6 +1,5 @@
 import { getState, update, findGame, saveAutoBackup } from '../store.js';
 import { uid, escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile, matchEligiblePlayers, playerPositions } from '../util.js';
-import { writeAutoSaveFile } from '../fileHandle.js';
 import { outfieldTargetCount, formationFor, formationOptionsFor, remapLineupToFormat } from '../formations.js';
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -979,22 +978,19 @@ function matchSummaryHtml(live) {
 
 // Fires whenever a match finishes (End Game or End & Next). Snapshots an
 // automatic local backup (survives a bad edit or accidental Clear All
-// Data — see saveAutoBackup), best-effort downloads a dated file, and
-// best-effort overwrites the single self-updating file if the coach has
-// chosen one (Settings > Data). The download and file-write only actually
-// happen on a normal page; a sandboxed embedding like the Claude Artifact
-// viewer blocks a page from starting its own downloads, so both silently
-// no-op there — the automatic local snapshot and the manual Backup button
-// in Settings are what's guaranteed to work in that context. Also
-// syncs with Cloud Sync (Settings), if this device is connected, so a
-// completed match reaches every other coach without anyone having to
-// remember to tap "Sync Now" themselves.
+// Data — see saveAutoBackup) and best-effort downloads a dated file. The
+// download only actually happens on a normal page; a sandboxed embedding
+// like the Claude Artifact viewer blocks a page from starting its own
+// downloads, so it silently no-ops there — the automatic local snapshot
+// and the manual Backup button in Settings are what's guaranteed to work
+// in that context. Also syncs with Cloud Sync (Settings), if this device
+// is connected, so a completed match reaches every other coach without
+// anyone having to remember to tap "Sync Now" themselves.
 function runPostMatchBackup(game) {
   saveAutoBackup();
   const json = JSON.stringify(getState(), null, 2);
   const filename = `bootroom-backup-${game.date}-${game.opponent.replace(/[^a-z0-9]+/gi, '-')}.json`;
   tryDownloadFile(filename, json);
-  writeAutoSaveFile(json);
   if (isCloudSyncConnected()) syncSilently();
 }
 

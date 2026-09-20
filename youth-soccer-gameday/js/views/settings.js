@@ -4,31 +4,18 @@ import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
-import { autoSaveFileSupported, chooseAutoSaveFile, getAutoSaveFileName, clearAutoSaveFile } from '../fileHandle.js';
 import { getSyncConfig, isMatchdayOnly, buildAppsScript, generateSyncTokens, setUpAsFullEditor, joinWithLink, syncNow, disconnectCloudSync } from '../cloudSync.js';
 
 export function renderSettings(app) {
   const { team, players } = getState();
   const errorLog = getErrorLog();
   const autoBackups = getAutoBackups();
-  const fileSaveSupported = autoSaveFileSupported();
   const syncConfig = getSyncConfig();
 
   app.innerHTML = `
     <div class="page-title"><h1>Settings</h1></div>
 
     <a class="btn ghost block" href="#/help" style="margin-bottom:12px;">❓ Help &amp; How-To</a>
-
-    <div class="card stack">
-      ${fileSaveSupported ? `
-        <p class="muted small mt-0">🗂️ A dated backup file downloads automatically after every match (see Data, below). This is instead for one single file, at a location you pick, that keeps overwriting itself with the latest data — so there's always exactly one current file rather than a growing pile. Desktop/laptop Chrome or Edge only — doesn't work on iPhone or iPad, even in Chrome there (see note below if that's what you're on).</p>
-        <div id="autosave-file-status" class="small">Checking…</div>
-        <button class="btn secondary block" data-action="choose-autosave-file">🗂️ Choose File Location</button>
-        <button class="btn ghost block" data-action="clear-autosave-file" hidden id="clear-autosave-btn">Turn Off</button>
-      ` : `
-        <p class="muted small mt-0">🗂️ A single self-updating backup file at a location you pick isn't available on this device. It needs a desktop or laptop browser (Chrome or Edge) — it doesn't work on iPhone or iPad in any browser, including Chrome there, since Apple requires every browser on iOS to use the same underlying engine, which doesn't support this. The dated backup file that downloads after every match (see Data, below) still works here, on any device.</p>
-      `}
-    </div>
 
     <div class="section-title">Team</div>
     ${isMatchdayOnly() ? `<p class="muted small" style="margin:-4px 0 10px;">Team settings can only be changed from a Full Edit device — ask whoever set up Cloud Sync for that link if you need something changed here.</p>` : ''}
@@ -346,32 +333,6 @@ export function renderSettings(app) {
       renderSettings(app);
     });
   });
-
-  if (fileSaveSupported) {
-    const statusEl = app.querySelector('#autosave-file-status');
-    const clearBtn = app.querySelector('#clear-autosave-btn');
-    getAutoSaveFileName().then((name) => {
-      const el = app.querySelector('#autosave-file-status');
-      const btn = app.querySelector('#clear-autosave-btn');
-      if (!el) return; // settings re-rendered before this resolved
-      el.textContent = name ? `Saving to: ${name}` : 'Not set up yet.';
-      if (btn) btn.hidden = !name;
-    });
-    app.querySelector('[data-action="choose-autosave-file"]').addEventListener('click', async () => {
-      try {
-        const name = await chooseAutoSaveFile();
-        statusEl.textContent = `Saving to: ${name}`;
-        clearBtn.hidden = false;
-      } catch (e) {
-        if (e?.name !== 'AbortError') console.warn('Could not set the auto-save file', e);
-      }
-    });
-    clearBtn.addEventListener('click', async () => {
-      await clearAutoSaveFile();
-      statusEl.textContent = 'Not set up yet.';
-      clearBtn.hidden = true;
-    });
-  }
 
   app.querySelector('[data-action="add-formation"]').addEventListener('click', () => openFormationForm(team.squadFormat));
   app.querySelectorAll('[data-action="edit-formation"]').forEach((btn) => {

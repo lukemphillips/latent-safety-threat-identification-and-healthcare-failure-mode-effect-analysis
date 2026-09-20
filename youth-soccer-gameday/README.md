@@ -594,19 +594,6 @@ see everything working immediately. Reset or clear that data any time from
     (the sandbox blocks a page from starting its own downloads), so the
     automatic on-device snapshot and the manual Backup button are what's
     guaranteed to work there.
-  - **A single self-updating backup file** — the downloaded file above is a
-    new dated file every match, which adds up over a season. On a
-    desktop/laptop, in Chrome or Edge (this needs the File System Access
-    API), Settings also offers "Choose File Location": pick a file once
-    (e.g. `bootroom-backup.json` in Documents) and Boot Room silently overwrites
-    that same file after every match from then on, so there's always
-    exactly one current file rather than a growing pile. It's independent
-    of the dated downloads — use one, the other, both, or neither.
-    **Doesn't work on iPhone or iPad, in any browser** — Apple requires
-    every browser on iOS to use the same underlying engine (Safari's),
-    which has never implemented this API, so "Chrome" on an iPhone doesn't
-    get it either. That's a platform restriction, not a bug; the dated
-    download above is the one that works everywhere, phones included.
   - **Merging in another coach's backup** — for one team split across two
     simultaneous matches (e.g. two 5-a-side games at once, each tracked on
     a different coach's phone), Settings > Data also has "Merge in Another
