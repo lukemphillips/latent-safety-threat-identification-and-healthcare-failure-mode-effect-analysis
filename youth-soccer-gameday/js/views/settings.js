@@ -6,6 +6,14 @@ import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
 import { getSyncConfig, isMatchdayOnly, buildAppsScript, generateSyncTokens, setUpAsFullEditor, joinWithLink, syncNow, disconnectCloudSync } from '../cloudSync.js';
 
+// Guards a post-await re-render (e.g. after "Sync Now", which can take a
+// couple of seconds against a real Apps Script) against overwriting a
+// screen the coach has since navigated away to.
+function isOnSettingsRoute() {
+  const hash = location.hash || '#/';
+  return hash.replace(/^#\/?/, '').split('/')[0] === 'settings';
+}
+
 export function renderSettings(app) {
   const { team, players } = getState();
   const errorLog = getErrorLog();
@@ -302,11 +310,18 @@ export function renderSettings(app) {
       cloudSyncNowBtn.textContent = 'Syncing…';
       try {
         await syncNow();
-        renderSettings(app);
+        // A real sync (talking to Google) can take a couple of seconds —
+        // long enough that the coach may well have already tapped away to
+        // another tab before it resolves. Only re-render Settings if
+        // they're still actually looking at it; otherwise this would blow
+        // away whatever screen they've since navigated to.
+        if (isOnSettingsRoute()) renderSettings(app);
       } catch (err) {
-        cloudSyncNowBtn.disabled = false;
-        cloudSyncNowBtn.textContent = '🔄 Sync Now';
-        alertDialog(err.message || 'Sync failed — check the connection and try again.');
+        if (isOnSettingsRoute()) {
+          cloudSyncNowBtn.disabled = false;
+          cloudSyncNowBtn.textContent = '🔄 Sync Now';
+          alertDialog(err.message || 'Sync failed — check the connection and try again.');
+        }
       }
     });
   }
