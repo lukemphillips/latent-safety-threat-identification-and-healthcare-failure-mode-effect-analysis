@@ -617,7 +617,8 @@ function cloudSyncSectionHtml(syncConfig) {
     return `
       <div class="card stack">
         <p class="muted small mt-0">Share this team's setup and match data with other coaches all season instead of passing files back and forth — one coach sets it up (a few minutes, one time, using a free Google Sheet), then everyone else just pastes a link. See Help for the full walkthrough, including exactly what each access level can do.</p>
-        <button class="btn secondary block" data-action="cloud-sync-setup">🔗 Set Up Cloud Sync — I'm setting this up for the team</button>
+        <button class="btn secondary block" data-action="cloud-sync-setup">🔗 Set Up Cloud Sync</button>
+        <p class="muted small" style="margin:-4px 0 0; text-align:center;">— I'm setting this up for the team</p>
         <button class="btn ghost block" data-action="cloud-sync-join">🔑 I Have a Cloud Sync Link</button>
       </div>
     `;
