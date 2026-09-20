@@ -348,10 +348,10 @@ see everything working immediately. Reset or clear that data any time from
     apply) — no need to scroll down to the bench section first. An **empty
     spot** works the same way: tap it to open a "Bring On" dropdown and
     place a bench player straight into that exact position, no separate
-    outgoing player needed. Tapping the empty goalkeeper spot opens the
-    dedicated Assign Goalkeeper dialog instead of a plain add, since that's
-    the only place a keeper's stint tracking and gk-change logging are set
-    up correctly. The
+    outgoing player needed. The goalkeeper spot — filled or empty — always
+    opens the dedicated Change/Assign Goalkeeper dialog instead of the
+    normal substitute/fill flow, since that's the only place a keeper's
+    stint tracking and gk-change logging are set up correctly. The
     **Formation** dropdown also works mid-match: switching shapes remaps
     everyone's position onto the new layout without touching who's
     actually on the field, and any on-field player whose old slot id
@@ -364,12 +364,11 @@ see everything working immediately. Reset or clear that data any time from
   - Goals logged with scorer + optional assist; opponent goals logged with
     one tap.
   - GK saves logged per player (or "open play"), with an editable minute.
-  - Removing a player from the match — every on-field player has a small,
-    deliberately understated "⋯" icon tucked in the corner of their card
+  - Removing a player from the match — every on-field player (and the
+    goalkeeper) has the same small, deliberately understated "⋯" icon
     (not a full-width red button, so it can't easily be caught by
-    accident while tapping the card itself to complete a substitution)
-    and the goalkeeper has an equivalent "Card"/"Remove" button, that
-    opens a short "What happened?" menu instead of one ambiguous action: 🟨 Yellow (stays on),
+    accident while tapping the card itself to complete a substitution),
+    that opens a short "What happened?" menu instead of one ambiguous action: 🟨 Yellow (stays on),
     🟥 Red, 🚑 Injury, or Other reason (with Cards off, just Injury/Other,
     since there's no card to log). Anything other than a first yellow —
     red, injury, other, or a second yellow — removes the player from the

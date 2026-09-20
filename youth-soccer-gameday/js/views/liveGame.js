@@ -388,6 +388,12 @@ export function renderLiveGame(app, gameId) {
       });
     });
 
+    app.querySelectorAll('[data-live-pitch-slot] [data-open-gk-change]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        openGkModal(gameId, active, presentIds, sentOffIds, live.currentPeriod, false);
+      });
+    });
+
     app.querySelectorAll('[data-live-pitch-slot] [data-open-fill]').forEach((chip) => {
       chip.addEventListener('click', () => {
         if (chip.dataset.fillRole === 'GK') {
@@ -435,19 +441,23 @@ function remapLiveFormation(oldSlots, onFieldIds, gkId, newFormation) {
 
 function livePitchSlotHtml(slot, player) {
   const initials = player ? (player.jerseyNumber ?? player.name.slice(0, 2).toUpperCase()) : (slot.role === 'GK' ? '🧤' : '+');
-  // The GK spot isn't tappable for a swap here — goalkeeper changes go
-  // through the dedicated Change/Assign flow (also triggered below when
-  // the GK slot is empty), which handles the stint-warning and gk-change
-  // logging a plain sub would skip.
-  const subbable = player && slot.role !== 'GK';
+  const isGk = slot.role === 'GK';
+  // An outfield spot with someone in it opens the normal Substitute picker;
+  // an occupied GK spot opens the dedicated Change Goalkeeper flow instead
+  // (same one the goalkeeper card's own "Change" button uses) — that's the
+  // only place a keeper change gets its stint-warning and gk-change
+  // logging, which a plain sub would skip.
+  const subbable = player && !isGk;
+  const gkChangeable = player && isGk;
   // An empty spot — GK or outfield — is just as tappable as a filled one:
   // pick who's coming on straight into that exact position, the same way
   // tapping an occupied spot opens a substitute picker.
   const fillable = !player;
   return `
     <div class="pitch-slot ${player ? '' : 'empty'}" data-live-pitch-slot="${slot.id}" style="left:${slot.x}%; top:${slot.y}%;">
-      <div class="chip ${subbable ? 'subbable' : ''} ${fillable ? 'fillable' : ''}"
+      <div class="chip ${subbable || gkChangeable ? 'subbable' : ''} ${fillable ? 'fillable' : ''}"
         ${subbable ? `data-open-sub="${player.id}"` : ''}
+        ${gkChangeable ? `data-open-gk-change="1"` : ''}
         ${fillable ? `data-open-fill="${slot.id}" data-fill-role="${slot.role}"` : ''}
       >${initials}</div>
       <div class="slot-label">${player ? escapeHtml(player.name.split(' ')[0]) : slot.role}</div>
@@ -614,7 +624,7 @@ function goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted) {
           ${currentGk && !isCompleted ? `<div class="muted small">Stint: ${formatClock(stint)}</div>` : ''}
         </div>
         <div class="row">
-          ${!isCompleted && currentGk ? `<button class="btn ghost sm" data-action="log-card" data-player-id="${currentGk.id}">${team.enableCards ? 'Card' : 'Remove'}</button>` : ''}
+          ${!isCompleted && currentGk ? `<button type="button" class="icon-btn" data-action="log-card" data-player-id="${currentGk.id}" aria-label="${team.enableCards ? 'Card / remove' : 'Remove from match'} ${escapeHtml(currentGk.name)}" title="${team.enableCards ? 'Card / Remove' : 'Remove from Match'}">⋯</button>` : ''}
           ${!isCompleted ? `<button class="btn sm ${currentGk ? 'ghost' : ''}" data-action="${currentGk ? 'change-gk' : 'assign-gk'}">${currentGk ? 'Change' : 'Assign'}</button>` : ''}
         </div>
       </div>
