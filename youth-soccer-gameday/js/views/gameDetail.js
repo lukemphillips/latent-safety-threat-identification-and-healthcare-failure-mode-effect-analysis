@@ -7,6 +7,19 @@ import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../s
 
 let selectingSlotId = null;
 
+// Every pre-match mutation below goes through this rather than a plain
+// state.games.find, so every edit (RSVPs, attendance, lineup, the game's
+// own scheduled details) stamps updatedAt. gameCompleteness (store.js)
+// already tells apart a live/completed game from a scheduled one, but two
+// snapshots of the SAME still-scheduled game tie at equal completeness —
+// updatedAt is the tiebreaker Cloud Sync needs to actually pick up an edit
+// like a changed kickoff time or a completed lineup, not just a new fixture.
+function touchGame(state, id) {
+  const g = state.games.find((x) => x.id === id);
+  if (g) g.updatedAt = Date.now();
+  return g;
+}
+
 const RSVP_OPTIONS = [
   { key: 'yes', label: 'In', icon: '✅' },
   { key: 'maybe', label: 'Maybe', icon: '❓' },
@@ -91,7 +104,7 @@ function openHonoreeModal(game, { field, title, label }) {
         e.preventDefault();
         const playerId = new FormData(e.target).get('player') || null;
         update((state) => {
-          const g = state.games.find((x) => x.id === game.id);
+          const g = touchGame(state, game.id);
           g[field] = playerId;
         });
         closeModal();
@@ -218,7 +231,7 @@ function renderRsvpTab(container, game) {
     btn.addEventListener('click', () => {
       const { playerId, value } = btn.dataset;
       update((state) => {
-        const g = state.games.find((x) => x.id === game.id);
+        const g = touchGame(state, game.id);
         g.rsvps[playerId] = value;
       });
     });
@@ -316,7 +329,7 @@ function renderSquadTab(container, game) {
 
   container.querySelector('[data-action="mark-all-present"]').addEventListener('click', () => {
     update((state) => {
-      const g = state.games.find((x) => x.id === game.id);
+      const g = touchGame(state, game.id);
       g.presentIds = matchEligiblePlayers(state.players).map((p) => p.id);
     });
   });
@@ -325,7 +338,7 @@ function renderSquadTab(container, game) {
     const newFormationId = e.target.value;
     selectingSlotId = null;
     update((state) => {
-      const g = state.games.find((x) => x.id === game.id);
+      const g = touchGame(state, game.id);
       const newFormation = formationFor(state.team.squadFormat, newFormationId, state.team.customFormations || []);
       g.formationId = newFormationId;
       g.lineup.slots = remapLineupToFormat(g.lineup.slots, newFormation);
@@ -336,7 +349,7 @@ function renderSquadTab(container, game) {
   if (useRsvpBtn) {
     useRsvpBtn.addEventListener('click', () => {
       update((state) => {
-        const g = state.games.find((x) => x.id === game.id);
+        const g = touchGame(state, game.id);
         const rsvpYesIds = matchEligiblePlayers(state.players).filter((p) => g.rsvps?.[p.id] === 'yes').map((p) => p.id);
         g.presentIds = [...new Set([...(g.presentIds || []), ...rsvpYesIds])];
       });
@@ -347,7 +360,7 @@ function renderSquadTab(container, game) {
     el.addEventListener('click', () => {
       const playerId = el.dataset.attendanceToggle;
       update((state) => {
-        const g = state.games.find((x) => x.id === game.id);
+        const g = touchGame(state, game.id);
         const set = new Set(g.presentIds || []);
         if (set.has(playerId)) {
           set.delete(playerId);
@@ -366,7 +379,7 @@ function renderSquadTab(container, game) {
     if (!(await confirmDialog('Clear the whole lineup?'))) return;
     selectingSlotId = null;
     update((state) => {
-      const g = state.games.find((x) => x.id === game.id);
+      const g = touchGame(state, game.id);
       Object.keys(g.lineup.slots).forEach((sid) => { g.lineup.slots[sid] = null; });
     });
   });
@@ -376,7 +389,7 @@ function renderSquadTab(container, game) {
     autoFillBtn.addEventListener('click', () => {
       selectingSlotId = null;
       update((state) => {
-        const g = state.games.find((x) => x.id === game.id);
+        const g = touchGame(state, game.id);
         const presentPlayers = matchEligiblePlayers(state.players).filter((p) => (g.presentIds || []).includes(p.id));
         g.lineup.slots = autoFillLineup(formation, presentPlayers, g.lineup.slots);
       });
@@ -390,7 +403,7 @@ function renderSquadTab(container, game) {
       if (occupantId) {
         selectingSlotId = null;
         update((state) => {
-          const g = state.games.find((x) => x.id === game.id);
+          const g = touchGame(state, game.id);
           g.lineup.slots[slotId] = null;
         });
         return;
@@ -407,7 +420,7 @@ function renderSquadTab(container, game) {
       const slotId = selectingSlotId;
       selectingSlotId = null;
       update((state) => {
-        const g = state.games.find((x) => x.id === game.id);
+        const g = touchGame(state, game.id);
         g.lineup.slots[slotId] = playerId;
       });
     });
@@ -421,7 +434,7 @@ function renderSquadTab(container, game) {
         incomingOptions: present,
         onSave: (entry) => {
           update((state) => {
-            const g = state.games.find((x) => x.id === game.id);
+            const g = touchGame(state, game.id);
             g.subPlan = g.subPlan || [];
             g.subPlan.push({ id: uid(), outId: entry.outId, inId: entry.inId, atMinute: entry.atMinute });
           });
@@ -439,14 +452,14 @@ function renderSquadTab(container, game) {
         incomingOptions: present,
         onSave: (entry) => {
           update((state) => {
-            const g = state.games.find((x) => x.id === game.id);
+            const g = touchGame(state, game.id);
             const idx = (g.subPlan || []).findIndex((e) => e.id === existing.id);
             if (idx !== -1) g.subPlan[idx] = { ...entry, id: existing.id };
           });
         },
         onDelete: (id) => {
           update((state) => {
-            const g = state.games.find((x) => x.id === game.id);
+            const g = touchGame(state, game.id);
             g.subPlan = (g.subPlan || []).filter((e) => e.id !== id);
           });
         },
@@ -521,7 +534,7 @@ function renderLiveSquadTab(container, game, active, present, absent) {
     el.addEventListener('click', () => {
       const playerId = el.dataset.attendanceAdd;
       update((state) => {
-        const g = state.games.find((x) => x.id === game.id);
+        const g = touchGame(state, game.id);
         g.presentIds = [...new Set([...(g.presentIds || []), playerId])];
       });
     });
@@ -638,7 +651,7 @@ async function startGame(game) {
   if (gkId) stintStart[gkId] = 0;
 
   update((state) => {
-    const g = state.games.find((x) => x.id === game.id);
+    const g = touchGame(state, game.id);
     g.status = 'live';
     g.live = {
       running: false,
@@ -746,7 +759,7 @@ function openEditGameForm(game) {
         e.preventDefault();
         const fd = new FormData(e.target);
         update((state) => {
-          const g = state.games.find((x) => x.id === game.id);
+          const g = touchGame(state, game.id);
           g.matchType = fd.get('matchType') || 'league';
           g.tournamentName = (fd.get('tournamentName') || '').trim();
           g.stage = (fd.get('stage') || '').trim();

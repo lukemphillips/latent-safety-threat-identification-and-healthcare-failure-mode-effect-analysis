@@ -192,6 +192,7 @@ export function openGameForm(prefill) {
             playerOfMatchId: null,
             live: null,
             notes: '',
+            updatedAt: Date.now(),
           };
           state.games.push({
             id: firstId, opponent, time: fd.get('time'), rsvps: buildRsvps(), presentIds: [],

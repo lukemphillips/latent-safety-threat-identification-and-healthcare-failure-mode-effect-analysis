@@ -167,6 +167,19 @@ function gameCompleteness(g) {
   return (STATUS_RANK[g.status] ?? 0) * 10000 + (g.live?.subLog?.length || 0);
 }
 
+// Two snapshots of a game that's still scheduled (or otherwise hasn't
+// logged anything new) tie at equal completeness — nothing in that score
+// distinguishes "an edited kickoff time" from "the exact same game
+// untouched". updatedAt (stamped on every pre-match edit — see touchGame
+// in gameDetail.js/schedule.js) breaks that tie, so a genuine edit still
+// wins even when it hasn't changed the game's status or event log.
+function gameIsNewer(incoming, existing) {
+  const c1 = gameCompleteness(incoming);
+  const c2 = gameCompleteness(existing);
+  if (c1 !== c2) return c1 > c2;
+  return (incoming.updatedAt || 0) > (existing.updatedAt || 0);
+}
+
 // Combines another device's backup into what's already here, for two
 // coaches each running a separate simultaneous match for the same team
 // (see Settings > Data) — e.g. two 5-a-side games at once, each tracked on
@@ -200,7 +213,7 @@ export function mergeBackup(data) {
       s.games.push(incoming);
       localGamesById.set(incoming.id, incoming);
       gamesAdded += 1;
-    } else if (gameCompleteness(incoming) > gameCompleteness(existing)) {
+    } else if (gameIsNewer(incoming, existing)) {
       const idx = s.games.indexOf(existing);
       s.games[idx] = incoming;
       localGamesById.set(incoming.id, incoming);
@@ -339,7 +352,7 @@ export function applyCloudSync(cloudData) {
       s.games.push(incoming);
       localGamesById.set(incoming.id, incoming);
       gamesAdded += 1;
-    } else if (gameCompleteness(incoming) > gameCompleteness(existing)) {
+    } else if (gameIsNewer(incoming, existing)) {
       const idx = s.games.indexOf(existing);
       s.games[idx] = incoming;
       localGamesById.set(incoming.id, incoming);
