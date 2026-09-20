@@ -618,15 +618,21 @@ see everything working immediately. Reset or clear that data any time from
   stands in as the shared store; this app talks to it with plain `fetch()`
   calls, no npm dependency added. Two access levels, each its own
   generated link:
-  - **Full Edit** can push anything — team settings, roster, matches,
-    training, the Drill Library.
+  - **Full Edit** can push anything — team settings, roster, matches.
   - **Matchday** can push match data and add brand-new players (e.g. a
-    late arrival), but nothing else — the script itself rejects any other
-    change a Matchday-token request sends, regardless of what this app
-    posts, so it's a real permission boundary, not just something the UI
-    hides. The UI additionally disables Roster and Team Settings editing
-    on a Matchday device, so a change never looks like it saved when it
-    silently wouldn't have.
+    late arrival), but nothing else beyond that split (see below) — the
+    script itself rejects any other change a Matchday-token request
+    sends, regardless of what this app posts, so it's a real permission
+    boundary, not just something the UI hides. The UI additionally
+    disables Roster and Team Settings editing on a Matchday device, so a
+    change never looks like it saved when it silently wouldn't have.
+  - **Training sessions and the Drill Library sit outside that split
+    entirely** — every coach, either access level, has their own and can
+    add to it freely; the script merges each side's list additively
+    (`mergeById_` in the generated Apps Script, mirrored client-side by
+    `mergeById` in `store.js`) rather than one role's copy replacing the
+    other's, so nobody's plans or drills get silently dropped and every
+    addition reaches everyone else on the next sync.
 
   Setup is designed so the coach never invents or hand-edits anything: the
   app generates both access tokens, builds the complete Apps Script source
@@ -641,13 +647,14 @@ see everything working immediately. Reset or clear that data any time from
   Every device's own connection (which link, which role, last synced) is
   kept in its own separate `localStorage` key, deliberately apart from the
   synced team data itself, so a Matchday device's local storage never even
-  contains the Full Edit token. Pulling adopts the cloud's team, roster,
-  training, and drills wholesale (the Apps Script guarantees only a Full
-  Edit push can have changed those), keeping any player added locally but
-  not yet pushed rather than dropping it; games reconcile with the same
-  "most complete wins" comparison Merge (above) already uses, since
-  whichever device is actually running a live match may be ahead of what
-  was last synced. Sync happens automatically after every match ends and
+  contains the Full Edit token. Pulling adopts the cloud's team and roster
+  wholesale (the Apps Script guarantees only a Full Edit push can have
+  changed those), keeping any player added locally but not yet pushed
+  rather than dropping it; training and drills merge additively instead
+  (see above), and games reconcile with the same "most complete wins"
+  comparison Merge (above) already uses, since whichever device is
+  actually running a live match may be ahead of what was last synced.
+  Sync happens automatically after every match ends and
   when the app opens, plus a manual "Sync Now" — each pulls first, then
   pushes, so a device that's been offline a while doesn't overwrite
   changes it never saw. It's a genuine live share of the same data, not a

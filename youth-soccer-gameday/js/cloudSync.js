@@ -13,13 +13,18 @@ import { getState, applyCloudSync } from './store.js';
 // Two roles, enforced by the Apps Script itself (see buildAppsScript
 // below), not just by what this app's UI shows:
 //   - "editor" (Full Edit): can push anything — team settings, roster,
-//     matches, training, drills.
+//     matches.
 //   - "matchday": can push match data and add brand-new players (e.g. a
 //     late arrival), but the script silently ignores anything else a
 //     Matchday-token request sends, no matter what this app posts. The
 //     UI additionally hides those controls on a Matchday device (see
-//     isMatchdayOnly, used by roster.js/settings.js/training.js/
-//     drills.js) so an edit never looks like it saved when it didn't.
+//     isMatchdayOnly, used by roster.js/settings.js) so an edit never
+//     looks like it saved when it didn't.
+// Training sessions and the Drill Library are NOT part of that split —
+// every coach, either role, has their own and can push new ones; the
+// script merges each side's list additively (new entries only, matched by
+// id) rather than one role's copy replacing the other's. See mergeById_
+// below and store.js's mergeById.
 //
 // This device's own connection (which URL, which role, when it last
 // synced) lives in its own localStorage key — deliberately separate from
@@ -146,6 +151,20 @@ function doGet(e) {
   return jsonResponse_({ role: role, data: stored.data, meta: stored.meta });
 }
 
+// Adds whatever entries "incoming" has that aren't already in "current"
+// (matched by id), leaving every existing entry untouched — used for
+// training sessions and drills, which are each coach's own content rather
+// than one role-owned list (see the comment near the top of this file).
+function mergeById_(current, incoming) {
+  var seen = {};
+  (current || []).forEach(function (x) { seen[x.id] = true; });
+  var result = (current || []).slice();
+  (incoming || []).forEach(function (x) {
+    if (!seen[x.id]) { result.push(x); seen[x.id] = true; }
+  });
+  return result;
+}
+
 function doPost(e) {
   var token = (e && e.parameter && e.parameter.token) || '';
   var role = roleForToken_(token);
@@ -168,9 +187,8 @@ function doPost(e) {
     toStore = posted;
   } else {
     // Matchday: only games change, plus any brand-new players (e.g. a
-    // late arrival). Team settings, edits or deletes to existing
-    // players, training plans, and drills are never accepted from this
-    // token, no matter what was posted.
+    // late arrival). Team settings and edits/deletes to existing players
+    // are never accepted from this token, no matter what was posted.
     if (!current) {
       return jsonResponse_({ error: 'No shared team data yet — ask the Full Edit coach to sync first.' });
     }
@@ -181,10 +199,14 @@ function doPost(e) {
       team: current.team,
       players: (current.players || []).concat(newPlayers),
       games: posted.games,
-      trainings: current.trainings || [],
-      drills: current.drills || [],
     };
   }
+
+  // Training sessions and the Drill Library are shared peer-to-peer
+  // regardless of role — every coach's own new entries merge in
+  // additively, never overwriting or dropping what's already there.
+  toStore.trainings = mergeById_(current ? current.trainings : [], posted.trainings);
+  toStore.drills = mergeById_(current ? current.drills : [], posted.drills);
 
   writeStored_(toStore, posted.syncedByName || '');
   return jsonResponse_({ ok: true, role: role });

@@ -265,28 +265,43 @@ export function mergeBackup(data) {
   return { playersAdded, gamesAdded, gamesUpdated, awardsAdded, trainingsAdded, drillsAdded };
 }
 
+// Adds whatever entries `incoming` has that aren't already in `local`
+// (matched by id), leaving every existing local entry untouched. Used for
+// training sessions and the Drill Library, which — unlike team settings or
+// the roster — are each coach's own content rather than one shared,
+// Full-Edit-owned list: every coach can create their own plans/drills, and
+// syncing is purely additive so nobody's device silently loses or
+// overwrites what it already has.
+function mergeById(local, incoming) {
+  const localIds = new Set(local.map((x) => x.id));
+  const newOnes = incoming.filter((x) => !localIds.has(x.id));
+  return newOnes.length ? [...local, ...newOnes] : local;
+}
+
 // Folds in data just pulled from Cloud Sync (see cloudSync.js) — distinct
 // from mergeBackup above because the two have different trust models.
 // mergeBackup combines two coaches' separately-run matches and
 // deliberately never touches local team settings, since either side could
 // be the "right" one. Cloud Sync data only ever reaches the shared sheet
-// through the Full Edit token (the Apps Script itself enforces that — see
-// apps-script/Code.gs), so once it's here it IS the authoritative copy of
-// team settings, the roster, training plans, and drills: they're adopted
+// through a valid Cloud Sync token (the Apps Script itself enforces that —
+// see cloudSync.js's buildAppsScript), so once it's here it IS the
+// authoritative copy of team settings and the roster: they're adopted
 // wholesale rather than reconciled field by field. A player added locally
 // but not yet pushed (e.g. a late-arrival on a Matchday device) is kept
-// alongside the cloud's roster rather than dropped. Games still use the
-// same "most complete wins" comparison as mergeBackup, since whichever
-// device is actually running a live match right now may be ahead of what
-// was last pushed.
+// alongside the cloud's roster rather than dropped. Training sessions and
+// drills are different — every coach contributes their own, so they merge
+// additively (mergeById) instead of one side's copy replacing the other's.
+// Games still use the same "most complete wins" comparison as mergeBackup,
+// since whichever device is actually running a live match right now may be
+// ahead of what was last pushed.
 export function applyCloudSync(cloudData) {
   if (!cloudData || !cloudData.team || !Array.isArray(cloudData.players) || !Array.isArray(cloudData.games)) return null;
   const s = getState();
   let gamesAdded = 0, gamesUpdated = 0;
 
   s.team = cloudData.team;
-  s.trainings = Array.isArray(cloudData.trainings) ? cloudData.trainings : (s.trainings || []);
-  s.drills = Array.isArray(cloudData.drills) ? cloudData.drills : (s.drills || []);
+  s.trainings = mergeById(s.trainings || [], cloudData.trainings || []);
+  s.drills = mergeById(s.drills || [], cloudData.drills || []);
 
   const cloudPlayerIds = new Set(cloudData.players.map((p) => p.id));
   const localOnlyPlayers = s.players.filter((p) => !cloudPlayerIds.has(p.id));

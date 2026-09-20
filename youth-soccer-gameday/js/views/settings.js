@@ -626,7 +626,7 @@ function cloudSyncSectionHtml(syncConfig) {
   const roleLabel = syncConfig.role === 'editor' ? 'Full Edit' : 'Matchday';
   return `
     <div class="card stack">
-      <p class="muted small mt-0">This device has <strong>${roleLabel}</strong> access${syncConfig.coachName ? ` (as ${escapeHtml(syncConfig.coachName)})` : ''}.${syncConfig.role === 'matchday' ? ' Roster, team settings, training, and drills can only be changed from a Full Edit device — those controls are hidden here, and a change to them wouldn\'t save to the shared team anyway.' : ''}</p>
+      <p class="muted small mt-0">This device has <strong>${roleLabel}</strong> access${syncConfig.coachName ? ` (as ${escapeHtml(syncConfig.coachName)})` : ''}.${syncConfig.role === 'matchday' ? ' Roster and team settings can only be changed from a Full Edit device — those controls are hidden here, and a change to them wouldn\'t save to the shared team anyway. Training sessions and drills are different: add your own here and they\'ll sync out to every other coach too.' : ''}</p>
       <div class="small">${syncConfig.lastSyncedAt ? `Last synced: ${new Date(syncConfig.lastSyncedAt).toLocaleString()}` : 'Not synced yet'}</div>
       <div class="banner warn">⚠️ Running two matches at once (e.g. two pitches) is fine — each match syncs back independently. Just never have <strong>two devices both live-tracking the same match</strong> at the same time: sync isn't real-time, so whichever device syncs first can silently overwrite the other's events for that match. One device per live match.</div>
       <button class="btn secondary block" data-action="cloud-sync-now">🔄 Sync Now</button>
