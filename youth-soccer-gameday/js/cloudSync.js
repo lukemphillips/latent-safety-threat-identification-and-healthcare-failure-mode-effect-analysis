@@ -151,16 +151,24 @@ function doGet(e) {
   return jsonResponse_({ role: role, data: stored.data, meta: stored.meta });
 }
 
-// Adds whatever entries "incoming" has that aren't already in "current"
-// (matched by id), leaving every existing entry untouched — used for
-// training sessions and drills, which are each coach's own content rather
-// than one role-owned list (see the comment near the top of this file).
+// Unions "current" and "incoming" by id — used for training sessions and
+// drills, which are each coach's own content rather than one role-owned
+// list (see the comment near the top of this file). A brand new id is just
+// added; an id present on both sides keeps whichever copy has the later
+// updatedAt, since a session/drill genuinely gets edited after it's first
+// created (attendance, groups, the plan itself) — without this, only a
+// session's first, near-empty version would ever sync, never anything
+// edited into it afterward.
 function mergeById_(current, incoming) {
-  var seen = {};
-  (current || []).forEach(function (x) { seen[x.id] = true; });
   var result = (current || []).slice();
   (incoming || []).forEach(function (x) {
-    if (!seen[x.id]) { result.push(x); seen[x.id] = true; }
+    var idx = -1;
+    for (var i = 0; i < result.length; i++) { if (result[i].id === x.id) { idx = i; break; } }
+    if (idx === -1) {
+      result.push(x);
+    } else if ((x.updatedAt || 0) > (result[idx].updatedAt || 0)) {
+      result[idx] = x;
+    }
   });
   return result;
 }
