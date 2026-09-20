@@ -5,6 +5,7 @@ import { outfieldTargetCount, formationFor, formationOptionsFor, remapLineupToFo
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../subPlan.js';
+import { autoFillLineup } from './gameDetail.js';
 
 let selectingInboundId = null;
 let lastGameId = null;
@@ -88,6 +89,13 @@ export function renderLiveGame(app, gameId) {
   const sentOffPlayers = (live.sentOff || []).map((id) => byId[id]).filter(Boolean);
 
   const onPitchPool = [...onFieldOutfield, ...(currentGk ? [currentGk] : [])];
+  // Whether "⚡ Auto-Fill Field" has anything to do — a spare formation
+  // spot (outfield or the goalkeeper) plus at least one present player
+  // not already on the pitch to fill it with. Lets a coach who started
+  // the match straight off marking the squad present (skipping the
+  // pre-match Lineup tab) fill the pitch from right here instead of
+  // tapping every empty spot one at a time.
+  const canAutoFillField = bench.length > 0 && (onFieldOutfield.length < targetOutfield || !currentGk);
 
   app.innerHTML = `
     <div class="page-title">
@@ -166,10 +174,9 @@ export function renderLiveGame(app, gameId) {
 
     ${!isCompleted ? `
       <div class="section-title" style="margin-top:0;">Formation</div>
-      <div class="field" style="margin:0 0 10px;">
-        <select id="live-formation-select">
-          ${formationOptions.map((f) => `<option value="${f.id}" ${formation.id === f.id ? 'selected' : ''}>${escapeHtml(f.label)}${f.custom ? ' (yours)' : ''}</option>`).join('')}
-        </select>
+      <div class="timer-actions" style="margin:0 0 10px;">
+        <button type="button" class="btn ghost sm" data-action="change-formation">${escapeHtml(formation.label)}${formation.custom ? ' (yours)' : ''} — change</button>
+        <button type="button" class="btn secondary sm" data-action="auto-fill-field" ${canAutoFillField ? '' : 'disabled'}>⚡ Auto-Fill Field</button>
       </div>
       <div class="muted small" style="margin:0 0 8px;">Tap a pitch player to substitute.</div>
       <div class="pitch-wrap">
@@ -435,17 +442,14 @@ export function renderLiveGame(app, gameId) {
       });
     });
 
-    const liveFormationSelect = app.querySelector('#live-formation-select');
-    if (liveFormationSelect) {
-      liveFormationSelect.addEventListener('change', (e) => {
-        const newFormationId = e.target.value;
-        update((state) => {
-          const g = state.games.find((x) => x.id === gameId);
-          const newFormation = formationFor(state.team.squadFormat, newFormationId, state.team.customFormations || []);
-          g.formationId = newFormationId;
-          g.lineup.slots = remapLiveFormation(g.lineup.slots, g.live.onField, g.live.gkByPeriod[g.live.currentPeriod], newFormation);
-        });
-      });
+    const changeFormationBtn = app.querySelector('[data-action="change-formation"]');
+    if (changeFormationBtn) {
+      changeFormationBtn.addEventListener('click', () => openFormationModal(gameId, formationOptions, formation.id));
+    }
+
+    const autoFillFieldBtn = app.querySelector('[data-action="auto-fill-field"]');
+    if (autoFillFieldBtn) {
+      autoFillFieldBtn.addEventListener('click', () => autoFillLiveField(gameId, formation));
     }
 
     app.querySelectorAll('[data-live-pitch-slot] [data-open-sub]').forEach((chip) => {
@@ -528,6 +532,104 @@ function remapLiveFormation(oldSlots, onFieldIds, gkId, newFormation) {
     if (nextSlotId) slots[nextSlotId] = id;
   });
   return slots;
+}
+
+// A modal rather than a plain inline <select> — the live view's own
+// timer-card re-renders every second while the match clock is running
+// (see main.js's ticker), which was tearing the <select> element itself
+// out from under an open native dropdown, snapping it shut before a tap
+// could land. A modal lives outside #app (see modal.js), so it isn't
+// touched by that re-render at all.
+function openFormationModal(gameId, formationOptions, currentFormationId) {
+  openModal({
+    title: 'Change Formation',
+    bodyHtml: `
+      <form id="formation-form" class="stack">
+        <div class="field">
+          <label>Formation</label>
+          <select name="formationId">
+            ${formationOptions.map((f) => `<option value="${f.id}" ${f.id === currentFormationId ? 'selected' : ''}>${escapeHtml(f.label)}${f.custom ? ' (yours)' : ''}</option>`).join('')}
+          </select>
+        </div>
+        <button type="submit" class="btn block">Apply</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#formation-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const newFormationId = new FormData(e.target).get('formationId');
+        update((state) => {
+          const g = state.games.find((x) => x.id === gameId);
+          const newFormation = formationFor(state.team.squadFormat, newFormationId, state.team.customFormations || []);
+          g.formationId = newFormationId;
+          g.lineup.slots = remapLiveFormation(g.lineup.slots, g.live.onField, g.live.gkByPeriod[g.live.currentPeriod], newFormation);
+        });
+        closeModal();
+      });
+    },
+  });
+}
+
+// Lets a coach who started the match straight off marking the squad
+// present — skipping the pre-match Squad/Lineup tab entirely — fill the
+// pitch from right here instead of tapping every empty spot one at a
+// time. Reuses the same slot-assignment algorithm as the Lineup tab's own
+// "⚡ Auto-Fill" (position-matched, GK slots first), then brings each
+// newly-filled slot's player onto the live field/GK spot exactly as
+// tapping that spot individually would — never touches anyone already on
+// the pitch or already in goal.
+function autoFillLiveField(gameId, formation) {
+  const game = findGame(gameId);
+  if (!game || !game.live) return;
+  const { players } = getState();
+  const presentIds = new Set(game.presentIds || []);
+  const sentOffIds = new Set(game.live.sentOff || []);
+  const currentGkId = game.live.gkByPeriod[game.live.currentPeriod] || null;
+  const onFieldIds = new Set(game.live.onField);
+  const available = matchEligiblePlayers(players).filter((p) => presentIds.has(p.id)
+    && !sentOffIds.has(p.id) && !onFieldIds.has(p.id) && p.id !== currentGkId);
+  const emptySlotIds = formation.slots.map((s) => s.id).filter((sid) => !(game.lineup?.slots || {})[sid]);
+
+  if (!emptySlotIds.length) {
+    alertDialog('The field is already full — every formation spot has someone in it.');
+    return;
+  }
+  if (!available.length) {
+    alertDialog('No available players to fill the field with — everyone present is already on the pitch, in goal, or sent off.');
+    return;
+  }
+
+  update((state) => {
+    const g = state.games.find((x) => x.id === gameId);
+    g.lineup = g.lineup || { slots: {} };
+    const filled = autoFillLineup(formation, available, g.lineup.slots || {});
+    g.lineup.slots = filled;
+    g.live.stintStart = g.live.stintStart || {};
+
+    formation.slots.forEach((slot) => {
+      const playerId = filled[slot.id];
+      if (!playerId) return;
+      const alreadyLive = slot.role === 'GK'
+        ? g.live.gkByPeriod[g.live.currentPeriod] === playerId
+        : g.live.onField.includes(playerId);
+      if (alreadyLive) return;
+
+      const name = (players.find((p) => p.id === playerId) || {}).name || '';
+      g.live.stintStart[playerId] = g.live.elapsedSeconds;
+
+      if (slot.role === 'GK') {
+        const prevGkId = g.live.gkByPeriod[g.live.currentPeriod] || null;
+        g.live.gkByPeriod[g.live.currentPeriod] = playerId;
+        g.live.subLog.push({
+          atSeconds: g.live.elapsedSeconds, type: 'gk-change', period: g.live.currentPeriod,
+          inId: playerId, inName: name, outId: prevGkId, outName: '',
+        });
+      } else {
+        g.live.onField.push(playerId);
+        g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'add', inId: playerId, inName: name });
+      }
+    });
+  });
 }
 
 function livePitchSlotHtml(slot, player) {

@@ -374,12 +374,20 @@ see everything working immediately. Reset or clear that data any time from
     outgoing player needed. The goalkeeper spot — filled or empty — always
     opens the dedicated Change/Assign Goalkeeper dialog instead of the
     normal substitute/fill flow, since that's the only place a keeper's
-    stint tracking and gk-change logging are set up correctly. The
-    **Formation** dropdown also works mid-match: switching shapes remaps
-    everyone's position onto the new layout without touching who's
-    actually on the field, and any on-field player whose old slot id
-    doesn't exist in the new formation is placed into whatever slot is
-    left over rather than being left without a visible position.
+    stint tracking and gk-change logging are set up correctly. A
+    **Formation** button above the pitch also works mid-match: it opens a
+    picker (a real pop-up, not an inline `<select>` sitting in the part
+    of the page that re-renders every second while the clock runs — that
+    inline version used to have the dropdown snap shut on you mid-tap) —
+    switching shapes remaps everyone's position onto the new layout
+    without touching who's actually on the field, and any on-field player
+    whose old slot id doesn't exist in the new formation is placed into
+    whatever slot is left over rather than being left without a visible
+    position. Next to it, **⚡ Auto-Fill Field** fills any spare pitch
+    spot (goalkeeper included) with present players in one tap, using the
+    same position-matched assignment as the pre-match Lineup tab's own
+    Auto-Fill — for starting the match straight off marking the squad
+    present and skipping the Lineup tab step entirely.
   - Minimum-stint protection (default 4 min, adjustable in Settings) — subbing
     a player off before they've had a fair block of time on the pitch shows
     a warning naming them and how long they've actually played; you can
