@@ -145,6 +145,12 @@ export function renderLiveGame(app, gameId) {
       ? `<div class="banner warn spread"><span>⏱ Time's up for ${periodLabel(numPeriods, live.currentPeriod)}.</span><button class="btn sm" data-action="next-period">Start ${periodLabel(numPeriods, live.currentPeriod + 1)}</button></div>`
       : ''}
 
+    ${isCompleted ? `
+      <div style="text-align:center; margin-bottom:12px;">
+        <button type="button" class="btn ghost sm" data-action="undo-end-game">↩️ Ended by mistake? Undo — make this match live again</button>
+      </div>
+    ` : ''}
+
     ${isCompleted ? matchSummaryHtml(live) : ''}
 
     ${!isCompleted ? fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) : ''}
@@ -261,9 +267,9 @@ export function renderLiveGame(app, gameId) {
 
     app.querySelector('[data-action="end-game"]').addEventListener('click', async () => {
       const msg = live.currentPeriod < numPeriods
-        ? `You're still in ${periodLabel(numPeriods, live.currentPeriod)}. End the game early?`
-        : 'End the game? Final score and playing time will be locked in.';
-      if (!(await confirmDialog(msg, { okLabel: 'End Game' }))) return;
+        ? `You're still in ${periodLabel(numPeriods, live.currentPeriod)}. End the game early? (You can undo this afterwards if you change your mind.)`
+        : 'End the game? Final score and playing time will be locked in. (You can undo this afterwards if you change your mind.)';
+      if (!(await confirmDialog(msg, { okLabel: 'Yes, End Game', danger: true }))) return;
       update((state) => {
         const g = state.games.find((x) => x.id === gameId);
         g.status = 'completed';
@@ -275,7 +281,7 @@ export function renderLiveGame(app, gameId) {
     const nextMatchBtn = app.querySelector('[data-action="next-match"]');
     if (nextMatchBtn) {
       nextMatchBtn.addEventListener('click', async () => {
-        if (!(await confirmDialog(`End this match and move on to ${nextMatch.opponent}? Final score and playing time will be locked in, and fair-play minutes will carry over into the next match.`, { okLabel: 'End & Next' }))) return;
+        if (!(await confirmDialog(`End this match and move on to ${nextMatch.opponent}? Final score and playing time will be locked in, and fair-play minutes will carry over into the next match. (You can undo ending this one afterwards if you change your mind.)`, { okLabel: 'Yes, End & Next', danger: true }))) return;
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
           g.status = 'completed';
@@ -472,6 +478,19 @@ export function renderLiveGame(app, gameId) {
       else if (el.dataset.detailsSection === 'match-events') matchEventsOpen = el.open;
     });
   });
+
+  // Only rendered once the match is completed, so this has to live outside
+  // the `!isCompleted` block above with the rest of the live-only wiring.
+  const undoEndGameBtn = app.querySelector('[data-action="undo-end-game"]');
+  if (undoEndGameBtn) {
+    undoEndGameBtn.addEventListener('click', async () => {
+      if (!(await confirmDialog('Reopen this match and make it live again? Nothing logged so far is lost — the clock stays paused right where it left off, and you can end the match again whenever you\'re ready.', { okLabel: 'Reopen Match' }))) return;
+      update((state) => {
+        const g = state.games.find((x) => x.id === gameId);
+        g.status = 'live';
+      });
+    });
+  }
 
   return undefined;
 }

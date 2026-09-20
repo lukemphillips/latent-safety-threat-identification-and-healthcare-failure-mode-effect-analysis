@@ -436,6 +436,15 @@ see everything working immediately. Reset or clear that data any time from
     collapsed "Playing Time" breakdown; both are one tap away, kept out of
     the way by default so a completed match's page doesn't read as a wall
     of text.
+  - **Ending a match is a two-step, reversible action.** Both "End Game"
+    and "End & Next" ask for confirmation first — a clearly-labeled "Yes,
+    End Game"/"Yes, End & Next" button next to Cancel, not a generic OK —
+    and if you confirm by mistake anyway, a completed match's screen shows
+    an **↩️ Undo — make this match live again** button. Undoing asks for
+    confirmation too, then puts the match straight back to live with
+    everything already logged (score, subs, cards, saves, the sub plan)
+    still intact and the clock paused right where it left off, ready to
+    end it again for real whenever you're ready.
   - Fair-play suggestions (optional, see Settings) that flag which bench
     player has the least playing time and which eligible on-field player has
     the most (respecting the minimum-stint rule) — a nudge, not an enforced
