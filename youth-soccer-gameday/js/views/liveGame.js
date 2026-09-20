@@ -116,6 +116,8 @@ export function renderLiveGame(app, gameId) {
 
     ${goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted)}
 
+    ${isCompleted ? matchSummaryHtml(live) : ''}
+
     ${!isCompleted ? fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) : ''}
     ${!isCompleted ? upcomingSubsHtml(team, live, bench, onFieldOutfield) : ''}
     ${!isCompleted && (onFieldOutfield.length || bench.length)
@@ -137,7 +139,7 @@ export function renderLiveGame(app, gameId) {
           ${formationOptions.map((f) => `<option value="${f.id}" ${formation.id === f.id ? 'selected' : ''}>${escapeHtml(f.label)}${f.custom ? ' (yours)' : ''}</option>`).join('')}
         </select>
       </div>
-      <div class="muted small" style="margin:0 0 8px;">Tap a player on the pitch to substitute them — pick who's coming on from the list, no need to scroll to the bench. Change the formation any time with the dropdown above.</div>
+      <div class="muted small" style="margin:0 0 8px;">Tap a pitch player to substitute.</div>
       <div class="pitch-wrap">
         <div class="pitch" id="live-pitch">
           ${formation.slots.map((slot) => livePitchSlotHtml(slot, slot.role === 'GK' ? currentGk : byId[game.lineup?.slots?.[slot.id]])).join('')}
@@ -169,17 +171,21 @@ export function renderLiveGame(app, gameId) {
       </div>
     ` : ''}
 
-    <div class="section-title">Playing Time</div>
-    ${hasCarryover ? '<div class="muted small" style="margin:-6px 0 8px;">Includes minutes from earlier match(es) today, so fair-play suggestions stay balanced across the whole match day.</div>' : ''}
-    <div class="card">
-      ${playingTimeRows(active, live, presentIds)}
-    </div>
+    ${hasCarryover ? '<div class="muted small" style="margin:8px 0 -4px;">Playing Time below includes minutes from earlier match(es) today, so fair-play suggestions stay balanced across the whole match day.</div>' : ''}
+    <details class="card" style="margin-top:12px;">
+      <summary style="cursor:pointer; font-weight:700; font-size:13px;">⏱ Playing Time</summary>
+      <div style="margin-top:10px;">
+        ${playingTimeRows(active, live, presentIds)}
+      </div>
+    </details>
 
     ${live.subLog.length ? `
-      <div class="section-title">Match Events</div>
-      <div class="card">
-        ${live.subLog.slice().reverse().map((entry) => eventRowHtml(entry, numPeriods)).join('')}
-      </div>
+      <details class="card" style="margin-top:10px;">
+        <summary style="cursor:pointer; font-weight:700; font-size:13px;">📋 Match Events (${live.subLog.length})</summary>
+        <div style="margin-top:10px;">
+          ${live.subLog.slice().reverse().map((entry) => eventRowHtml(entry, numPeriods)).join('')}
+        </div>
+      </details>
     ` : ''}
   `;
 
@@ -537,11 +543,94 @@ function goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted) {
           ${currentGk && !isCompleted ? `<div class="muted small">Stint: ${formatClock(stint)}</div>` : ''}
         </div>
         <div class="row">
-          ${!isCompleted && currentGk ? `<button class="btn danger sm" data-action="log-card" data-player-id="${currentGk.id}">${team.enableCards ? 'Card' : 'Remove'}</button>` : ''}
+          ${!isCompleted && currentGk ? `<button class="btn ghost sm" data-action="log-card" data-player-id="${currentGk.id}">${team.enableCards ? 'Card' : 'Remove'}</button>` : ''}
           ${!isCompleted ? `<button class="btn sm ${currentGk ? 'ghost' : ''}" data-action="${currentGk ? 'change-gk' : 'assign-gk'}">${currentGk ? 'Change' : 'Assign'}</button>` : ''}
         </div>
       </div>
       ${periods.length > 1 ? `<div class="muted small" style="margin-top:8px;">${periods.map((n) => `${periodLabel(numPeriods, n)}: ${live.gkByPeriod[n] ? escapeHtml((getState().players.find((p) => p.id === live.gkByPeriod[n]) || {}).name || '?') : '—'}`).join(' · ')}</div>` : ''}
+    </div>
+  `;
+}
+
+// Distills the raw chronological subLog into the handful of numbers a
+// coach actually wants after a match — who scored, who set them up, who
+// made saves, who picked up cards — rather than making them read back
+// through every event in order.
+function computeMatchSummary(live) {
+  const scorers = new Map();
+  const saves = new Map();
+  const cards = new Map();
+  let openPlaySaves = 0;
+
+  (live.subLog || []).forEach((e) => {
+    if (e.type === 'goal-us' && e.scorerId) {
+      const rec = scorers.get(e.scorerId) || { name: e.scorerName, goals: 0, assists: 0 };
+      rec.goals += 1;
+      scorers.set(e.scorerId, rec);
+      if (e.assistId) {
+        const arec = scorers.get(e.assistId) || { name: e.assistName, goals: 0, assists: 0 };
+        arec.assists += 1;
+        scorers.set(e.assistId, arec);
+      }
+    } else if (e.type === 'save') {
+      if (e.playerId) {
+        const rec = saves.get(e.playerId) || { name: e.name, count: 0 };
+        rec.count += 1;
+        saves.set(e.playerId, rec);
+      } else {
+        openPlaySaves += 1;
+      }
+    } else if (e.type === 'card') {
+      const rec = cards.get(e.playerId) || { name: e.name, yellow: 0, red: 0 };
+      if (e.cardType === 'red') rec.red += 1; else rec.yellow += 1;
+      cards.set(e.playerId, rec);
+    }
+  });
+
+  return {
+    scorers: [...scorers.values()].filter((r) => r.goals || r.assists).sort((a, b) => b.goals - a.goals),
+    saves: [...saves.values()].sort((a, b) => b.count - a.count),
+    openPlaySaves,
+    cards: [...cards.values()],
+  };
+}
+
+function matchSummaryHtml(live) {
+  const s = computeMatchSummary(live);
+  const hasAnything = s.scorers.length || s.saves.length || s.openPlaySaves || s.cards.length;
+  if (!hasAnything) return '';
+
+  return `
+    <div class="section-title" style="margin-top:0;">Match Summary</div>
+    <div class="card stack">
+      ${s.scorers.length ? `
+        <div>
+          <div class="muted small" style="margin-bottom:4px;">⚽ Scorers</div>
+          ${s.scorers.map((r) => `
+            <div class="card-row">
+              <span class="small">${escapeHtml(r.name)}</span>
+              <span class="small muted">${r.goals ? `${r.goals} goal${r.goals > 1 ? 's' : ''}` : ''}${r.goals && r.assists ? ' · ' : ''}${r.assists ? `${r.assists} assist${r.assists > 1 ? 's' : ''}` : ''}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+      ${(s.saves.length || s.openPlaySaves) ? `
+        <div>
+          <div class="muted small" style="margin-bottom:4px;">🧤 Saves</div>
+          ${s.saves.map((r) => `
+            <div class="card-row"><span class="small">${escapeHtml(r.name)}</span><span class="small muted">${r.count}</span></div>
+          `).join('')}
+          ${s.openPlaySaves ? `<div class="card-row"><span class="small muted">Open play</span><span class="small muted">${s.openPlaySaves}</span></div>` : ''}
+        </div>
+      ` : ''}
+      ${s.cards.length ? `
+        <div>
+          <div class="muted small" style="margin-bottom:4px;">🟨 Cards</div>
+          ${s.cards.map((c) => `
+            <div class="card-row"><span class="small">${escapeHtml(c.name)}</span><span class="small">${'🟨'.repeat(c.yellow)}${'🟥'.repeat(c.red)}</span></div>
+          `).join('')}
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -638,10 +727,14 @@ function fieldCardHtml(p, live, isCompleted, isOnField, team, positionRole) {
   const stintLine = isOnField
     ? `<div class="pt">${stint < minStintSeconds ? '🔒' : ''} Stint: ${formatClock(stint)}</div>`
     : '';
-  const cardAction = `<button type="button" class="btn danger sm" style="margin-top:6px;" data-action="log-card" data-player-id="${p.id}">${team?.enableCards ? 'Card / Remove' : 'Remove from Match'}</button>`;
+  // Tucked into a small, muted corner icon rather than a full-width red
+  // button — it still opens the same Card/Remove dialog, but doesn't sit
+  // directly under the name where a coach tapping the card to confirm a
+  // substitution could easily catch it by mistake.
+  const cardAction = `<button type="button" class="icon-btn" style="position:absolute; top:2px; right:2px; font-size:13px; padding:4px 6px;" data-action="log-card" data-player-id="${p.id}" aria-label="${team?.enableCards ? 'Card / remove' : 'Remove from match'} ${escapeHtml(p.name)}" title="${team?.enableCards ? 'Card / Remove' : 'Remove from Match'}">⋯</button>`;
   return `
-    <div class="field-card ${clickable ? 'subbing' : ''}" ${clickable ? `data-onfield-player="${p.id}" style="cursor:pointer;"` : ''}>
-      <div class="row spread">
+    <div class="field-card ${clickable ? 'subbing' : ''}" style="position:relative;" ${clickable ? `data-onfield-player="${p.id}"` : ''}>
+      <div class="row spread" style="padding-right:20px;">
         <span class="jersey" style="width:26px;height:26px;font-size:12px;">${p.jerseyNumber ?? '-'}</span>
         <span class="small muted">${positionRole ? escapeHtml(positionRole) : (isOnField ? 'On field' : 'Bench')}</span>
       </div>
@@ -1041,7 +1134,17 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
           // without this the live pitch's display fallback (currentGk)
           // would be right but the underlying slot data would silently
           // drift from it.
-          if (g.lineup?.slots) g.lineup.slots.gk = g.live.gkByPeriod[g.live.currentPeriod] || null;
+          if (g.lineup?.slots) {
+            // The new keeper may still be holding an outfield slot from
+            // before (e.g. they were playing defense) — clear it, otherwise
+            // the pitch renders them twice: once in goal, once in their old
+            // outfield spot, looking like a duplicate player with the same
+            // name.
+            Object.keys(g.lineup.slots).forEach((sid) => {
+              if (sid !== 'gk' && g.lineup.slots[sid] === newGkId) g.lineup.slots[sid] = null;
+            });
+            g.lineup.slots.gk = g.live.gkByPeriod[g.live.currentPeriod] || null;
+          }
         });
         closeModal();
       });

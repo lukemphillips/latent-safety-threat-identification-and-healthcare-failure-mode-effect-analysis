@@ -358,10 +358,12 @@ see everything working immediately. Reset or clear that data any time from
   - Goals logged with scorer + optional assist; opponent goals logged with
     one tap.
   - GK saves logged per player (or "open play"), with an editable minute.
-  - Removing a player from the match — every on-field player and the
-    goalkeeper has a removal button ("Card / Remove" with Cards enabled in
-    Settings, "Remove from Match" without) that opens a short "What
-    happened?" menu instead of one ambiguous action: 🟨 Yellow (stays on),
+  - Removing a player from the match — every on-field player has a small,
+    deliberately understated "⋯" icon tucked in the corner of their card
+    (not a full-width red button, so it can't easily be caught by
+    accident while tapping the card itself to complete a substitution)
+    and the goalkeeper has an equivalent "Card"/"Remove" button, that
+    opens a short "What happened?" menu instead of one ambiguous action: 🟨 Yellow (stays on),
     🟥 Red, 🚑 Injury, or Other reason (with Cards off, just Injury/Other,
     since there's no card to log). Anything other than a first yellow —
     red, injury, other, or a second yellow — removes the player from the
@@ -397,6 +399,18 @@ see everything working immediately. Reset or clear that data any time from
     substitution rotation, with their own stint tracked separately; confirm
     or change who's in goal at any point, or when a new period starts.
     Goalkeeping time counts toward that player's overall playing time.
+    Promoting an outfield player to keeper cleanly moves them off whatever
+    outfield slot they were holding, so the pitch never shows the same
+    player twice at once (once in goal, once still in their old spot).
+  - **Match Summary** — once a game is completed, "View Summary" on its
+    page (or the live screen itself once the match has ended) opens with a
+    distilled Match Summary card: ⚽ scorers (with assist tallies), 🧤
+    saves, and 🟨 cards, so you can see who did what at a glance instead of
+    reading back through the whole chronological log. That raw log is
+    still there — under a collapsed "Match Events" section — along with a
+    collapsed "Playing Time" breakdown; both are one tap away, kept out of
+    the way by default so a completed match's page doesn't read as a wall
+    of text.
   - Fair-play suggestions (optional, see Settings) that flag which bench
     player has the least playing time and which eligible on-field player has
     the most (respecting the minimum-stint rule) — a nudge, not an enforced
