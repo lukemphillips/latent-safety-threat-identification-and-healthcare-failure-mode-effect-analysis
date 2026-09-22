@@ -37,7 +37,11 @@ see everything working immediately. Reset or clear that data any time from
   anything worth remembering that doesn't fit another field; shows as a
   📝 preview line on the roster row when set), active/inactive status,
   and a streaming classification (A/B/C/D) you assign per player to keep
-  team-building fair. **Import** lets you bulk-add
+  team-building fair. A separate **team allocation** field (free text, e.g.
+  "9.4") records which of your club's actual named teams a player is
+  rostered to, for clubs running one big squad across several teams —
+  shown as a badge on the roster row, and sortable in Balance Teams'
+  Squad table. **Import** lets you bulk-add
   players from a .csv or .xlsx file instead of typing each one in — the
   first row should be headers, and common variants (Name/Player, Jersey/
   Number/#, Position/Pos, Stream/Group/Classification, Guardian/Parent,
@@ -68,9 +72,15 @@ see everything working immediately. Reset or clear that data any time from
   Launching it from a game's RSVP or Squad tab ("🎲 Balance Teams from
   RSVPs" / "…from today's squad") starts you off with just that game's
   confirmed players instead of the whole roster — untick anyone before you
-  split. The Squad list itself is a sortable table (tap Name or Stream to
-  reorder it) with a third Team column that fills in once you've split,
-  showing each player's team as a dropdown. Once split, "Copy to Share"
+  split. The Squad list itself is a sortable table (tap Name, Stream, or
+  Team Allocation to reorder it) with a Team column that fills in once
+  you've split, showing each player's team as a dropdown. Team Allocation
+  is a separate, free-text label (e.g. "9.4", "9.5", sorted numeric-aware
+  so "9.4" comes before "10.1") for clubs running one big roster across
+  several actually-named teams — it's not part of the random split at all,
+  and it's editable right in this table (or from a player's Add/Edit form
+  on the Roster) so it sticks around across every future visit to this
+  page. Once split, "Copy to Share"
   copies a plain-text team list you can paste into a text/WhatsApp message
   to other coaches, and on phones that support it there's also a native
   "Text / Share…" button that opens the share sheet directly. Not happy

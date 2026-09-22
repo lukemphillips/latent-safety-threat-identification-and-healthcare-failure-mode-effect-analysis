@@ -269,6 +269,7 @@ button { font: inherit; }
 .badge.stream-c { background: var(--amber-bg); color: var(--amber); }
 .badge.stream-d { background: #f3eaff; color: #7c3aed; }
 .badge.stream-none { background: #eef0f2; color: var(--ink-soft); }
+.badge.team-alloc { background: #fdf2f8; color: #be185d; }
 
 /* Player rows */
 .player-row {

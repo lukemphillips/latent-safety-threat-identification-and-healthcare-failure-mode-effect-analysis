@@ -31,9 +31,16 @@ function streamSortIndex(stream) {
 function sortSquadPlayers(list) {
   const sorted = [...list];
   sorted.sort((a, b) => {
-    const cmp = squadSortKey === 'stream'
-      ? (streamSortIndex(a.skillStream) - streamSortIndex(b.skillStream)) || a.name.localeCompare(b.name)
-      : a.name.localeCompare(b.name);
+    let cmp;
+    if (squadSortKey === 'stream') {
+      cmp = (streamSortIndex(a.skillStream) - streamSortIndex(b.skillStream)) || a.name.localeCompare(b.name);
+    } else if (squadSortKey === 'teamAllocation') {
+      // Numeric-aware, so "9.4" sorts before "9.5" and "10.1" — not just
+      // lexicographically (which would put "10.1" before "9.4").
+      cmp = (a.teamAllocation || '').localeCompare(b.teamAllocation || '', undefined, { numeric: true }) || a.name.localeCompare(b.name);
+    } else {
+      cmp = a.name.localeCompare(b.name);
+    }
     return squadSortDir === 'desc' ? -cmp : cmp;
   });
   return sorted;
@@ -202,6 +209,9 @@ export function renderBalanceTeams(app, gameId) {
               <th data-squad-sort="stream" style="text-align:left; padding:6px 8px; cursor:pointer; white-space:nowrap;">
                 Stream${squadSortKey === 'stream' ? (squadSortDir === 'desc' ? ' ▼' : ' ▲') : ''}
               </th>
+              <th data-squad-sort="teamAllocation" style="text-align:left; padding:6px 8px; cursor:pointer; white-space:nowrap;">
+                Team Allocation${squadSortKey === 'teamAllocation' ? (squadSortDir === 'desc' ? ' ▼' : ' ▲') : ''}
+              </th>
               <th style="text-align:left; padding:6px 8px; white-space:nowrap;">Team</th>
             </tr>
           </thead>
@@ -271,6 +281,22 @@ export function renderBalanceTeams(app, gameId) {
       split = null;
       resetImportStatus();
       renderBalanceTeams(app, gameId);
+    });
+  });
+
+  // Saved straight to the player's roster record — it's a persistent club-
+  // team label (e.g. "9.4"), not part of this page's own included/split
+  // state, so it doesn't touch `split` and only needs a re-render if the
+  // table happens to be sorted by it right now.
+  app.querySelectorAll('[data-team-alloc]').forEach((el) => {
+    el.addEventListener('change', () => {
+      const id = el.dataset.teamAlloc;
+      const value = el.value.trim();
+      update((state) => {
+        const player = state.players.find((pl) => pl.id === id);
+        if (player) player.teamAllocation = value;
+      });
+      if (squadSortKey === 'teamAllocation') renderBalanceTeams(app, gameId);
     });
   });
 
@@ -397,12 +423,15 @@ function squadRowHtml(p, isIncluded) {
       <td style="padding:6px 8px;"><input type="checkbox" data-squad-toggle="${p.id}" ${isIncluded ? 'checked' : ''} /></td>
       <td style="padding:6px 8px; white-space:nowrap;"><span class="jersey" style="width:24px; height:24px; font-size:11px;">${p.jerseyNumber ?? '-'}</span> ${escapeHtml(p.name)}</td>
       <td style="padding:6px 8px;">${streamBadgeHtml(p.skillStream)}</td>
-      <td style="padding:6px 8px;">${teamAllocationCellHtml(p, isIncluded)}</td>
+      <td style="padding:6px 8px;">
+        <input type="text" data-team-alloc="${p.id}" value="${escapeHtml(p.teamAllocation || '')}" placeholder="e.g. 9.4" style="width:80px; padding:4px 6px;" />
+      </td>
+      <td style="padding:6px 8px;">${splitTeamCellHtml(p, isIncluded)}</td>
     </tr>
   `;
 }
 
-function teamAllocationCellHtml(p, isIncluded) {
+function splitTeamCellHtml(p, isIncluded) {
   if (!split) return '<span class="muted small">Not split yet</span>';
   if (!isIncluded) return '<span class="muted small">—</span>';
   const idx = teamIndexOf(p.id);

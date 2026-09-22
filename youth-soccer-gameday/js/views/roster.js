@@ -59,6 +59,7 @@ function playerRow(p) {
         ${p.notes ? `<div class="muted small" style="margin-top:2px;">📝 ${escapeHtml(p.notes)}</div>` : ''}
       </div>
       ${streamBadgeHtml(p.skillStream)}
+      ${p.teamAllocation ? `<span class="badge team-alloc">${escapeHtml(p.teamAllocation)}</span>` : ''}
       ${p.isGuest ? `<span class="badge scheduled">👥 Guest${p.guestTeamName ? ` (${escapeHtml(p.guestTeamName)})` : ''}</span>` : ''}
       ${p.active ? '' : '<span class="badge pending">inactive</span>'}
     </div>
@@ -67,7 +68,7 @@ function playerRow(p) {
 
 function openPlayerForm(playerId) {
   const existing = playerId ? findPlayer(playerId) : null;
-  const p = existing || { name: '', jerseyNumber: '', positions: [], skillStream: '', guardianName: '', guardianPhone: '', notes: '', active: true, isGuest: false, guestTeamName: '' };
+  const p = existing || { name: '', jerseyNumber: '', positions: [], skillStream: '', teamAllocation: '', guardianName: '', guardianPhone: '', notes: '', active: true, isGuest: false, guestTeamName: '' };
   const currentPositions = playerPositions(p);
 
   const dlg = openModal({
@@ -99,6 +100,11 @@ function openPlayerForm(playerId) {
             <option value="" ${!p.skillStream ? 'selected' : ''}>Unclassified</option>
             ${STREAMS.map((s) => `<option value="${s}" ${p.skillStream === s ? 'selected' : ''}>Stream ${s}</option>`).join('')}
           </select>
+        </div>
+        <div class="field">
+          <label>Team allocation</label>
+          <input type="text" name="teamAllocation" value="${escapeHtml(p.teamAllocation || '')}" placeholder="e.g. 9.4" style="max-width:160px;" />
+          <div class="muted small" style="margin-top:4px;">Which of your club's teams this player is actually rostered to — for clubs running one big squad across several named teams (e.g. 9.4, 9.5). Separate from Balance Teams' random daily split.</div>
         </div>
         <div class="field">
           <label>Guardian name</label>
@@ -148,6 +154,7 @@ function openPlayerForm(playerId) {
           jerseyNumber: fd.get('jerseyNumber') ? Number(fd.get('jerseyNumber')) : null,
           positions: fd.getAll('positions'),
           skillStream: fd.get('skillStream') || null,
+          teamAllocation: (fd.get('teamAllocation') || '').trim(),
           guardianName: (fd.get('guardianName') || '').trim(),
           guardianPhone: (fd.get('guardianPhone') || '').trim(),
           notes: (fd.get('notes') || '').trim(),
