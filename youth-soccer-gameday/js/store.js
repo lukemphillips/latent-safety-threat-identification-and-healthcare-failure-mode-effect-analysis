@@ -332,13 +332,31 @@ export function applyCloudSync(cloudData) {
 // large enough to hit the browser's per-origin storage quota on its own.
 // Writes to a scratch key rather than trusting JSON.stringify succeeding,
 // since stringify can't fail from quota — only the actual write can.
+//
+// Tests against the real STORAGE_KEY itself, not a separate scratch key —
+// persist() always *replaces* what's under STORAGE_KEY rather than adding
+// to it, so testing via a second key alongside the untouched original would
+// need roughly double the space actually required (the existing save, plus
+// a full duplicate of the candidate), and could reject a candidate that
+// would genuinely have fit once the old save was overwritten. Removing the
+// existing entry before testing, and restoring it if the candidate doesn't
+// fit, measures the real constraint instead — and if it DOES fit, the data
+// is already saved for real, exactly like persist() would have done.
 export function hasStorageRoomFor(candidateState) {
-  const TEST_KEY = '__ysg_quota_test__';
+  let previousRaw = null;
   try {
-    localStorage.setItem(TEST_KEY, JSON.stringify(candidateState));
-    localStorage.removeItem(TEST_KEY);
+    previousRaw = localStorage.getItem(STORAGE_KEY);
+    if (previousRaw !== null) localStorage.removeItem(STORAGE_KEY);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(candidateState));
     return true;
   } catch (e) {
+    if (previousRaw !== null) {
+      try {
+        localStorage.setItem(STORAGE_KEY, previousRaw);
+      } catch (restoreErr) {
+        console.warn('Could not restore saved data after a failed storage-room check', restoreErr);
+      }
+    }
     return false;
   }
 }

@@ -1128,12 +1128,19 @@ function playingTimeRows(active, live, presentIds) {
 
 const EVENT_ICONS = {
   'goal-us': '⚽', 'goal-them': '🥅', save: '🧤', sub: '🔄', add: '⬆️',
-  'send-off': '🟥', 'period-start': '⏱', 'gk-change': '🧤', recovered: '↩️',
+  'period-start': '⏱', 'gk-change': '🧤', recovered: '↩️',
   'position-swap': '🔃',
 };
 
+// A 'send-off' entry's own reason decides its icon — an injury isn't a
+// card, so it shouldn't read as one in the event log (a second yellow's
+// own 🟨 card entry is logged separately right alongside it).
+const SEND_OFF_ICONS = { 'second yellow': '🟥', injury: '🚑', other: '🚪' };
+
 function eventRowHtml(entry, numPeriods) {
-  const icon = entry.type === 'card' ? (entry.cardType === 'red' ? '🟥' : '🟨') : (EVENT_ICONS[entry.type] || '•');
+  const icon = entry.type === 'card' ? (entry.cardType === 'red' ? '🟥' : '🟨')
+    : entry.type === 'send-off' ? (SEND_OFF_ICONS[entry.reason] || '🚪')
+    : (EVENT_ICONS[entry.type] || '•');
   let label = '';
   switch (entry.type) {
     case 'goal-us':
