@@ -16,17 +16,35 @@ let lastGameId = null;
 let targetGameId = null;
 let importedSquad = null;
 let importedTeams = {};
-let selectingPlayerId = null;
-let selectingSourceTeamIdx = null;
+let squadSortKey = 'name';
+let squadSortDir = 'asc';
 
 function resetImportStatus() {
   importedSquad = null;
   importedTeams = {};
 }
 
-function resetTeamSelection() {
-  selectingPlayerId = null;
-  selectingSourceTeamIdx = null;
+function streamSortIndex(stream) {
+  return STREAM_ORDER.indexOf(STREAM_ORDER.includes(stream) ? stream : null);
+}
+
+function sortSquadPlayers(list) {
+  const sorted = [...list];
+  sorted.sort((a, b) => {
+    const cmp = squadSortKey === 'stream'
+      ? (streamSortIndex(a.skillStream) - streamSortIndex(b.skillStream)) || a.name.localeCompare(b.name)
+      : a.name.localeCompare(b.name);
+    return squadSortDir === 'desc' ? -cmp : cmp;
+  });
+  return sorted;
+}
+
+// Which team (by index into `split`) a player currently sits on, or null
+// before a split exists / if they somehow aren't in any team.
+function teamIndexOf(playerId) {
+  if (!split) return null;
+  const idx = split.findIndex((team) => team.some((p) => p.id === playerId));
+  return idx === -1 ? null : idx;
 }
 
 // Coming from a specific game, default the squad to who's actually
@@ -127,7 +145,6 @@ export function renderBalanceTeams(app, gameId) {
     includedIds = defaultIncludedIds(game, active);
     split = null;
     resetImportStatus();
-    resetTeamSelection();
     lastGameId = gameId || null;
   }
   // Drop anyone no longer active/present in the roster.
@@ -169,14 +186,30 @@ export function renderBalanceTeams(app, gameId) {
     </div>
 
     <div class="section-title">Squad (${included.length}/${active.length})</div>
-    <div class="card">
+    <div class="card" style="overflow-x:auto;">
       <div class="spread" style="margin-bottom:10px;">
         <button class="btn ghost sm" data-action="select-all">Select All</button>
         <button class="btn ghost sm" data-action="select-none">Select None</button>
       </div>
-      <div class="chip-list">
-        ${active.length ? active.map((p) => squadChipHtml(p, includedIds.has(p.id))).join('') : '<span class="muted small">No active players on the roster.</span>'}
-      </div>
+      ${active.length ? `
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr>
+              <th style="padding:6px 8px;"></th>
+              <th data-squad-sort="name" style="text-align:left; padding:6px 8px; cursor:pointer; white-space:nowrap;">
+                Name${squadSortKey === 'name' ? (squadSortDir === 'desc' ? ' ▼' : ' ▲') : ''}
+              </th>
+              <th data-squad-sort="stream" style="text-align:left; padding:6px 8px; cursor:pointer; white-space:nowrap;">
+                Stream${squadSortKey === 'stream' ? (squadSortDir === 'desc' ? ' ▼' : ' ▲') : ''}
+              </th>
+              <th style="text-align:left; padding:6px 8px; white-space:nowrap;">Team</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sortSquadPlayers(active).map((p) => squadRowHtml(p, includedIds.has(p.id))).join('')}
+          </tbody>
+        </table>
+      ` : '<span class="muted small">No active players on the roster.</span>'}
     </div>
 
     <button class="btn big block" data-action="split" style="margin:16px 0;" ${canSplit ? '' : 'disabled'}>🎲 ${split ? 'Shuffle Again' : 'Random Split'}</button>
@@ -191,7 +224,7 @@ export function renderBalanceTeams(app, gameId) {
         </div>
       </div>
       <textarea id="split-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:12px; padding:8px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px;">${escapeHtml(formatSplitForShare(split, team.name))}</textarea>
-      <div class="muted small" style="margin-bottom:12px;">Not happy with the split? Tap a player, then tap "Move here →" on another team to move them.</div>
+      <div class="muted small" style="margin-bottom:12px;">Not happy with the split? Change a player's Team in the Squad table above.</div>
     ` : ''}
 
     ${matchTargetHtml(upcoming)}
@@ -203,14 +236,12 @@ export function renderBalanceTeams(app, gameId) {
     includedIds = new Set(active.map((p) => p.id));
     split = null;
     resetImportStatus();
-    resetTeamSelection();
     renderBalanceTeams(app, gameId);
   });
   app.querySelector('[data-action="select-none"]').addEventListener('click', () => {
     includedIds = new Set();
     split = null;
     resetImportStatus();
-    resetTeamSelection();
     renderBalanceTeams(app, gameId);
   });
 
@@ -219,7 +250,15 @@ export function renderBalanceTeams(app, gameId) {
       teamCount = Number(el.dataset.teamCount);
       split = null;
       resetImportStatus();
-      resetTeamSelection();
+      renderBalanceTeams(app, gameId);
+    });
+  });
+
+  app.querySelectorAll('[data-squad-sort]').forEach((th) => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.squadSort;
+      if (squadSortKey === key) squadSortDir = squadSortDir === 'desc' ? 'asc' : 'desc';
+      else { squadSortKey = key; squadSortDir = 'asc'; }
       renderBalanceTeams(app, gameId);
     });
   });
@@ -231,7 +270,6 @@ export function renderBalanceTeams(app, gameId) {
       else includedIds.add(id);
       split = null;
       resetImportStatus();
-      resetTeamSelection();
       renderBalanceTeams(app, gameId);
     });
   });
@@ -241,39 +279,23 @@ export function renderBalanceTeams(app, gameId) {
     splitBtn.addEventListener('click', () => {
       split = splitBalancedTeams(active.filter((p) => includedIds.has(p.id)), teamCount);
       resetImportStatus();
-      resetTeamSelection();
       renderBalanceTeams(app, gameId);
     });
   }
 
-  app.querySelectorAll('[data-team-player]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const playerId = el.dataset.teamPlayer;
-      const sourceIdx = Number(el.dataset.sourceTeamIdx);
-      if (selectingPlayerId === playerId) {
-        resetTeamSelection();
-      } else {
-        selectingPlayerId = playerId;
-        selectingSourceTeamIdx = sourceIdx;
-      }
-      renderBalanceTeams(app, gameId);
-    });
-  });
-
-  app.querySelectorAll('[data-move-to-team]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const targetIdx = Number(el.dataset.moveToTeam);
-      const playerId = selectingPlayerId;
-      const sourceIdx = selectingSourceTeamIdx;
-      if (!playerId || sourceIdx == null || !split) return;
-      resetTeamSelection();
+  app.querySelectorAll('[data-team-assign]').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const playerId = sel.dataset.teamAssign;
+      const targetIdx = Number(sel.value);
+      const sourceIdx = teamIndexOf(playerId);
+      if (!split || sourceIdx == null || sourceIdx === targetIdx) return;
       const sourceTeam = split[sourceIdx];
       const targetTeam = split[targetIdx];
       if (!sourceTeam || !targetTeam) return;
       const moved = sourceTeam.find((p) => p.id === playerId);
       if (!moved) return;
       split[sourceIdx] = sourceTeam.filter((p) => p.id !== playerId);
-      if (!targetTeam.some((p) => p.id === playerId)) targetTeam.push(moved);
+      targetTeam.push(moved);
       // Either team's roster just changed — a previous "✅ Sent to X" tag
       // would now be describing a squad that no longer matches, so drop
       // it and let the coach re-send once they're happy with the move.
@@ -369,12 +391,25 @@ function wholeSquadImportHtml(included) {
   `;
 }
 
-function squadChipHtml(p, isIncluded) {
+function squadRowHtml(p, isIncluded) {
   return `
-    <button type="button" class="bench-chip ${isIncluded ? 'picking' : ''}" data-squad-toggle="${p.id}">
-      <span class="jersey">${p.jerseyNumber ?? '-'}</span>
-      ${escapeHtml(p.name)} ${streamBadgeHtml(p.skillStream)}
-    </button>
+    <tr style="border-top:1px solid var(--line);">
+      <td style="padding:6px 8px;"><input type="checkbox" data-squad-toggle="${p.id}" ${isIncluded ? 'checked' : ''} /></td>
+      <td style="padding:6px 8px; white-space:nowrap;"><span class="jersey" style="width:24px; height:24px; font-size:11px;">${p.jerseyNumber ?? '-'}</span> ${escapeHtml(p.name)}</td>
+      <td style="padding:6px 8px;">${streamBadgeHtml(p.skillStream)}</td>
+      <td style="padding:6px 8px;">${teamAllocationCellHtml(p, isIncluded)}</td>
+    </tr>
+  `;
+}
+
+function teamAllocationCellHtml(p, isIncluded) {
+  if (!split) return '<span class="muted small">Not split yet</span>';
+  if (!isIncluded) return '<span class="muted small">—</span>';
+  const idx = teamIndexOf(p.id);
+  return `
+    <select data-team-assign="${p.id}">
+      ${split.map((_, i) => `<option value="${i}" ${i === idx ? 'selected' : ''}>Team ${i + 1}</option>`).join('')}
+    </select>
   `;
 }
 
@@ -389,24 +424,20 @@ function teamsHtml(teams, upcoming) {
 function teamCardHtml(label, team, idx, upcoming) {
   const counts = streamCounts(team);
   const imported = importedTeams[idx];
-  const isSourceTeam = selectingSourceTeamIdx === idx;
   return `
     <div class="card" style="flex:1 1 260px;">
-      <div class="spread" style="margin-bottom:6px;">
-        <div style="font-weight:700;">${label} (${team.length})</div>
-        ${selectingPlayerId && !isSourceTeam ? `<button type="button" class="btn ghost sm" data-move-to-team="${idx}">Move here →</button>` : ''}
-      </div>
+      <div style="font-weight:700; margin-bottom:6px;">${label} (${team.length})</div>
       <div class="muted small" style="margin-bottom:10px;">A:${counts.A} · B:${counts.B} · C:${counts.C} · D:${counts.D}${counts.none ? ` · Unclassified:${counts.none}` : ''}</div>
       <div class="stack">
         ${team.length ? team.map((p) => `
-          <button type="button" class="player-row" data-team-player="${p.id}" data-source-team-idx="${idx}" style="width:100%; text-align:left; background:none; border:none; cursor:pointer; padding:10px 6px; border-radius:8px; ${selectingPlayerId === p.id ? 'outline:2px solid var(--green-600);' : ''}">
+          <div class="player-row">
             <div class="jersey">${p.jerseyNumber ?? '-'}</div>
             <div class="player-meta">
               <div class="player-name">${escapeHtml(p.name)}</div>
               <div class="player-sub">${formatPositions(p)}</div>
             </div>
             ${streamBadgeHtml(p.skillStream)}
-          </button>
+          </div>
         `).join('') : '<span class="muted small">No one on this team.</span>'}
       </div>
       ${upcoming.length ? `

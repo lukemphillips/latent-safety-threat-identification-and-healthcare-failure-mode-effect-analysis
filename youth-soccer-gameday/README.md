@@ -68,13 +68,14 @@ see everything working immediately. Reset or clear that data any time from
   Launching it from a game's RSVP or Squad tab ("🎲 Balance Teams from
   RSVPs" / "…from today's squad") starts you off with just that game's
   confirmed players instead of the whole roster — untick anyone before you
-  split. Once split, "Copy to Share" copies a plain-text team list you can
-  paste into a text/WhatsApp message to other coaches, and on phones that
-  support it there's also a native "Text / Share…" button that opens the
-  share sheet directly. Not happy with the random result? Tap a player on
-  one team, then tap "Move here →" on another team to move them across by
-  hand — the same tap-to-select pattern used for Training groups — without
-  needing to reshuffle everyone.
+  split. The Squad list itself is a sortable table (tap Name or Stream to
+  reorder it) with a third Team column that fills in once you've split,
+  showing each player's team as a dropdown. Once split, "Copy to Share"
+  copies a plain-text team list you can paste into a text/WhatsApp message
+  to other coaches, and on phones that support it there's also a native
+  "Text / Share…" button that opens the share sheet directly. Not happy
+  with the random result? Change a player's Team dropdown in the Squad
+  table to move them across by hand without needing to reshuffle everyone.
   "Send to a scheduled match" turns a selection (or one of the split teams)
   into the real thing in one tap: pick a scheduled match from the dropdown,
   hit "→ Set as Match Squad", and it sets who's present for that game and
