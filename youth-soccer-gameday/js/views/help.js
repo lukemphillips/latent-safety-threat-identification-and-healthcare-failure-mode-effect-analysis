@@ -9,7 +9,7 @@ export function renderHelp(app) {
 
     ${section('🚀 Getting started', `
       <ol class="stack" style="margin:0; padding-left:18px;">
-        <li><a href="#/settings">Settings</a> — set your team name, age group, and format. "Suggest format &amp; playing-time standard for this age group" fills in a sensible squad size, match length, and minimum playing time standard for you, based on the FAI/DDSL guide below it.</li>
+        <li><a href="#/settings">Settings</a> — set your team name, age group, and format.</li>
         <li><a href="#/roster">Roster</a> — add players one at a time, or use <strong>Import</strong> to bulk-add from a spreadsheet (a template is offered in the import dialog; tick "Import this whole list as guest players" to bring in a visiting team's roster in one go, with a shared team name). Marking a player as a <strong>👥 Guest</strong> (in their Add/Edit form, or via Import) is for combining with another team for a joint training session — a guest shows up for Training attendance, groups, and small-sided matches, but never in Matchday, RSVP, a game's Squad/Lineup, Live Game, squad rules, Balance Teams, or Stats, since they're not actually part of your team for real fixtures. <strong>Sort by</strong> buttons above the player list (Name / Stream / Team Allocation — tap again to reverse) reorder the whole roster the same way as Balance Teams' Squad table; leave them alone and it stays in the original order (active players first, then guests, then by jersey number).</li>
         <li><a href="#/schedule">Matchday</a> — add your first game. Each game can override the team's default match length, or you can add a same-day second match right from this form.</li>
       </ol>

@@ -2,7 +2,6 @@ import { getState, update, resetToSample, clearAllData, restoreFromBackup, merge
 import { PRESET_FORMATIONS, formationOptionsFor, buildCustomFormation, remapLineupToFormat } from '../formations.js';
 import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers, todayIso } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
-import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
 import { getSyncConfig, isMatchdayOnly, buildAppsScript, generateSyncTokens, setUpAsFullEditor, joinWithLink, syncNow, disconnectCloudSync } from '../cloudSync.js';
 
@@ -75,7 +74,6 @@ export function renderSettings(app) {
           </select>
         </div>
       </div>
-      <button type="button" class="btn ghost sm" data-action="suggest-format">Suggest format &amp; playing-time standard for this age group</button>
       <div class="field-row">
         <div class="field">
           <label>Default minutes per period</label>
@@ -94,7 +92,7 @@ export function renderSettings(app) {
       <div class="field">
         <label>Minimum playing time standard (% of match minutes)</label>
         <input type="number" name="minPlayingTimePercent" min="0" max="100" step="5" placeholder="e.g. 50" value="${team.minPlayingTimePercent ?? ''}" />
-        <p class="muted small" style="margin:4px 0 0;">The share of a match's total minutes every player should get at minimum, over the season — shown in Stats so you can see who's falling short. "Suggest format for this age group" below fills this in from the FAI/DDSL guide too.</p>
+        <p class="muted small" style="margin:4px 0 0;">The share of a match's total minutes every player should get at minimum, over the season — shown in Stats so you can see who's falling short.</p>
       </div>
       <label class="checkbox-row">
         <input type="checkbox" name="equalPlayingTimePolicy" ${team.equalPlayingTimePolicy ? 'checked' : ''} />
@@ -113,35 +111,8 @@ export function renderSettings(app) {
       </fieldset>
     </form>
 
-    <details class="card">
-      <summary style="cursor:pointer; font-weight:700;">Age-group format guide (FAI Player Development Plan)</summary>
-      <p class="muted small">The framework DDSL and most Irish schoolboy/schoolgirl leagues build their own rules on. Always confirm against your own league's current rule book — leagues sometimes vary, especially at U11/U12.</p>
-      <div style="overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
-          <thead>
-            <tr>
-              <th style="text-align:left; padding:5px 6px;">Age</th>
-              <th style="text-align:left; padding:5px 6px;">Format</th>
-              <th style="text-align:left; padding:5px 6px;">Duration</th>
-              <th style="text-align:left; padding:5px 6px;">Pitch</th>
-              <th style="text-align:left; padding:5px 6px;">Min Play%</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${AGE_FORMATS.map((b) => `
-              <tr style="border-top:1px solid var(--line);">
-                <td style="padding:5px 6px; font-weight:600;">${b.label}</td>
-                <td style="padding:5px 6px;">${b.squadFormat ? b.squadFormat + '-a-side' : '4v4 (no GK)'}</td>
-                <td style="padding:5px 6px;">${b.numPeriods} × ${b.periodMinutes} min</td>
-                <td style="padding:5px 6px;">${escapeHtml(b.pitch)}</td>
-                <td style="padding:5px 6px;">${b.minPlayingTimePercent != null ? b.minPlayingTimePercent + '%' : '—'}</td>
-              </tr>
-              ${b.notes ? `<tr><td colspan="5" class="muted" style="padding:0 6px 6px;">${escapeHtml(b.notes)}</td></tr>` : ''}
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </details>
+    <div class="section-title">Cloud Sync</div>
+    ${cloudSyncSectionHtml(syncConfig)}
 
     <div class="section-title">Formations</div>
     <div class="card">
@@ -199,9 +170,6 @@ export function renderSettings(app) {
       <button class="btn danger block" data-action="clear-data">Clear All Data</button>
     </div>
 
-    <div class="section-title">Cloud Sync</div>
-    ${cloudSyncSectionHtml(syncConfig)}
-
     <div class="section-title">Diagnostics</div>
     <div class="card stack">
       <p class="muted small mt-0">If Boot Room misbehaves for you or another coach, errors are captured automatically here on that device — no need to remember exactly what happened. Copy the log and send it to whoever maintains the app.</p>
@@ -235,27 +203,6 @@ export function renderSettings(app) {
       renderSettings(app);
     });
   }
-
-  app.querySelector('[data-action="suggest-format"]').addEventListener('click', () => {
-    const form = app.querySelector('#team-form');
-    const ageGroupValue = form.querySelector('[name="ageGroup"]').value;
-    const band = suggestFormatForAgeGroup(ageGroupValue);
-    if (!band) {
-      alertDialog('Enter an age group with a number in it (e.g. "U10") to get a suggestion.');
-      return;
-    }
-    if (band.minPlayingTimePercent != null) {
-      form.querySelector('[name="minPlayingTimePercent"]').value = String(band.minPlayingTimePercent);
-    }
-    if (!band.squadFormat) {
-      alertDialog(`${band.label}: ${band.notes}${band.minPlayingTimePercent != null ? ` Minimum playing time standard set to ${band.minPlayingTimePercent}%.` : ''}`);
-      return;
-    }
-    form.querySelector('[name="squadFormat"]').value = String(band.squadFormat);
-    form.querySelector('[name="periodMinutes"]').value = String(band.periodMinutes);
-    form.querySelector('[name="numPeriods"]').value = String(band.numPeriods);
-    alertDialog(`Suggested ${band.label} format applied: ${band.squadFormat}-a-side, ${band.numPeriods} × ${band.periodMinutes} min, minimum playing time standard ${band.minPlayingTimePercent}%.${band.notes ? ' ' + band.notes : ''} Review and hit Save Team Settings to keep it.`);
-  });
 
   app.querySelector('#team-form').addEventListener('submit', (e) => {
     e.preventDefault();

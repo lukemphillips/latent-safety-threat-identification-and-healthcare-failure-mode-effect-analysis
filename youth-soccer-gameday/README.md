@@ -564,12 +564,7 @@ see everything working immediately. Reset or clear that data any time from
   own when scheduled), minimum stint length, a **minimum playing time
   standard** (% of match minutes every player should get at minimum, over
   the season — surfaced in Stats' PT% column, see above), the
-  equal-playing-time toggle, cards toggle, squad rules, and a collapsible
-  age-group format guide (see below) with a one-tap "Suggest format &
-  playing-time standard" button that reads your age group and fills in
-  the squad format, match length, *and* the minimum playing time standard
-  for you — the guide table's own "Min Play%" column shows what each band
-  gets. Changing squad format (e.g.
+  equal-playing-time toggle, cards toggle, and squad rules. Changing squad format (e.g.
   7-a-side to 5-a-side) reshapes every upcoming lineup to fit — spots the
   new formation still has keep their player, anyone whose spot no longer
   exists just moves to the bench, so nobody's silently dropped and nothing
@@ -680,29 +675,6 @@ see everything working immediately. Reset or clear that data any time from
   fair play, keeping data safe, and troubleshooting, so a coach doesn't
   need to read this README to use the app day-to-day.
 
-## Age-group formats (DDSL / FAI Player Development Plan)
-
-Settings includes a reference table of playing formats by age group, based
-on the FAI Player Development Plan that DDSL and most Irish schoolboy/
-schoolgirl leagues build their own rules on: 4v4 (no keeper) at U7, 5-a-side
-at U8–U9, 7-a-side at U10–U11, 9-a-side at U12, and 11-a-side from U13 up,
-each with its own match length, pitch size, and minimum playing time
-standard (the table's "Min Play%" column). The U13/U14+ figures come
-directly from the FAI's own published minimum-minutes guidance for those
-bands, converted to a percentage of that band's total match length; U7–U12
-(the FAI's development phase, where the guidance is that younger players
-need *more* guaranteed time, not less) carries the ~50% figure that's the
-common general benchmark for equal playing time at that age.
-
-Worth knowing: this session's network policy blocked direct access to
-ddsl.ie, so the table is sourced from the public FAI plan and reporting
-about DDSL rather than DDSL's own rule book (which is linked from
-[ddsl.ie](https://ddsl.ie/) if you want to check the current one directly)
-— DDSL has in the past run U11/U12 differently from the standard FAI
-format, so it's worth confirming your age group's exact rules (including
-its exact playing-time policy) with your league before relying on the
-suggestion.
-
 ## Project structure
 
 ```
@@ -714,7 +686,9 @@ js/
   seed.js          sample data
   formations.js    default formation shapes per squad size + custom-
                    formation builder (evenly-laid-out DEF/MID/FWD counts)
-  ageFormats.js    DDSL/FAI age-group format reference + suggestion logic
+  ageFormats.js    DDSL/FAI age-group reference data, used to detect
+                   junior (U7-U9) age groups for Balance Teams' default
+                   guidance
   starterDrills.js ~45 curated real drills (name/description/link/tags/
                    ageGroups, a dozen with an inline-SVG diagram) loaded
                    in one tap via the Drill Library's "📚 Load Starter
