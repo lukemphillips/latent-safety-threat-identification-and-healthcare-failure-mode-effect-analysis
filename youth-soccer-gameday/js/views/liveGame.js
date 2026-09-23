@@ -1,11 +1,12 @@
 import { getState, update, findGame, saveAutoBackup } from '../store.js';
 import { uid, escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile, matchEligiblePlayers, playerPositions } from '../util.js';
-import { outfieldTargetCount, formationFor, formationOptionsFor, remapLineupToFormat } from '../formations.js';
+import { outfieldTargetCount, formationFor, formationOptionsFor } from '../formations.js';
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../subPlan.js';
 import { autoFillLineup } from './gameDetail.js';
 import { isCloudSyncConnected, syncSilently } from '../cloudSync.js';
+import { remapLiveFormation, stintSeconds, computeMatchSummary, findRemovalReason } from '../liveGameLogic.js';
 
 let selectingInboundId = null;
 let lastGameId = null;
@@ -507,33 +508,6 @@ export function renderLiveGame(app, gameId) {
   return undefined;
 }
 
-// Same-id slots keep their player (via remapLineupToFormat), but unlike
-// the pre-match Squad tab — where anyone not yet placed is simply "on the
-// bench" — a live match has real on-field players who must end up
-// SOMEWHERE on the new formation's pitch. Any of them left stranded by
-// the id-based remap (their old slot id doesn't exist in the new shape)
-// gets dropped into whatever slot is still empty, so nobody actually on
-// the field ever ends up with no visible position after a formation swap.
-function remapLiveFormation(oldSlots, onFieldIds, gkId, newFormation) {
-  const slots = remapLineupToFormat(oldSlots, newFormation);
-  const assigned = new Set(Object.values(slots).filter(Boolean));
-  const emptySlotIds = newFormation.slots.map((s) => s.id).filter((sid) => !slots[sid]);
-
-  if (gkId && !assigned.has(gkId)) {
-    const gkIdx = emptySlotIds.indexOf('gk');
-    if (gkIdx !== -1) {
-      slots.gk = gkId;
-      emptySlotIds.splice(gkIdx, 1);
-      assigned.add(gkId);
-    }
-  }
-  onFieldIds.filter((id) => !assigned.has(id)).forEach((id) => {
-    const nextSlotId = emptySlotIds.shift();
-    if (nextSlotId) slots[nextSlotId] = id;
-  });
-  return slots;
-}
-
 // A modal rather than a plain inline <select> — the live view's own
 // timer-card re-renders every second while the match clock is running
 // (see main.js's ticker), which was tearing the <select> element itself
@@ -800,11 +774,6 @@ function removePlayerFromPlay(state, gameId, playerId) {
   });
 }
 
-function stintSeconds(live, playerId) {
-  const startedAt = (live.stintStart || {})[playerId] ?? 0;
-  return Math.max(0, live.elapsedSeconds - startedAt);
-}
-
 // Guards every path that puts a player onto live.onField against doing so
 // twice — most notably a Substitution Plan entry (or, less often, a
 // fair-play "Use Suggestion" button) that's gone stale by the time it's
@@ -891,49 +860,6 @@ function goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted) {
       ${periods.length > 1 ? `<div class="muted small" style="margin-top:8px;">${periods.map((n) => `${periodLabel(numPeriods, n)}: ${live.gkByPeriod[n] ? escapeHtml((getState().players.find((p) => p.id === live.gkByPeriod[n]) || {}).name || '?') : '—'}`).join(' · ')}</div>` : ''}
     </div>
   `;
-}
-
-// Distills the raw chronological subLog into the handful of numbers a
-// coach actually wants after a match — who scored, who set them up, who
-// made saves, who picked up cards — rather than making them read back
-// through every event in order.
-function computeMatchSummary(live) {
-  const scorers = new Map();
-  const saves = new Map();
-  const cards = new Map();
-  let openPlaySaves = 0;
-
-  (live.subLog || []).forEach((e) => {
-    if (e.type === 'goal-us' && e.scorerId) {
-      const rec = scorers.get(e.scorerId) || { name: e.scorerName, goals: 0, assists: 0 };
-      rec.goals += 1;
-      scorers.set(e.scorerId, rec);
-      if (e.assistId) {
-        const arec = scorers.get(e.assistId) || { name: e.assistName, goals: 0, assists: 0 };
-        arec.assists += 1;
-        scorers.set(e.assistId, arec);
-      }
-    } else if (e.type === 'save') {
-      if (e.playerId) {
-        const rec = saves.get(e.playerId) || { name: e.name, count: 0 };
-        rec.count += 1;
-        saves.set(e.playerId, rec);
-      } else {
-        openPlaySaves += 1;
-      }
-    } else if (e.type === 'card') {
-      const rec = cards.get(e.playerId) || { name: e.name, yellow: 0, red: 0 };
-      if (e.cardType === 'red') rec.red += 1; else rec.yellow += 1;
-      cards.set(e.playerId, rec);
-    }
-  });
-
-  return {
-    scorers: [...scorers.values()].filter((r) => r.goals || r.assists).sort((a, b) => b.goals - a.goals),
-    saves: [...saves.values()].sort((a, b) => b.count - a.count),
-    openPlaySaves,
-    cards: [...cards.values()],
-  };
 }
 
 function matchSummaryHtml(live) {
@@ -1381,33 +1307,6 @@ function openQuickCardModal(gameId, pool, team) {
       });
     },
   });
-}
-
-// Finds whichever subLog entries actually put this player into sentOff,
-// searching back from the most recent — a straight red is one 'card'
-// entry; a second-yellow send-off is that 'send-off' entry plus the
-// specific 'card'/yellow entry right before it (not their first, valid
-// yellow); an injury/other removal is just the one 'send-off' entry.
-// Used both to describe why they're sent off in the Recover dialog, and
-// — if the coach says it was logged in error — to know exactly what to
-// delete so the record ends up as if it never happened.
-function findRemovalReason(subLog, playerId) {
-  for (let i = subLog.length - 1; i >= 0; i--) {
-    const e = subLog[i];
-    if (e.playerId !== playerId) continue;
-    if (e.type === 'card' && e.cardType === 'red') return { reason: 'red card', indexes: [i] };
-    if (e.type === 'send-off' && e.reason === 'second yellow') {
-      // The specific yellow that triggered this: the *last* yellow logged
-      // for this player before this send-off, found by scanning backward.
-      let secondYellowIdx = -1;
-      for (let k = i - 1; k >= 0; k--) {
-        if (subLog[k].type === 'card' && subLog[k].cardType === 'yellow' && subLog[k].playerId === playerId) { secondYellowIdx = k; break; }
-      }
-      return { reason: 'second yellow card', indexes: secondYellowIdx !== -1 ? [secondYellowIdx, i] : [i] };
-    }
-    if (e.type === 'send-off') return { reason: e.reason === 'injury' ? 'injury' : 'other reason', indexes: [i] };
-  }
-  return { reason: 'unknown reason', indexes: [] };
 }
 
 function openRecoverModal(gameId, player) {

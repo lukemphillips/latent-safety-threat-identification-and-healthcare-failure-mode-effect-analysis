@@ -1,21 +1,13 @@
 import { getState, update, findTraining, findDrill, saveAutoBackup } from '../store.js';
-import { uid, escapeHtml, formatDate, formatTime, formatClock, sortByDateTime, todayIso, nowHHMM, copyToClipboard } from '../util.js';
+import { uid, escapeHtml, formatDate, formatTime, formatClock, sortByDateTime, todayIso, nowHHMM, copyToClipboard, shuffleArray } from '../util.js';
 import { buildGroupsByStream } from '../trainingGroups.js';
 import { openModal, closeModal, confirmDialog } from '../modal.js';
 import { openDrillForm as openDrillLibraryForm, openDrillDetailModal } from './drills.js';
 import { splitBalancedTeams } from './balanceTeams.js';
+import { addMinutesToTime, resolveStations, resolveRotationCount, blockEffectiveMinutes, planTimeline, currentTimelineEntry, rotationLegInfo, advanceTrainingLive } from '../trainingPlanLogic.js';
 
 let selectingPlayerId = null;
 let selectingSourceGroupId = null;
-
-function shuffle(list) {
-  const arr = [...list];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
 
 export function renderTraining(app) {
   const { trainings } = getState();
@@ -443,7 +435,7 @@ const MATCH_MIN_PLAYERS_PER_TEAM = 2;
 function buildMatchTeams(players, count, mode) {
   const groups = mode === 'mixed'
     ? splitBalancedTeams(players, count).map((teamPlayers) => ({ playerIds: teamPlayers.map((p) => p.id) }))
-    : buildGroupsByStream(shuffle(players), count);
+    : buildGroupsByStream(shuffleArray(players), count);
   return groups.map((g, i) => ({ id: uid(), name: `Team ${i + 1}`, playerIds: g.playerIds }));
 }
 
@@ -530,86 +522,6 @@ function matchTeamCardHtml(team, byId) {
   `;
 }
 
-function addMinutesToTime(hhmm, minutes) {
-  if (!hhmm) return '';
-  const [h, m] = hhmm.split(':').map(Number);
-  const total = h * 60 + m + minutes;
-  const wrapped = ((total % 1440) + 1440) % 1440;
-  return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`;
-}
-
-// A rotation block runs the same activities as a normal grouped block, but
-// instead of every group staying at its own activity for the whole block,
-// groups rotate through every station in turn. Stations are their own
-// list (block.stations), independent of how many groups there are — a
-// group is just whichever index the round-robin formula below points it
-// at each leg. That's what lets fewer stations than groups happen at
-// all: with 4 groups and 3 stations, two groups always land on the same
-// station index together, i.e. they run that rotation side by side.
-// Falls back to deriving one station per group with an activity actually
-// set, for a block saved before stations were their own list — keeps an
-// old rotate block (where station count always equalled group count)
-// behaving exactly as it did.
-function resolveStations(block, groups) {
-  if (block.stations && block.stations.length) return block.stations;
-  return groups
-    .filter((g) => ((block.groupActivities || {})[g.id] || '').trim())
-    .map((g) => ({ id: g.id, activity: (block.groupActivities || {})[g.id], drillId: (block.groupActivityDrillIds || {})[g.id] || null }));
-}
-
-// How many rotations (legs) actually run. An explicit, coach-set count
-// when given — e.g. 4 groups sharing 3 stations might still only run 3
-// rotations rather than continuing to cycle — otherwise one rotation per
-// station, so everyone visits every station exactly once by default.
-function resolveRotationCount(block, groups) {
-  const stations = resolveStations(block, groups);
-  const explicit = Number(block.rotationCount);
-  return Math.max(1, explicit > 0 ? explicit : (stations.length || groups.length || 1));
-}
-
-function blockEffectiveMinutes(block, groups) {
-  if (block.mode === 'grouped' && block.rotate) {
-    return (block.minutes || 0) * resolveRotationCount(block, groups);
-  }
-  return block.minutes || 0;
-}
-
-// Lays the plan out on a single timeline in seconds — each entry's
-// start/end is where that block sits in the overall session once rotation
-// blocks are expanded to their full (minutes × stations) length. The live
-// timer derives "what's happening right now" purely from elapsed seconds
-// against this timeline, rather than tracking a separate block pointer, so
-// skipping/rewinding is just moving a number.
-function planTimeline(training) {
-  const groups = training.groups || [];
-  let cursor = 0;
-  return (training.blocks || []).map((block) => {
-    const effectiveSeconds = blockEffectiveMinutes(block, groups) * 60;
-    const start = cursor;
-    cursor += effectiveSeconds;
-    return { block, startSeconds: start, endSeconds: cursor, effectiveSeconds };
-  });
-}
-
-// Takes an already-computed timeline (not the training object) so callers
-// that also need the array itself — for indexOf, length, etc. — get back
-// an entry that's actually === one of its own elements, rather than a
-// fresh object from a second, separate planTimeline() call.
-function currentTimelineEntry(timeline, elapsedSeconds) {
-  if (!timeline.length) return null;
-  return timeline.find((e) => elapsedSeconds < e.endSeconds) || timeline[timeline.length - 1];
-}
-
-// Within a rotation block, which "leg" (0-indexed rotation) is current and
-// how much of it remains.
-function rotationLegInfo(block, groups, secondsIntoBlock) {
-  const totalLegs = resolveRotationCount(block, groups);
-  const legSeconds = Math.max(1, block.minutes || 1) * 60;
-  const legIndex = Math.min(totalLegs - 1, Math.floor(secondsIntoBlock / legSeconds));
-  const secondsIntoLeg = secondsIntoBlock - legIndex * legSeconds;
-  return { legIndex, totalLegs, secondsIntoLeg, legSeconds };
-}
-
 // Falls back to matching the activity's own text against a saved drill's
 // name (case/whitespace-insensitive) whenever there's no explicit link —
 // covers activity text that was typed by hand rather than picked from the
@@ -634,7 +546,7 @@ function resolveActivityDrillId(activityText, explicitDrillId) {
 // station together at the same time — which is exactly what makes
 // "some groups share a rotation" fall out with no separate pairing step.
 function rotationAssignment(block, groups, legIndex) {
-  const stations = resolveStations(block, groups);
+  const stations = resolveStations(block);
   const n = stations.length;
   if (!n || !groups.length) return [];
   return groups.map((g, i) => {
@@ -645,26 +557,6 @@ function rotationAssignment(block, groups, legIndex) {
       drillId: resolveActivityDrillId(station.activity, station.drillId),
     };
   });
-}
-
-// Ticks a live session forward by one second (called from main.js's global
-// per-second ticker, same pattern as a live match's clock). Returns true
-// exactly when this tick crosses into a new block, so the caller can fire
-// an attention chime — never on the tick that finishes the whole plan,
-// since there's nothing left to alert about.
-export function advanceTrainingLive(training) {
-  if (!training.live || !training.live.running) return false;
-  const timeline = planTimeline(training);
-  const total = timeline.length ? timeline[timeline.length - 1].endSeconds : 0;
-  const before = currentTimelineEntry(timeline, training.live.elapsedSeconds);
-  training.live.elapsedSeconds += 1;
-  if (training.live.elapsedSeconds >= total) {
-    training.live.running = false;
-    training.live.elapsedSeconds = total;
-    return false;
-  }
-  const after = currentTimelineEntry(timeline, training.live.elapsedSeconds);
-  return !!(before && after && before.block.id !== after.block.id);
 }
 
 // Plain-text summary of a whole session — attendance, groups, and the full
@@ -715,11 +607,11 @@ function formatTrainingForShare(training, players, teamName) {
         if (b.rotate) {
           const rotations = resolveRotationCount(b, groups);
           lines.push(`  ${i + 1}. ${b.minutes} min × ${rotations} rotation${rotations === 1 ? '' : 's'} (${b.minutes * rotations} min) — stations:`);
-          resolveStations(b, groups).forEach((s, si) => {
+          resolveStations(b).forEach((s, si) => {
             if (s.activity) lines.push(`     Station ${si + 1}: ${s.activity}`);
           });
-          if (groups.length > resolveStations(b, groups).length) {
-            lines.push(`     (${groups.length} groups over ${resolveStations(b, groups).length} stations — some groups share a station at once)`);
+          if (groups.length > resolveStations(b).length) {
+            lines.push(`     (${groups.length} groups over ${resolveStations(b).length} stations — some groups share a station at once)`);
           }
         } else {
           lines.push(`  ${i + 1}. ${b.minutes} min — per group:`);
@@ -982,7 +874,7 @@ function moveBlock(training, blockId, direction) {
 function blockCardHtml(block, index, total, groups) {
   const groupsById = Object.fromEntries(groups.map((g) => [g.id, g]));
   const isRotation = block.mode === 'grouped' && block.rotate;
-  const stations = isRotation ? resolveStations(block, groups) : null;
+  const stations = isRotation ? resolveStations(block) : null;
   const rotations = isRotation ? resolveRotationCount(block, groups) : null;
   const effectiveMinutes = blockEffectiveMinutes(block, groups);
   return `

@@ -49,6 +49,18 @@ export function sortByDateTime(games) {
   return [...games].sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
 }
 
+// Fisher-Yates, returning a new array — shared by Balance Teams and
+// Training's random-split features so "shuffle before splitting" behaves
+// identically everywhere it's used.
+export function shuffleArray(list) {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export function todayIso() {
   const d = new Date();
   return d.toISOString().slice(0, 10);
@@ -197,12 +209,12 @@ export function comparePlayersBy(key, a, b) {
   return a.name.localeCompare(b.name);
 }
 
-// Reads the new `positions` array, falling back to an older single
-// `position` string for data saved before multi-position support existed.
+// A player saved before multi-position support existed had a single
+// `position` string rather than this `positions` array — store.js's
+// migratePlayers() upgrades that on the way into state, so every player
+// this reads has the array by the time it gets here.
 export function playerPositions(p) {
-  if (Array.isArray(p.positions) && p.positions.length) return p.positions;
-  if (p.position) return [p.position];
-  return [];
+  return Array.isArray(p.positions) ? p.positions : [];
 }
 
 export function formatPositions(p) {

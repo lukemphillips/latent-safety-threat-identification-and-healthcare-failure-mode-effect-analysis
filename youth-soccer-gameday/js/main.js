@@ -11,7 +11,8 @@ import { renderSettings } from './views/settings.js';
 import { renderStats } from './views/stats.js';
 import { renderBalanceTeams } from './views/balanceTeams.js';
 import { renderHelp } from './views/help.js';
-import { renderTraining, renderTrainingDetail, advanceTrainingLive, patchLiveTimerClock } from './views/training.js';
+import { renderTraining, renderTrainingDetail, patchLiveTimerClock } from './views/training.js';
+import { advanceTrainingLive } from './trainingPlanLogic.js';
 import { renderDrillLibrary } from './views/drills.js';
 import { isCloudSyncConnected, syncSilently } from './cloudSync.js';
 

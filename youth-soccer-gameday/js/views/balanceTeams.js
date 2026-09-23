@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate, sortByDateTime, matchEligiblePlayers, STREAM_ORDER, comparePlayersBy } from '../util.js';
+import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate, sortByDateTime, matchEligiblePlayers, STREAM_ORDER, comparePlayersBy, shuffleArray } from '../util.js';
 import { isJuniorAgeGroup } from '../ageFormats.js';
 import { formationFor, emptyLineupSlots } from '../formations.js';
 import { autoFillLineup } from './gameDetail.js';
@@ -59,15 +59,6 @@ function includedFromLabel(game, active) {
   return 'the full active roster';
 }
 
-function shuffle(list) {
-  const arr = [...list];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 export function splitBalancedTeams(players, count) {
   const buckets = new Map(STREAM_ORDER.map((s) => [s, []]));
   players.forEach((p) => {
@@ -77,7 +68,7 @@ export function splitBalancedTeams(players, count) {
 
   const teams = Array.from({ length: count }, () => []);
   STREAM_ORDER.forEach((key) => {
-    shuffle(buckets.get(key)).forEach((p) => {
+    shuffleArray(buckets.get(key)).forEach((p) => {
       const minLen = Math.min(...teams.map((t) => t.length));
       const smallest = teams.map((t, i) => i).filter((i) => teams[i].length === minLen);
       const idx = smallest[Math.floor(Math.random() * smallest.length)];

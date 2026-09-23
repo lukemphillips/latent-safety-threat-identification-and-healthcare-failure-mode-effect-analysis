@@ -30,6 +30,43 @@ function emptyData() {
   return { team: emptyTeam(), players: [], games: [], trainings: [], drills: [] };
 }
 
+// One-time upgrades for data shapes this app used to save before a later
+// feature replaced them — applied to every array of players/trainings that
+// enters the app (a fresh load, a restored/merged backup, or an incoming
+// Cloud Sync payload), so the rest of the codebase can assume the current
+// shape everywhere else rather than every reader carrying its own
+// fallback. There's no "migration version" to track: each check is cheap
+// and a no-op once the data's already current, so it's safe to just run
+// on every entry unconditionally.
+function migratePlayers(players) {
+  return players.map((p) => {
+    if ((!Array.isArray(p.positions) || !p.positions.length) && p.position) {
+      const { position, ...rest } = p;
+      return { ...rest, positions: [position] };
+    }
+    return p;
+  });
+}
+
+// A rotation block used to derive its stations from groupActivities at
+// render time (one station per group with an activity set) rather than
+// storing its own explicit stations array — upgrades any block saved that
+// way to have a real `stations` array, matching what saving the block
+// through the current form has always produced since.
+function migrateTrainings(trainings) {
+  return trainings.map((t) => {
+    const groups = t.groups || [];
+    const blocks = (t.blocks || []).map((b) => {
+      if (b.mode !== 'grouped' || !b.rotate || (b.stations && b.stations.length)) return b;
+      const stations = groups
+        .filter((g) => ((b.groupActivities || {})[g.id] || '').trim())
+        .map((g) => ({ id: g.id, activity: (b.groupActivities || {})[g.id], drillId: (b.groupActivityDrillIds || {})[g.id] || null }));
+      return stations.length ? { ...b, stations } : b;
+    });
+    return { ...t, blocks };
+  });
+}
+
 function load() {
   let raw = null;
   try {
@@ -46,6 +83,8 @@ function load() {
         // the save.
         if (!Array.isArray(parsed.trainings)) parsed.trainings = [];
         if (!Array.isArray(parsed.drills)) parsed.drills = [];
+        parsed.players = migratePlayers(parsed.players);
+        parsed.trainings = migrateTrainings(parsed.trainings);
         return parsed;
       }
     } catch (e) {
@@ -152,6 +191,8 @@ export function restoreFromBackup(data) {
   // them in for a backup taken before they existed, rather than rejecting it.
   if (!Array.isArray(data.trainings)) data.trainings = [];
   if (!Array.isArray(data.drills)) data.drills = [];
+  data.players = migratePlayers(data.players);
+  data.trainings = migrateTrainings(data.trainings);
   state = data;
   persist();
   listeners.forEach((fn) => fn(state));
@@ -196,6 +237,9 @@ export function mergeBackup(data) {
   }
   const s = getState();
   let playersAdded = 0, gamesAdded = 0, gamesUpdated = 0, awardsAdded = 0, trainingsAdded = 0, drillsAdded = 0;
+
+  data.players = migratePlayers(data.players);
+  data.trainings = migrateTrainings(data.trainings || []);
 
   const localPlayerIds = new Set(s.players.map((p) => p.id));
   data.players.forEach((p) => {
@@ -302,6 +346,7 @@ export function applyCloudSync(cloudData) {
 
   s.team = cloudData.team;
 
+  cloudData.players = migratePlayers(cloudData.players);
   const cloudPlayerIds = new Set(cloudData.players.map((p) => p.id));
   const localOnlyPlayers = s.players.filter((p) => !cloudPlayerIds.has(p.id));
   s.players = [...cloudData.players, ...localOnlyPlayers];
@@ -428,6 +473,64 @@ export function dismissAutoBackupPrompt() {
   } catch (e) {
     console.warn('Could not save auto-backup dismissal', e);
   }
+}
+
+// Season archiving (Settings > Data): a completed match or a training
+// session, older than a coach-chosen cutoff date, can be exported and
+// removed from this device — keeping Stats/History and every future auto-
+// backup snapshot from growing forever across seasons. Deliberately never
+// touches a scheduled or still-live match, or a currently-live training
+// session, no matter how old its date is — only things that are actually
+// finished are ever eligible, so a wrong cutoff date can't wipe out
+// something still in progress or upcoming.
+function isArchivableGame(g, cutoffDate) {
+  return g.status === 'completed' && g.date < cutoffDate;
+}
+
+function isArchivableTraining(t, cutoffDate) {
+  return !t.live && t.date < cutoffDate;
+}
+
+// Counts only — used to show "this will archive N matches and M sessions"
+// before committing to anything.
+export function archivableCounts(cutoffDate) {
+  const { games, trainings } = getState();
+  return {
+    games: games.filter((g) => isArchivableGame(g, cutoffDate)).length,
+    trainings: trainings.filter((t) => isArchivableTraining(t, cutoffDate)).length,
+  };
+}
+
+// Read-only: the exact payload the coach should save a copy of before
+// archiving — same idea as a manual backup, but scoped to just what's
+// about to be removed.
+export function buildArchivePayload(cutoffDate) {
+  const { games, trainings } = getState();
+  return {
+    archivedAt: new Date().toISOString(),
+    cutoffDate,
+    games: games.filter((g) => isArchivableGame(g, cutoffDate)),
+    trainings: trainings.filter((t) => isArchivableTraining(t, cutoffDate)),
+  };
+}
+
+// Actually removes the archived games/trainings from this device. Callers
+// are expected to have already gotten the coach a copy via
+// buildArchivePayload — this doesn't return one, on purpose, so it can't
+// be used as a substitute for actually saving that copy first.
+export function removeArchivedData(cutoffDate) {
+  const s = getState();
+  const gamesBefore = s.games.length;
+  const trainingsBefore = s.trainings.length;
+  s.games = s.games.filter((g) => !isArchivableGame(g, cutoffDate));
+  s.trainings = s.trainings.filter((t) => !isArchivableTraining(t, cutoffDate));
+  const removed = {
+    games: gamesBefore - s.games.length,
+    trainings: trainingsBefore - s.trainings.length,
+  };
+  persist();
+  listeners.forEach((fn) => fn(state));
+  return removed;
 }
 
 export function findPlayer(id) {
