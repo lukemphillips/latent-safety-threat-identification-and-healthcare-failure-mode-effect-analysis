@@ -1,11 +1,10 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate, sortByDateTime, matchEligiblePlayers } from '../util.js';
+import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate, sortByDateTime, matchEligiblePlayers, STREAM_ORDER, comparePlayersBy } from '../util.js';
 import { isJuniorAgeGroup } from '../ageFormats.js';
 import { formationFor, emptyLineupSlots } from '../formations.js';
 import { autoFillLineup } from './gameDetail.js';
 import { confirmDialog } from '../modal.js';
 
-const STREAM_ORDER = ['A', 'B', 'C', 'D', null];
 const MIN_TEAMS = 2;
 const MAX_TEAMS = 4;
 
@@ -24,23 +23,10 @@ function resetImportStatus() {
   importedTeams = {};
 }
 
-function streamSortIndex(stream) {
-  return STREAM_ORDER.indexOf(STREAM_ORDER.includes(stream) ? stream : null);
-}
-
 function sortSquadPlayers(list) {
   const sorted = [...list];
   sorted.sort((a, b) => {
-    let cmp;
-    if (squadSortKey === 'stream') {
-      cmp = (streamSortIndex(a.skillStream) - streamSortIndex(b.skillStream)) || a.name.localeCompare(b.name);
-    } else if (squadSortKey === 'teamAllocation') {
-      // Numeric-aware, so "9.4" sorts before "9.5" and "10.1" — not just
-      // lexicographically (which would put "10.1" before "9.4").
-      cmp = (a.teamAllocation || '').localeCompare(b.teamAllocation || '', undefined, { numeric: true }) || a.name.localeCompare(b.name);
-    } else {
-      cmp = a.name.localeCompare(b.name);
-    }
+    const cmp = comparePlayersBy(squadSortKey, a, b);
     return squadSortDir === 'desc' ? -cmp : cmp;
   });
   return sorted;

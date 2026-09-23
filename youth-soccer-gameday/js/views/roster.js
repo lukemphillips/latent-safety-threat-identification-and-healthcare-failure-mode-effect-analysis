@@ -1,5 +1,5 @@
 import { getState, update, findPlayer } from '../store.js';
-import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, copyToClipboard } from '../util.js';
+import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, copyToClipboard, comparePlayersBy } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { parseRosterFile, TEMPLATE_CSV } from '../importRoster.js';
 import { isMatchdayOnly } from '../cloudSync.js';
@@ -16,14 +16,38 @@ function blockIfMatchdayOnly() {
 
 const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'];
 const STREAMS = ['A', 'B', 'C', 'D'];
+const ROSTER_SORTS = [
+  { key: 'name', label: 'Name' },
+  { key: 'stream', label: 'Stream' },
+  { key: 'teamAllocation', label: 'Team Allocation' },
+];
+
+// null = the original default order (active first, then guests, then by
+// jersey number) — same as before this sorting existed. Picking one of the
+// columns below (same keys/behavior as Balance Teams' Squad table) sorts
+// the whole roster by that instead, active/inactive/guest mixed together.
+let rosterSortKey = null;
+let rosterSortDir = 'asc';
+
+function sortRosterPlayers(players) {
+  if (!rosterSortKey) {
+    return [...players].sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      if (!!a.isGuest !== !!b.isGuest) return a.isGuest ? 1 : -1;
+      return (a.jerseyNumber ?? 0) - (b.jerseyNumber ?? 0);
+    });
+  }
+  const sorted = [...players];
+  sorted.sort((a, b) => {
+    const cmp = comparePlayersBy(rosterSortKey, a, b);
+    return rosterSortDir === 'desc' ? -cmp : cmp;
+  });
+  return sorted;
+}
 
 export function renderRoster(app) {
   const { players } = getState();
-  const sorted = [...players].sort((a, b) => {
-    if (a.active !== b.active) return a.active ? -1 : 1;
-    if (!!a.isGuest !== !!b.isGuest) return a.isGuest ? 1 : -1;
-    return (a.jerseyNumber ?? 0) - (b.jerseyNumber ?? 0);
-  });
+  const sorted = sortRosterPlayers(players);
 
   app.innerHTML = `
     <div class="page-title">
@@ -37,6 +61,16 @@ export function renderRoster(app) {
         <button class="btn" data-action="add-player">+ Add</button>
       </div>
     </div>
+    <div class="spread" style="margin:0 0 10px; flex-wrap:wrap; gap:8px 16px; align-items:center;">
+      <div class="muted small">Sort by:</div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        ${ROSTER_SORTS.map((s) => `
+          <button type="button" class="btn ${rosterSortKey === s.key ? 'secondary' : 'ghost'} sm" data-roster-sort="${s.key}">
+            ${s.label}${rosterSortKey === s.key ? (rosterSortDir === 'desc' ? ' ▼' : ' ▲') : ''}
+          </button>
+        `).join('')}
+      </div>
+    </div>
     <div class="card">
       ${sorted.length ? sorted.map(playerRow).join('') : '<div class="empty">No players yet. Add your first player.</div>'}
     </div>
@@ -46,6 +80,14 @@ export function renderRoster(app) {
   app.querySelector('[data-action="import-roster"]').addEventListener('click', () => { if (!blockIfMatchdayOnly()) openImportModal(); });
   app.querySelectorAll('[data-action="edit-player"]').forEach((el) => {
     el.addEventListener('click', () => { if (!blockIfMatchdayOnly()) openPlayerForm(el.dataset.id); });
+  });
+  app.querySelectorAll('[data-roster-sort]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.rosterSort;
+      if (rosterSortKey === key) rosterSortDir = rosterSortDir === 'desc' ? 'asc' : 'desc';
+      else { rosterSortKey = key; rosterSortDir = 'asc'; }
+      renderRoster(app);
+    });
   });
 }
 

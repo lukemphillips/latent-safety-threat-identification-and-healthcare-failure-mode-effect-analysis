@@ -41,7 +41,10 @@ see everything working immediately. Reset or clear that data any time from
   "9.4") records which of your club's actual named teams a player is
   rostered to, for clubs running one big squad across several teams —
   shown as a badge on the roster row, and sortable in Balance Teams'
-  Squad table. **Import** lets you bulk-add
+  Squad table. The roster list itself has the same **Sort by** buttons
+  (Name / Stream / Team Allocation, tap again to reverse) above the player
+  list; leave them alone and it falls back to the original order (active
+  players first, then guests, then by jersey number). **Import** lets you bulk-add
   players from a .csv or .xlsx file instead of typing each one in — the
   first row should be headers, and common variants (Name/Player, Jersey/
   Number/#, Position/Pos, Stream/Group/Classification, Guardian/Parent,

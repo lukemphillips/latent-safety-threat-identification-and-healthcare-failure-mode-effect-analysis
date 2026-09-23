@@ -175,6 +175,28 @@ export function streamBadgeHtml(stream) {
   return `<span class="badge stream-${stream.toLowerCase()}">Stream ${stream}</span>`;
 }
 
+// Shared skill-classification order for sorting and for splitting players
+// into balanced groups — unclassified always sorts/groups last.
+export const STREAM_ORDER = ['A', 'B', 'C', 'D', null];
+
+function streamSortIndex(stream) {
+  return STREAM_ORDER.indexOf(STREAM_ORDER.includes(stream) ? stream : null);
+}
+
+// Compares two players by name, stream, or team allocation — shared by the
+// Roster and Balance Teams sortable columns so both sort identically.
+// Ties always fall back to name. Team allocation compares numeric-aware,
+// so "9.4" sorts before "9.5" and "10.1" rather than lexicographically.
+export function comparePlayersBy(key, a, b) {
+  if (key === 'stream') {
+    return (streamSortIndex(a.skillStream) - streamSortIndex(b.skillStream)) || a.name.localeCompare(b.name);
+  }
+  if (key === 'teamAllocation') {
+    return (a.teamAllocation || '').localeCompare(b.teamAllocation || '', undefined, { numeric: true }) || a.name.localeCompare(b.name);
+  }
+  return a.name.localeCompare(b.name);
+}
+
 // Reads the new `positions` array, falling back to an older single
 // `position` string for data saved before multi-position support existed.
 export function playerPositions(p) {
