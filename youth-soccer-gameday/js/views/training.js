@@ -1,4 +1,4 @@
-import { getState, update, findTraining, findDrill } from '../store.js';
+import { getState, update, findTraining, findDrill, saveAutoBackup } from '../store.js';
 import { uid, escapeHtml, formatDate, formatTime, formatClock, sortByDateTime, todayIso, nowHHMM, copyToClipboard } from '../util.js';
 import { buildGroupsByStream } from '../trainingGroups.js';
 import { openModal, closeModal, confirmDialog } from '../modal.js';
@@ -110,12 +110,16 @@ export function openTrainingForm(existing) {
             t.time = time;
             t.location = loc;
           });
+          // Same rolling local safety net a completed match gets — see
+          // saveAutoBackup in store.js.
+          saveAutoBackup();
           closeModal();
         } else {
           const id = uid();
           update((state) => {
             state.trainings.push({ id, date, time, location: loc, presentIds: [], groups: [], blocks: [] });
           });
+          saveAutoBackup();
           closeModal();
           location.hash = `#/training/${id}/attendance`;
         }
@@ -954,6 +958,9 @@ function renderLiveTimer(container, training) {
       // date itself rolled over, even though it had already finished.
       t.completedAt = new Date().toISOString();
     });
+    // Same checkpoint a completed match gets — ending a session is the
+    // training-side equivalent of a match finishing.
+    saveAutoBackup();
   });
 
   container.querySelectorAll('[data-action="view-drill"]').forEach((el) => {

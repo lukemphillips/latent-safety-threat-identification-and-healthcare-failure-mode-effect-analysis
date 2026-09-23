@@ -102,7 +102,7 @@ export function renderHelp(app) {
     ${section('💾 Keeping your data safe', `
       <p class="muted small mt-0">Everything in Boot Room lives only in this browser, on this device — no account, no server, nothing sent anywhere. That's good for privacy, but it does mean a private/incognito window, a device clearing its storage, or a different browser or device starts from empty. A few layers protect against that:</p>
       <ul class="stack" style="margin:0; padding-left:18px;">
-        <li><strong>Automatic backups</strong> — Boot Room snapshots a backup by itself every time a match finishes, no action needed (Settings &gt; Data shows the 5 most recent, each with a one-tap Restore).</li>
+        <li><strong>Automatic backups</strong> — Boot Room snapshots a backup by itself whenever a match finishes, a training session is saved or ended, or a drill is saved, no action needed (Settings &gt; Data shows the 5 most recent, each with a one-tap Restore).</li>
         <li><strong>Backup Team Data</strong> — copies everything to your clipboard on demand; paste it somewhere safe (Notes, an email to yourself). <strong>Restore from Backup</strong> pastes it back in.</li>
         <li><strong>A downloaded file</strong> also saves automatically after every match, on any device/browser — check your Downloads.</li>
         <li><strong>Merge in Another Coach's Backup</strong> — for one team running two simultaneous matches, each tracked on a different phone. Share the other coach's Backup any way you like (a synced cloud folder, AirDrop, a message), then paste it in here to combine both matches together without losing either one.</li>

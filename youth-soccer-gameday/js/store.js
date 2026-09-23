@@ -373,9 +373,11 @@ function loadAutoBackups() {
 }
 
 // Snapshots the full current state (same shape a manual backup uses) into
-// a rolling local history, called whenever a match finishes (see
-// liveGame.js) so a coach is never more than one completed match away
-// from something to recover from. Keeps only the most recent few.
+// a rolling local history — called whenever a match finishes (liveGame.js),
+// a training session is created/edited or ended (training.js), or a drill
+// is created/edited (drills.js) — so a coach is never more than one saved
+// checkpoint away from something to recover from. Keeps only the most
+// recent few.
 export function saveAutoBackup() {
   if (!state) return;
   try {

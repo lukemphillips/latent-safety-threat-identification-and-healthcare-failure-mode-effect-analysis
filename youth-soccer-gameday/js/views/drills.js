@@ -1,4 +1,4 @@
-import { getState, update, findDrill, hasStorageRoomFor } from '../store.js';
+import { getState, update, findDrill, hasStorageRoomFor, saveAutoBackup } from '../store.js';
 import { uid, escapeHtml, resizeImageFile, formatBytes, todayIso } from '../util.js';
 import { openModal, closeModal, confirmDialog } from '../modal.js';
 import { STARTER_DRILLS } from '../starterDrills.js';
@@ -788,6 +788,11 @@ export function openDrillForm(existing) {
             state.drills.push(drill);
           }
         });
+        // Same rolling local safety net a completed match gets — a saved
+        // drill (often with an attachment a coach put real effort into) is
+        // just as worth protecting from a bad edit or accidental Clear All
+        // Data as match results are.
+        saveAutoBackup();
         closeModal();
       });
 

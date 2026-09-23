@@ -160,8 +160,8 @@ export function renderSettings(app) {
       <button class="btn ghost block" data-action="merge-data">🔀 Merge in Another Coach's Backup</button>
     </div>
     <div class="card stack">
-      <p class="muted small mt-0">Boot Room also snapshots a backup automatically on this device every time a match finishes — no need to remember to do it yourself. Keeps the 5 most recent.</p>
-      ${autoBackups.length ? autoBackups.map(autoBackupRow).join('') : '<p class="muted small">None yet — one is saved the first time a match finishes.</p>'}
+      <p class="muted small mt-0">Boot Room also snapshots a backup automatically on this device whenever a match finishes, a training session is saved or ended, or a drill is saved — no need to remember to do it yourself. Keeps the 5 most recent.</p>
+      ${autoBackups.length ? autoBackups.map(autoBackupRow).join('') : '<p class="muted small">None yet — one is saved the first time a match finishes, a training session is saved, or a drill is saved.</p>'}
     </div>
     <div class="card stack">
       <p class="muted small mt-0">Use these to demo the app or start fresh.</p>

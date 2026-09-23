@@ -594,20 +594,22 @@ see everything working immediately. Reset or clear that data any time from
   a big change, and any time you're not sure the data will still be there
   next time you open the app.
   - **Automatic backups** — on top of the manual button, Boot Room snapshots a
-    backup by itself every time a match finishes (End Game or End & Next),
-    with no action needed. It's kept as a second, independent copy on the
+    backup by itself whenever a match finishes (End Game or End & Next), a
+    training session is saved (created/edited) or ended, or a drill is saved
+    (created/edited), with no action needed. It's kept as a second, independent copy on the
     same device (not sent anywhere — everything here stays local), so a bad
     edit or an accidental Clear All Data still has something to fall back
     to; the 5 most recent are listed in Settings > Data with a one-tap
     Restore each. If the app is ever opened and finds no team set up but an
     automatic backup exists on that device, the Dashboard offers to restore
-    it before you start from scratch. Where the page isn't sandboxed (a
-    normal hosted tab, not the embedded Claude Artifact viewer), it also
-    tries to save the same backup as a downloaded file for an extra, fully
-    offline copy — inside the Artifact viewer that part is silently skipped
-    (the sandbox blocks a page from starting its own downloads), so the
-    automatic on-device snapshot and the manual Backup button are what's
-    guaranteed to work there.
+    it before you start from scratch. A completed match additionally tries
+    to save the same backup as a downloaded file, for an extra, fully
+    offline copy, where the page isn't sandboxed (a normal hosted tab, not
+    the embedded Claude Artifact viewer, which blocks a page from starting
+    its own downloads) — training/drill saves only take the on-device
+    snapshot, not the download. The automatic on-device snapshot and the
+    manual Backup button are what's guaranteed to work everywhere,
+    sandboxed or not.
   - **Merging in another coach's backup** — for one team split across two
     simultaneous matches (e.g. two 5-a-side games at once, each tracked on
     a different coach's phone), Settings > Data also has "Merge in Another
