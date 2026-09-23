@@ -1,6 +1,6 @@
-import { getState, update, resetToSample, clearAllData, restoreFromBackup, mergeBackup, findPlayer, getAutoBackups, restoreAutoBackupById } from '../store.js';
+import { getState, update, resetToSample, clearAllData, restoreFromBackup, mergeBackup, findPlayer, getAutoBackups, restoreAutoBackupById, archivableCounts, buildArchivePayload, removeArchivedData } from '../store.js';
 import { PRESET_FORMATIONS, formationOptionsFor, buildCustomFormation, remapLineupToFormat } from '../formations.js';
-import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers } from '../util.js';
+import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers, todayIso } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { AGE_FORMATS, suggestFormatForAgeGroup } from '../ageFormats.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
@@ -14,11 +14,28 @@ function isOnSettingsRoute() {
   return hash.replace(/^#\/?/, '').split('/')[0] === 'settings';
 }
 
+// Empty until the coach explicitly picks a cutoff date — archiving nothing
+// by default is safer than pre-selecting one that might surprise them.
+let archiveCutoffDate = '';
+// Set once the archive copy has actually been placed on the clipboard (or
+// the fallback text box shown) for the CURRENT cutoff date — changing the
+// date invalidates it, so "Remove" can never fire for a copy that doesn't
+// match what's about to be deleted.
+let archiveCopiedForDate = null;
+// Whether the "couldn't use the clipboard, here's the text to select
+// instead" fallback box is showing — its own content is always rendered
+// fresh from archiveCutoffDate in the template below (see the error-log
+// and Backup Team Data fallback boxes for the same pattern), rather than
+// set as a one-off runtime .value, since a later re-render (e.g. to show
+// the Remove button) would otherwise wipe out anything set that way.
+let archiveFallbackVisible = false;
+
 export function renderSettings(app) {
   const { team, players } = getState();
   const errorLog = getErrorLog();
   const autoBackups = getAutoBackups();
   const syncConfig = getSyncConfig();
+  const archiveCounts = archiveCutoffDate ? archivableCounts(archiveCutoffDate) : { games: 0, trainings: 0 };
 
   app.innerHTML = `
     <div class="page-title"><h1>Settings</h1></div>
@@ -162,6 +179,19 @@ export function renderSettings(app) {
     <div class="card stack">
       <p class="muted small mt-0">Boot Room also snapshots a backup automatically on this device whenever a match finishes, a training session is saved or ended, or a drill is saved — no need to remember to do it yourself. Keeps the 5 most recent.</p>
       ${autoBackups.length ? autoBackups.map(autoBackupRow).join('') : '<p class="muted small">None yet — one is saved the first time a match finishes, a training session is saved, or a drill is saved.</p>'}
+    </div>
+    <div class="card stack">
+      <p class="muted small mt-0">Completed matches and training sessions from an old season can pile up over time, inflating Stats/History and every future automatic backup snapshot. Archiving copies out everything finished before a date you choose (nothing scheduled, live, or still in progress is ever touched, regardless of its date), then removes just that from this device.</p>
+      <div class="field" style="margin-bottom:0;">
+        <label>Archive everything completed before</label>
+        <input type="date" id="archive-cutoff-date" value="${escapeHtml(archiveCutoffDate)}" max="${todayIso()}" />
+      </div>
+      <p class="muted small" style="margin:0;">${archiveSummaryText(archiveCutoffDate, archiveCounts)}</p>
+      <button class="btn secondary block" data-action="copy-archive" ${archiveCutoffDate && (archiveCounts.games || archiveCounts.trainings) ? '' : 'disabled'}>📦 Copy Archive</button>
+      <textarea id="archive-fallback" readonly ${archiveFallbackVisible ? '' : 'hidden'} style="width:100%; min-height:100px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;">${archiveCutoffDate ? escapeHtml(JSON.stringify(buildArchivePayload(archiveCutoffDate), null, 2)) : ''}</textarea>
+      ${archiveCopiedForDate && archiveCopiedForDate === archiveCutoffDate ? `
+        <button class="btn danger block" data-action="remove-archived">🗑 Remove Archived Data From This Device</button>
+      ` : ''}
     </div>
     <div class="card stack">
       <p class="muted small mt-0">Use these to demo the app or start fresh.</p>
@@ -349,6 +379,58 @@ export function renderSettings(app) {
     });
   });
 
+  const archiveDateInput = app.querySelector('#archive-cutoff-date');
+  if (archiveDateInput) {
+    archiveDateInput.addEventListener('change', () => {
+      archiveCutoffDate = archiveDateInput.value;
+      archiveCopiedForDate = null;
+      archiveFallbackVisible = false;
+      renderSettings(app);
+    });
+  }
+  const copyArchiveBtn = app.querySelector('[data-action="copy-archive"]');
+  if (copyArchiveBtn) {
+    copyArchiveBtn.addEventListener('click', async () => {
+      const json = JSON.stringify(buildArchivePayload(archiveCutoffDate), null, 2);
+      let usedFallback = false;
+      await copyToClipboard(json, {
+        onSuccess: () => {},
+        onFallback: () => { usedFallback = true; },
+      });
+      // Either path is a real copy the coach can now act on — show the
+      // Remove button either way, rather than only after a clipboard
+      // success (which can't be told apart from the coach just not
+      // having granted clipboard permission).
+      archiveCopiedForDate = archiveCutoffDate;
+      archiveFallbackVisible = usedFallback;
+      renderSettings(app);
+      const freshCopyBtn = app.querySelector('[data-action="copy-archive"]');
+      if (freshCopyBtn) {
+        freshCopyBtn.textContent = usedFallback ? 'Select the text below and copy it' : '✅ Copied! Paste it somewhere safe.';
+        setTimeout(() => { if (freshCopyBtn.isConnected) freshCopyBtn.textContent = '📦 Copy Archive'; }, 3000);
+      }
+      if (usedFallback) {
+        const freshFallback = app.querySelector('#archive-fallback');
+        freshFallback.focus();
+        freshFallback.select();
+      }
+    });
+  }
+  const removeArchivedBtn = app.querySelector('[data-action="remove-archived"]');
+  if (removeArchivedBtn) {
+    removeArchivedBtn.addEventListener('click', async () => {
+      const counts = archivableCounts(archiveCutoffDate);
+      const parts = [];
+      if (counts.games) parts.push(`${counts.games} match${counts.games === 1 ? '' : 'es'}`);
+      if (counts.trainings) parts.push(`${counts.trainings} training session${counts.trainings === 1 ? '' : 's'}`);
+      if (!(await confirmDialog(`Remove ${parts.join(' and ')} from this device? Make sure you've saved the copy first — this can't be undone.`, { okLabel: 'Remove', danger: true }))) return;
+      removeArchivedData(archiveCutoffDate);
+      archiveCopiedForDate = null;
+      archiveFallbackVisible = false;
+      renderSettings(app);
+    });
+  }
+
   app.querySelector('[data-action="add-formation"]').addEventListener('click', () => openFormationForm(team.squadFormat));
   app.querySelectorAll('[data-action="edit-formation"]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -394,6 +476,15 @@ export function renderSettings(app) {
     clearErrorLog();
     renderSettings(app);
   });
+}
+
+function archiveSummaryText(cutoffDate, counts) {
+  if (!cutoffDate) return 'Pick a date to see what would be archived.';
+  if (!counts.games && !counts.trainings) return `Nothing completed before ${cutoffDate} yet — nothing to archive.`;
+  const parts = [];
+  if (counts.games) parts.push(`${counts.games} match${counts.games === 1 ? '' : 'es'}`);
+  if (counts.trainings) parts.push(`${counts.trainings} training session${counts.trainings === 1 ? '' : 's'}`);
+  return `Would archive ${parts.join(' and ')} completed before ${cutoffDate}.`;
 }
 
 function autoBackupRow(backup) {

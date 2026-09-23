@@ -29,6 +29,20 @@ const ROSTER_SORTS = [
 let rosterSortKey = null;
 let rosterSortDir = 'asc';
 
+// A single team-allocation value to show exclusively, or null for
+// everyone — for clubs running one big squad across several named teams
+// (e.g. "9.4", "9.5"), so a coach can pull up just their own sub-team.
+let rosterTeamAllocFilter = null;
+
+// Every distinct team-allocation value actually in use, numeric-aware
+// (so "9.4" comes before "9.5" and "10.1") — never offers a filter chip
+// for a value nothing is set to.
+function usedTeamAllocationsInOrder(players) {
+  const used = new Set();
+  players.forEach((p) => { if (p.teamAllocation) used.add(p.teamAllocation); });
+  return [...used].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
 function sortRosterPlayers(players) {
   if (!rosterSortKey) {
     return [...players].sort((a, b) => {
@@ -47,7 +61,14 @@ function sortRosterPlayers(players) {
 
 export function renderRoster(app) {
   const { players } = getState();
-  const sorted = sortRosterPlayers(players);
+  const teamAllocValues = usedTeamAllocationsInOrder(players);
+  // Drop a filter that no longer matches anyone (e.g. the last player with
+  // that value was reassigned) instead of silently showing an empty list.
+  if (rosterTeamAllocFilter && !teamAllocValues.includes(rosterTeamAllocFilter)) rosterTeamAllocFilter = null;
+  const filtered = rosterTeamAllocFilter
+    ? players.filter((p) => p.teamAllocation === rosterTeamAllocFilter)
+    : players;
+  const sorted = sortRosterPlayers(filtered);
 
   app.innerHTML = `
     <div class="page-title">
@@ -71,8 +92,15 @@ export function renderRoster(app) {
         `).join('')}
       </div>
     </div>
+    ${teamAllocValues.length ? `
+      <div class="muted small" style="margin-bottom:4px;">Team allocation</div>
+      <div class="chip-list" style="margin-bottom:12px;">
+        ${teamAllocValues.map((v) => `<button type="button" class="bench-chip ${rosterTeamAllocFilter === v ? 'picking' : ''}" data-team-alloc-filter="${escapeHtml(v)}">${escapeHtml(v)}</button>`).join('')}
+        ${rosterTeamAllocFilter ? '<button type="button" class="bench-chip" data-action="clear-team-alloc-filter">✕ Clear</button>' : ''}
+      </div>
+    ` : ''}
     <div class="card">
-      ${sorted.length ? sorted.map(playerRow).join('') : '<div class="empty">No players yet. Add your first player.</div>'}
+      ${sorted.length ? sorted.map(playerRow).join('') : `<div class="empty">${rosterTeamAllocFilter ? 'No players with this team allocation.' : 'No players yet. Add your first player.'}</div>`}
     </div>
   `;
 
@@ -89,6 +117,20 @@ export function renderRoster(app) {
       renderRoster(app);
     });
   });
+  app.querySelectorAll('[data-team-alloc-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const value = btn.dataset.teamAllocFilter;
+      rosterTeamAllocFilter = rosterTeamAllocFilter === value ? null : value;
+      renderRoster(app);
+    });
+  });
+  const clearFilterBtn = app.querySelector('[data-action="clear-team-alloc-filter"]');
+  if (clearFilterBtn) {
+    clearFilterBtn.addEventListener('click', () => {
+      rosterTeamAllocFilter = null;
+      renderRoster(app);
+    });
+  }
 }
 
 function playerRow(p) {
