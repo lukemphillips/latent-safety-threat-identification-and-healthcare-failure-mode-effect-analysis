@@ -1,0 +1,23 @@
+name: Test Gaffer
+
+on:
+  push:
+    paths: [youth-soccer-gameday/**]
+  pull_request:
+    paths: [youth-soccer-gameday/**]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: youth-soccer-gameday
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
