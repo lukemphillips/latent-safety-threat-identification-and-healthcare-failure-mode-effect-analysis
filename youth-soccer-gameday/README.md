@@ -66,29 +66,37 @@ see everything working immediately. Reset or clear that data any time from
   visiting team's roster in as guests in one go, instead of adding each
   one by hand and flipping the Guest switch every time.
 - **Balance Teams** — pick who's involved (defaults to the whole active
-  roster), then randomly split them into 2–4 teams. The split balances each
-  streaming classification separately (so it's not just an even head count
-  but an even mix of A/B/C/D across every team), and "Shuffle Again" re-rolls
-  without losing your squad selection. For junior squads (U9 and under),
-  where DDSL/FAI mini-soccer is 4v4/5v5, it nudges you toward splitting into
-  several small teams for parallel games rather than one team with subs.
-  Launching it from a game's RSVP or Squad tab ("🎲 Balance Teams from
-  RSVPs" / "…from today's squad") starts you off with just that game's
-  confirmed players instead of the whole roster — untick anyone before you
-  split. The Squad list itself is a sortable table (tap Name, Stream, or
-  Team Allocation to reorder it) with a Team column that fills in once
-  you've split, showing each player's team as a dropdown. Team Allocation
-  is a separate, free-text label (e.g. "9.4", "9.5", sorted numeric-aware
-  so "9.4" comes before "10.1") for clubs running one big roster across
-  several actually-named teams — it's not part of the random split at all,
-  and it's editable right in this table (or from a player's Add/Edit form
-  on the Roster) so it sticks around across every future visit to this
-  page. Once split, "Copy to Share"
+  roster), then randomly split them into 2–4 teams. **Balance by** chooses
+  the split algorithm: **Mixed ability** spreads each streaming
+  classification evenly across every team (so it's not just an even head
+  count but an even mix of A/B/C/D — the default, for one fair, competitive
+  split), while **Same stream** clusters similar-ability players onto the
+  same team instead, for running side-by-side matches at different
+  intensities (team sizes still come out balanced either way). "Shuffle
+  Again" re-rolls without losing your squad selection or mode. For junior
+  squads (U9 and under), where DDSL/FAI mini-soccer is 4v4/5v5, it nudges
+  you toward splitting into several small teams for parallel games rather
+  than one team with subs. Launching it from a game's RSVP or Squad tab
+  ("🎲 Balance Teams from RSVPs" / "…from today's squad") starts you off
+  with just that game's confirmed players instead of the whole roster —
+  untick anyone before you split. The Squad list itself is a sortable table
+  (tap Name, Stream, or Team Allocation to reorder it) with a Team column
+  that fills in once you've split, showing each player's team as a
+  dropdown; if any players have a Team Allocation set, a row of chips above
+  the table lets you filter the list down to just one sub-team (this only
+  narrows what's shown — it never changes who's ticked for the split).
+  Team Allocation is a separate, free-text label (e.g. "9.4", "9.5", sorted
+  numeric-aware so "9.4" comes before "10.1") for clubs running one big
+  roster across several actually-named teams — it's not part of the random
+  split at all, and it's editable right in this table (or from a player's
+  Add/Edit form on the Roster) so it sticks around across every future
+  visit to this page. Once split, "Copy to Share"
   copies a plain-text team list you can paste into a text/WhatsApp message
   to other coaches, and on phones that support it there's also a native
   "Text / Share…" button that opens the share sheet directly. Not happy
-  with the random result? Change a player's Team dropdown in the Squad
-  table to move them across by hand without needing to reshuffle everyone.
+  with the random result? Move a player between teams by hand from either
+  their Team dropdown in the Squad table, or the matching dropdown next to
+  their name in their team card below — no need to reshuffle everyone.
   "Send to a scheduled match" turns a selection (or one of the split teams)
   into the real thing in one tap: pick a scheduled match from the dropdown,
   hit "→ Set as Match Squad", and it sets who's present for that game and

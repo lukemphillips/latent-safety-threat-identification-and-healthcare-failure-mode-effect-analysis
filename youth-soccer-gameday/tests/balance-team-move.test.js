@@ -33,14 +33,15 @@ function assert(cond, msg) {
   await page.click('[data-action="split"]');
   await page.waitForTimeout(200);
 
-  // Reassignment now lives in the Squad table's own "Team" column (a select
-  // per included player), not a tap-to-select-then-"Move here" flow on the
-  // team cards themselves — the team cards are read-only display now.
+  // Reassignment lives in a select per included player — one in the Squad
+  // table's own "Team" column, and one alongside each player in their Team
+  // card below (so a coach can move someone from whichever section they're
+  // already looking at) — not a tap-to-select-then-"Move here" flow.
   const teamAssignSelects = await page.$$('select[data-team-assign]');
-  assert(teamAssignSelects.length > 0, `Squad table's Team column shows a dropdown per included player, found ${teamAssignSelects.length}`);
+  assert(teamAssignSelects.length > 0, `A Team dropdown is shown per included player, found ${teamAssignSelects.length}`);
 
   const bodyText = await page.textContent('#tab-content, #app, body');
-  assert(bodyText.includes("Change a player's Team"), 'Hint banner text describes the new Team-column flow');
+  assert(bodyText.includes('Move a player between teams'), 'Hint banner text describes the Team-dropdown flow');
   assert(!bodyText.includes('Move here'), 'Old "Move here" hint text is gone');
   assert((await page.$$('[data-team-player]')).length === 0, 'Team cards no longer render clickable player buttons');
   assert((await page.$$('[data-move-to-team]')).length === 0, 'Old "Move here" buttons no longer exist anywhere');

@@ -209,6 +209,15 @@ export function comparePlayersBy(key, a, b) {
   return a.name.localeCompare(b.name);
 }
 
+// Every distinct team-allocation value actually in use, numeric-aware (so
+// "9.4" comes before "9.5" and "10.1") — shared by Roster and Balance
+// Teams' filter chips, so neither ever offers a chip nothing is set to.
+export function usedTeamAllocationsInOrder(players) {
+  const used = new Set();
+  players.forEach((p) => { if (p.teamAllocation) used.add(p.teamAllocation); });
+  return [...used].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
 // A player saved before multi-position support existed had a single
 // `position` string rather than this `positions` array — store.js's
 // migratePlayers() upgrades that on the way into state, so every player

@@ -1,5 +1,5 @@
 import { getState, update, findPlayer } from '../store.js';
-import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, copyToClipboard, comparePlayersBy } from '../util.js';
+import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, copyToClipboard, comparePlayersBy, usedTeamAllocationsInOrder } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { parseRosterFile, TEMPLATE_CSV } from '../importRoster.js';
 import { isMatchdayOnly } from '../cloudSync.js';
@@ -33,15 +33,6 @@ let rosterSortDir = 'asc';
 // everyone — for clubs running one big squad across several named teams
 // (e.g. "9.4", "9.5"), so a coach can pull up just their own sub-team.
 let rosterTeamAllocFilter = null;
-
-// Every distinct team-allocation value actually in use, numeric-aware
-// (so "9.4" comes before "9.5" and "10.1") — never offers a filter chip
-// for a value nothing is set to.
-function usedTeamAllocationsInOrder(players) {
-  const used = new Set();
-  players.forEach((p) => { if (p.teamAllocation) used.add(p.teamAllocation); });
-  return [...used].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-}
 
 function sortRosterPlayers(players) {
   if (!rosterSortKey) {
