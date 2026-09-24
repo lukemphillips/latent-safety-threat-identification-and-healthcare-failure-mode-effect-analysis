@@ -364,13 +364,22 @@ export function applyCloudSync(cloudData, lastSyncedPlayers) {
   const localById = new Map(s.players.map((p) => [p.id, p]));
   const lastSyncedById = new Map((lastSyncedPlayers || []).map((p) => [p.id, p]));
   const cloudPlayerIds = new Set(cloudData.players.map((p) => p.id));
-  const mergedCloudPlayers = cloudData.players.map((incoming) => {
-    const local = localById.get(incoming.id);
-    if (!local) return incoming;
-    const lastSynced = lastSyncedById.get(incoming.id);
-    if (lastSynced && !playersEqual(local, lastSynced)) return local;
-    return incoming;
-  });
+  const mergedCloudPlayers = cloudData.players
+    // A player this device knew about as of its last sync, but no longer
+    // has locally, was deleted here since — the same staleness problem
+    // as an unsynced edit above, just the other direction: don't let the
+    // cloud's not-yet-caught-up copy resurrect it. The push that follows
+    // this call carries the deletion to the cloud for real. A player
+    // that's simply new to this device (never in lastSyncedPlayers) isn't
+    // touched by this and is adopted normally below.
+    .filter((incoming) => !(lastSyncedById.has(incoming.id) && !localById.has(incoming.id)))
+    .map((incoming) => {
+      const local = localById.get(incoming.id);
+      if (!local) return incoming;
+      const lastSynced = lastSyncedById.get(incoming.id);
+      if (lastSynced && !playersEqual(local, lastSynced)) return local;
+      return incoming;
+    });
   const localOnlyPlayers = s.players.filter((p) => !cloudPlayerIds.has(p.id));
   s.players = [...mergedCloudPlayers, ...localOnlyPlayers];
 

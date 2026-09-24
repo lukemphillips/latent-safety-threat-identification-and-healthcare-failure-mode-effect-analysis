@@ -108,6 +108,50 @@ function roleForToken(token) {
   const propagated = deviceBAfterExternalChange.players.find((p) => p.id === targetPlayer.id);
   assert(propagated.teamAllocation === '7.2', `A change made elsewhere in the cloud still reaches a device with no conflicting local edit, got "${propagated.teamAllocation}"`);
 
+  // ============ Deleting a player must survive its own Sync Now, same as an edit ============
+  // Deletion is Full Edit-only in the UI, so reconnect this device as
+  // editor (via the Full Edit link, not the original setup flow) before
+  // trying it.
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  const editorJoin = await page.evaluate(async () => {
+    const mod = await import('/js/cloudSync.js');
+    return mod.joinWithLink('https://fake-apps-script.example.com/exec?token=fulledittoken', 'Coach A');
+  });
+  assert(editorJoin.role === 'editor', 'Device reconnected with Full Edit access');
+
+  await page.goto(BASE + '/index.html#/roster');
+  await page.waitForTimeout(150);
+  await page.click(`[data-action="edit-player"][data-id="${targetPlayer.id}"]`);
+  await page.waitForSelector('[data-action="delete-player"]');
+  await page.click('[data-action="delete-player"]');
+  await page.waitForSelector('[data-confirm-ok]');
+  await page.click('[data-confirm-ok]');
+  await page.waitForTimeout(150);
+
+  const localAfterDelete = await page.evaluate(() => JSON.parse(localStorage.getItem('ysg-data-v2')));
+  assert(!localAfterDelete.players.some((p) => p.id === targetPlayer.id), 'Player is gone locally right after deleting');
+
+  await page.goto(BASE + '/index.html#/settings');
+  await page.waitForSelector('[data-action="cloud-sync-now"]');
+  await page.click('[data-action="cloud-sync-now"]');
+  await page.waitForTimeout(500);
+
+  assert(!stored.data.players.some((p) => p.id === targetPlayer.id), 'Deletion made just before Sync Now reaches the cloud (not resurrected by the pull)');
+
+  const localAfterDeleteSync = await page.evaluate(() => JSON.parse(localStorage.getItem('ysg-data-v2')));
+  assert(!localAfterDeleteSync.players.some((p) => p.id === targetPlayer.id), 'Player stays deleted locally too after the sync\'s own pull step');
+
+  // ============ And a fresh device sees the deletion too ============
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.evaluate(async () => {
+    const mod = await import('/js/cloudSync.js');
+    await mod.joinWithLink('https://fake-apps-script.example.com/exec?token=matchdaytoken', 'Coach B');
+  });
+  const deviceEState = await page.evaluate(() => JSON.parse(localStorage.getItem('ysg-data-v2')));
+  assert(!deviceEState.players.some((p) => p.id === targetPlayer.id), 'A newly-joined device never sees the deleted player');
+
   assert(errors.length === 0, 'No console/page errors: ' + errors.join(', '));
 
   await browser.close();
