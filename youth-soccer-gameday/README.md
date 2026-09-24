@@ -90,7 +90,11 @@ see everything working immediately. Reset or clear that data any time from
   roster across several actually-named teams — it's not part of the random
   split at all, and it's editable right in this table (or from a player's
   Add/Edit form on the Roster) so it sticks around across every future
-  visit to this page. Once split, "Copy to Share"
+  visit to this page. Like every other roster edit, it's disabled on a
+  Matchday-role Cloud Sync device — the shared Apps Script silently
+  ignores edits to an existing player from that token, so leaving it
+  editable there would look like it saved and then quietly get
+  overwritten by the next sync. Once split, "Copy to Share"
   copies a plain-text team list you can paste into a text/WhatsApp message
   to other coaches, and on phones that support it there's also a native
   "Text / Share…" button that opens the share sheet directly. Not happy

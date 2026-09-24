@@ -5,6 +5,7 @@ import { buildGroupsByStream } from '../trainingGroups.js';
 import { formationFor, emptyLineupSlots } from '../formations.js';
 import { autoFillLineup } from './gameDetail.js';
 import { confirmDialog } from '../modal.js';
+import { isMatchdayOnly } from '../cloudSync.js';
 
 const MIN_TEAMS = 2;
 const MAX_TEAMS = 4;
@@ -219,6 +220,7 @@ export function renderBalanceTeams(app, gameId) {
         <button class="btn ghost sm" data-action="select-all">Select All</button>
         <button class="btn ghost sm" data-action="select-none">Select None</button>
       </div>
+      ${isMatchdayOnly() ? `<p class="muted small" style="margin:-4px 0 10px;">Team allocation can only be changed from a Full Edit device — edits here wouldn't save to the shared team anyway.</p>` : ''}
       ${teamAllocValues.length ? `
         <div class="muted small" style="margin-bottom:4px;">Team allocation</div>
         <div class="chip-list" style="margin-bottom:12px;">
@@ -476,7 +478,7 @@ function squadRowHtml(p, isIncluded) {
       <td style="padding:6px 8px; white-space:nowrap;"><span class="jersey" style="width:24px; height:24px; font-size:11px;">${p.jerseyNumber ?? '-'}</span> ${escapeHtml(p.name)}</td>
       <td style="padding:6px 8px;">${streamBadgeHtml(p.skillStream)}</td>
       <td style="padding:6px 8px;">
-        <input type="text" data-team-alloc="${p.id}" value="${escapeHtml(p.teamAllocation || '')}" placeholder="e.g. 9.4" style="width:80px; padding:4px 6px;" />
+        <input type="text" data-team-alloc="${p.id}" value="${escapeHtml(p.teamAllocation || '')}" placeholder="e.g. 9.4" style="width:80px; padding:4px 6px;" ${isMatchdayOnly() ? 'disabled title="Team allocation can only be changed from a Full Edit device"' : ''} />
       </td>
       <td style="padding:6px 8px;">${splitTeamCellHtml(p, isIncluded)}</td>
     </tr>
