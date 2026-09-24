@@ -648,7 +648,9 @@ see everything working immediately. Reset or clear that data any time from
     posts, so it's a real permission boundary, not just something the UI
     hides. The UI additionally disables Roster and Team Settings editing
     on a Matchday device, so a change never looks like it saved when it
-    silently wouldn't have.
+    silently wouldn't have — tapping a player on the Roster still opens a
+    read-only view of their position, notes, and guardian info, just with
+    no way to change any of it from there.
   - **Training sessions and the Drill Library are not part of Cloud Sync
     at all** — they stay purely local to each device, exactly as they did
     before Cloud Sync existed. `pushToCloud` never includes them, so

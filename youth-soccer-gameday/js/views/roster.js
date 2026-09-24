@@ -98,7 +98,10 @@ export function renderRoster(app) {
   app.querySelector('[data-action="add-player"]').addEventListener('click', () => { if (!blockIfMatchdayOnly()) openPlayerForm(); });
   app.querySelector('[data-action="import-roster"]').addEventListener('click', () => { if (!blockIfMatchdayOnly()) openImportModal(); });
   app.querySelectorAll('[data-action="edit-player"]').forEach((el) => {
-    el.addEventListener('click', () => { if (!blockIfMatchdayOnly()) openPlayerForm(el.dataset.id); });
+    el.addEventListener('click', () => {
+      if (isMatchdayOnly()) { openPlayerDetailsView(el.dataset.id); return; }
+      openPlayerForm(el.dataset.id);
+    });
   });
   app.querySelectorAll('[data-roster-sort]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -139,6 +142,39 @@ function playerRow(p) {
       ${p.active ? '' : '<span class="badge pending">inactive</span>'}
     </div>
   `;
+}
+
+// The Matchday-only view of a player's details — read-only, since edits
+// from this device would just quietly fail to save (see cloudSync.js).
+// Assistant coaches still need to actually see this stuff mid-match
+// (allergies, pickup arrangements, an injury note), just not change it.
+function openPlayerDetailsView(playerId) {
+  const p = findPlayer(playerId);
+  if (!p) return;
+  const positions = formatPositions(p);
+  openModal({
+    title: p.name,
+    bodyHtml: `
+      <div class="stack">
+        <div class="field-row">
+          <div class="field"><label>Jersey #</label><div>${p.jerseyNumber ?? '—'}</div></div>
+          <div class="field"><label>Position(s)</label><div>${positions || '—'}</div></div>
+        </div>
+        ${p.teamAllocation ? `<div class="field"><label>Team allocation</label><div>${escapeHtml(p.teamAllocation)}</div></div>` : ''}
+        ${p.guardianName || p.guardianPhone ? `
+          <div class="field">
+            <label>Guardian</label>
+            <div>${p.guardianName ? escapeHtml(p.guardianName) : ''}${p.guardianName && p.guardianPhone ? ' · ' : ''}${p.guardianPhone ? escapeHtml(p.guardianPhone) : ''}</div>
+          </div>
+        ` : ''}
+        <div class="field">
+          <label>Notes</label>
+          <div>${p.notes ? escapeHtml(p.notes) : '<span class="muted small">None</span>'}</div>
+        </div>
+        <p class="muted small" style="margin:8px 0 0;">View only on this device — roster details can only be changed from a Full Edit device.</p>
+      </div>
+    `,
+  });
 }
 
 function openPlayerForm(playerId) {
