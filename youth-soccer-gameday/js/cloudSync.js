@@ -238,10 +238,16 @@ export function pushToCloud(url, coachName) {
   });
 }
 
+// Snapshots this device's current player list alongside the sync
+// timestamp — applyCloudSync (store.js) compares a future pull against
+// this to tell a genuinely unsynced local edit apart from a player it's
+// already in step with, so pulling in the middle of a sync can't silently
+// overwrite an edit that hasn't reached the cloud yet.
 function markSynced() {
   const cfg = loadConfig();
   if (!cfg) return;
-  saveConfig({ ...cfg, lastSyncedAt: new Date().toISOString() });
+  const { players } = getState();
+  saveConfig({ ...cfg, lastSyncedAt: new Date().toISOString(), lastSyncedPlayers: players });
 }
 
 // Generated once, up front, by the Settings modal — before the coach has
@@ -283,20 +289,24 @@ export async function joinWithLink(url, coachName) {
   const result = await pullFromCloud(trimmedUrl);
   saveConfig({ url: trimmedUrl, role: result.role, coachName: coachName || '', lastSyncedAt: new Date().toISOString() });
   if (result.data) applyCloudSync(result.data);
+  markSynced();
   return result;
 }
 
 // The everyday action once connected: pull first so this device has
 // everyone else's latest before it pushes its own — otherwise a push
 // from a device that's been offline a while could overwrite changes it
-// never saw. Both directions best-effort; a network hiccup on either
-// leg doesn't lose anything already saved locally.
+// never saw. Passing this device's own last-synced player snapshot into
+// applyCloudSync is what keeps that pull from also overwriting an edit
+// made on THIS device since — the push right after sends it up for real.
+// Both directions best-effort; a network hiccup on either leg doesn't
+// lose anything already saved locally.
 export async function syncNow() {
   const cfg = loadConfig();
   if (!cfg) throw new Error('Cloud Sync isn\'t set up on this device yet.');
 
   const pulled = await pullFromCloud(cfg.url);
-  const mergeResult = pulled.data ? applyCloudSync(pulled.data) : null;
+  const mergeResult = pulled.data ? applyCloudSync(pulled.data, cfg.lastSyncedPlayers) : null;
   await pushToCloud(cfg.url, cfg.coachName);
   markSynced();
   return mergeResult;

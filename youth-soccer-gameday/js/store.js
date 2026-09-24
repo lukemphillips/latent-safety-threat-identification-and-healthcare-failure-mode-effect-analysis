@@ -322,6 +322,10 @@ export function mergeBackup(data) {
   return { playersAdded, gamesAdded, gamesUpdated, awardsAdded, trainingsAdded, drillsAdded };
 }
 
+function playersEqual(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 // Folds in data just pulled from Cloud Sync (see cloudSync.js) — distinct
 // from mergeBackup above because the two have different trust models.
 // mergeBackup combines two coaches' separately-run matches and
@@ -329,17 +333,27 @@ export function mergeBackup(data) {
 // be the "right" one. Cloud Sync data only ever reaches the shared sheet
 // through a valid Cloud Sync token (the Apps Script itself enforces that —
 // see cloudSync.js's buildAppsScript), so once it's here it IS the
-// authoritative copy of team settings and the roster: they're adopted
-// wholesale rather than reconciled field by field. A player added locally
-// but not yet pushed (e.g. a late-arrival on a Matchday device) is kept
-// alongside the cloud's roster rather than dropped. Training sessions and
+// authoritative copy of team settings and the roster.
+//
+// `lastSyncedPlayers` (this device's own player list as of its last
+// successful sync, kept by cloudSync.js) is what makes that adoption safe
+// rather than destructive: syncNow() pulls before it pushes, so it can
+// reach here moments after a local roster edit that hasn't been pushed
+// yet — adopting the cloud's (still-stale) copy of that player wholesale
+// would silently erase the edit, and then the push right after would send
+// the now-erased data, losing it everywhere. So a player is only adopted
+// from the cloud if the local copy still matches what was last synced;
+// one that's since diverged locally is kept as-is, and reaches the cloud
+// via the push that follows this call. A player added locally but not yet
+// pushed (e.g. a late-arrival on a Matchday device) is kept alongside the
+// cloud's roster rather than dropped either way. Training sessions and
 // drills are NOT part of Cloud Sync at all — each coach's device keeps its
 // own, entirely local; the payload from cloudData never even carries them
 // (see cloudSync.js's pushToCloud), so there's nothing to merge here.
 // Games still use the same "most complete wins" comparison as mergeBackup,
 // since whichever device is actually running a live match right now may be
 // ahead of what was last pushed.
-export function applyCloudSync(cloudData) {
+export function applyCloudSync(cloudData, lastSyncedPlayers) {
   if (!cloudData || !cloudData.team || !Array.isArray(cloudData.players) || !Array.isArray(cloudData.games)) return null;
   const s = getState();
   let gamesAdded = 0, gamesUpdated = 0;
@@ -347,9 +361,18 @@ export function applyCloudSync(cloudData) {
   s.team = cloudData.team;
 
   cloudData.players = migratePlayers(cloudData.players);
+  const localById = new Map(s.players.map((p) => [p.id, p]));
+  const lastSyncedById = new Map((lastSyncedPlayers || []).map((p) => [p.id, p]));
   const cloudPlayerIds = new Set(cloudData.players.map((p) => p.id));
+  const mergedCloudPlayers = cloudData.players.map((incoming) => {
+    const local = localById.get(incoming.id);
+    if (!local) return incoming;
+    const lastSynced = lastSyncedById.get(incoming.id);
+    if (lastSynced && !playersEqual(local, lastSynced)) return local;
+    return incoming;
+  });
   const localOnlyPlayers = s.players.filter((p) => !cloudPlayerIds.has(p.id));
-  s.players = [...cloudData.players, ...localOnlyPlayers];
+  s.players = [...mergedCloudPlayers, ...localOnlyPlayers];
 
   const localGamesById = new Map(s.games.map((g) => [g.id, g]));
   cloudData.games.forEach((incoming) => {
