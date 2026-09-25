@@ -110,9 +110,15 @@ export function renderLiveGame(app, gameId) {
 
     ${!isCompleted ? `
       <div class="live-mini-bar">
-        <span class="live-mini-clock">${formatClock(periodElapsedSeconds)}</span>
-        <span class="live-mini-score">Us ${live.scoreUs} – ${live.scoreThem} ${escapeHtml(game.opponent)}</span>
-        <button class="btn sm secondary" data-action="log-goal-us">⚽ Log Goal</button>
+        <div class="live-mini-top">
+          <span class="live-mini-clock">${formatClock(periodElapsedSeconds)}</span>
+          <span class="live-mini-score">Us ${live.scoreUs} – ${live.scoreThem} ${escapeHtml(game.opponent)}</span>
+        </div>
+        <div class="live-mini-actions">
+          <button class="btn sm secondary" data-action="log-goal-us">⚽ Us +1</button>
+          <button class="btn sm ghost" data-action="log-save">🧤 Save</button>
+          <button class="btn sm ghost" data-action="log-goal-them">🥅 Them +1</button>
+        </div>
       </div>
     ` : ''}
 
@@ -258,14 +264,14 @@ export function renderLiveGame(app, gameId) {
     });
 
     app.querySelectorAll('[data-action="log-goal-us"]').forEach((btn) => btn.addEventListener('click', () => openGoalModal(gameId, onPitchPool)));
-    app.querySelector('[data-action="log-goal-them"]').addEventListener('click', () => {
+    app.querySelectorAll('[data-action="log-goal-them"]').forEach((btn) => btn.addEventListener('click', () => {
       update((state) => {
         const g = state.games.find((x) => x.id === gameId);
         g.live.scoreThem += 1;
         g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'goal-them' });
       });
-    });
-    app.querySelector('[data-action="log-save"]').addEventListener('click', () => {
+    }));
+    app.querySelectorAll('[data-action="log-save"]').forEach((btn) => btn.addEventListener('click', () => {
       // A single tap just records the save right now, credited to whoever
       // is currently in goal — no dialog to fill in first, matching the
       // "+1" one-tap pattern already used for the opponent's goal button.
@@ -278,7 +284,7 @@ export function renderLiveGame(app, gameId) {
           playerId: gkId, name: gk?.name || '',
         });
       });
-    });
+    }));
     app.querySelector('[data-action="open-card-picker"]').addEventListener('click', () => openQuickCardModal(gameId, onPitchPool, team));
 
     const gkChangeBtn = app.querySelector('[data-action="change-gk"]');

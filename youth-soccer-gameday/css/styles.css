@@ -429,14 +429,17 @@ button { font: inherit; }
   position: sticky;
   top: 58px;
   z-index: 15;
-  display: flex;
-  align-items: center;
-  gap: 10px;
   background: var(--card);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 8px 12px;
+  padding: 8px 10px;
   margin-bottom: 12px;
+}
+.live-mini-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 .live-mini-clock {
   font-weight: 800;
@@ -450,6 +453,16 @@ button { font: inherit; }
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-mini-actions {
+  display: flex;
+  gap: 6px;
+}
+.live-mini-actions .btn {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: 11.5px;
   white-space: nowrap;
 }
 .timer-card {
