@@ -18,6 +18,7 @@ export function renderDashboard(app) {
   const recentCompleted = sortByDateTime(games.filter((g) => g.status === 'completed')).reverse()[0] || null;
   const offerRestore = shouldOfferAutoBackupRestore();
   const latestBackup = offerRestore ? getAutoBackups()[0] : null;
+  const isFreshInstall = !offerRestore && !activePlayers.length && !games.length;
 
   app.innerHTML = `
     <div class="page-title">
@@ -35,6 +36,17 @@ export function renderDashboard(app) {
       <div class="fab-row" style="margin-bottom:14px;">
         <button class="btn secondary block" data-action="restore-auto-backup">Restore Backup</button>
         <button class="btn ghost block" data-action="dismiss-auto-backup">Start Fresh</button>
+      </div>
+    ` : ''}
+
+    ${isFreshInstall ? `
+      <div class="card" style="margin-bottom:14px; border:1px dashed var(--green-600);">
+        <div style="font-weight:700; margin-bottom:8px;">👋 New here? Start with these 3 steps</div>
+        <div class="stack" style="gap:8px;">
+          <a class="btn secondary block" href="#/settings">1️⃣ Set up your team in Settings</a>
+          <a class="btn secondary block" href="#/roster">2️⃣ Add your roster</a>
+          <a class="btn secondary block" href="#/schedule">3️⃣ Schedule your first match</a>
+        </div>
       </div>
     ` : ''}
 

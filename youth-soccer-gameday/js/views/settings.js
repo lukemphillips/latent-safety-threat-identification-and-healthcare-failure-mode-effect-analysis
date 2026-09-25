@@ -30,7 +30,8 @@ let archiveCopiedForDate = null;
 let archiveFallbackVisible = false;
 
 export function renderSettings(app) {
-  const { team, players } = getState();
+  const { team, players, games, trainings, drills } = getState();
+  const hasSeasonActivity = games.length > 0 || trainings.length > 0 || drills.length > 0;
   const errorLog = getErrorLog();
   const autoBackups = getAutoBackups();
   const syncConfig = getSyncConfig();
@@ -138,37 +139,42 @@ export function renderSettings(app) {
 
     <div class="section-title">Data</div>
     <div class="card stack">
-      <p class="muted small mt-0">Everything here is stored only in this browser — no account, no server. That also means a private/incognito window, a device clearing site data, or opening this on a different browser or device starts from empty, sometimes with no warning. Back up your team from time to time, and definitely before a big change.</p>
-      <button class="btn secondary block" data-action="backup-data">💾 Backup Team Data</button>
-      <textarea id="backup-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;"></textarea>
-      <button class="btn ghost block" data-action="restore-data">📥 Restore from Backup</button>
-    </div>
-    <div class="card stack">
-      <p class="muted small mt-0">Running two matches for this team at once (e.g. two 5-a-side games), each tracked on a different coach's phone? Have that coach send you their Backup (above), then bring it in here — unlike Restore, this adds their game(s) and any new players alongside what's already on this device instead of replacing it. Works with a file shared any way you like (a synced Dropbox/Google Drive/OneDrive folder, AirDrop, a message).</p>
-      <button class="btn ghost block" data-action="merge-data">🔀 Merge in Another Coach's Backup</button>
-    </div>
-    <div class="card stack">
-      <p class="muted small mt-0">Boot Room also snapshots a backup automatically on this device whenever a match finishes, a training session is saved or ended, or a drill is saved — no need to remember to do it yourself. Keeps the 5 most recent.</p>
-      ${autoBackups.length ? autoBackups.map(autoBackupRow).join('') : '<p class="muted small">None yet — one is saved the first time a match finishes, a training session is saved, or a drill is saved.</p>'}
-    </div>
-    <div class="card stack">
-      <p class="muted small mt-0">Completed matches and training sessions from an old season can pile up over time, inflating Stats/History and every future automatic backup snapshot. Archiving copies out everything finished before a date you choose (nothing scheduled, live, or still in progress is ever touched, regardless of its date), then removes just that from this device.</p>
-      <div class="field" style="margin-bottom:0;">
-        <label>Archive everything completed before</label>
-        <input type="date" id="archive-cutoff-date" value="${escapeHtml(archiveCutoffDate)}" max="${todayIso()}" />
-      </div>
-      <p class="muted small" style="margin:0;">${archiveSummaryText(archiveCutoffDate, archiveCounts)}</p>
-      <button class="btn secondary block" data-action="copy-archive" ${archiveCutoffDate && (archiveCounts.games || archiveCounts.trainings) ? '' : 'disabled'}>📦 Copy Archive</button>
-      <textarea id="archive-fallback" readonly ${archiveFallbackVisible ? '' : 'hidden'} style="width:100%; min-height:100px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;">${archiveCutoffDate ? escapeHtml(JSON.stringify(buildArchivePayload(archiveCutoffDate), null, 2)) : ''}</textarea>
-      ${archiveCopiedForDate && archiveCopiedForDate === archiveCutoffDate ? `
-        <button class="btn danger block" data-action="remove-archived">🗑 Remove Archived Data From This Device</button>
-      ` : ''}
-    </div>
-    <div class="card stack">
       <p class="muted small mt-0">Use these to demo the app or start fresh.</p>
       <button class="btn secondary block" data-action="reset-sample">Reload Sample Data</button>
       <button class="btn danger block" data-action="clear-data">Clear All Data</button>
     </div>
+    <details class="card" ${hasSeasonActivity ? 'open' : ''}>
+      <summary style="cursor:pointer; font-weight:700;">${hasSeasonActivity ? 'Backups & data management' : 'Backups & data management — nothing to back up yet'}</summary>
+      <div class="stack" style="margin-top:12px;">
+      <div class="card stack">
+        <p class="muted small mt-0">Everything here is stored only in this browser — no account, no server. That also means a private/incognito window, a device clearing site data, or opening this on a different browser or device starts from empty, sometimes with no warning. Back up your team from time to time, and definitely before a big change.</p>
+        <button class="btn secondary block" data-action="backup-data">💾 Backup Team Data</button>
+        <textarea id="backup-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;"></textarea>
+        <button class="btn ghost block" data-action="restore-data">📥 Restore from Backup</button>
+      </div>
+      <div class="card stack">
+        <p class="muted small mt-0">Running two matches for this team at once (e.g. two 5-a-side games), each tracked on a different coach's phone? Have that coach send you their Backup (above), then bring it in here — unlike Restore, this adds their game(s) and any new players alongside what's already on this device instead of replacing it. Works with a file shared any way you like (a synced Dropbox/Google Drive/OneDrive folder, AirDrop, a message).</p>
+        <button class="btn ghost block" data-action="merge-data">🔀 Merge in Another Coach's Backup</button>
+      </div>
+      <div class="card stack">
+        <p class="muted small mt-0">Boot Room also snapshots a backup automatically on this device whenever a match finishes, a training session is saved or ended, or a drill is saved — no need to remember to do it yourself. Keeps the 5 most recent.</p>
+        ${autoBackups.length ? autoBackups.map(autoBackupRow).join('') : '<p class="muted small">None yet — one is saved the first time a match finishes, a training session is saved, or a drill is saved.</p>'}
+      </div>
+      <div class="card stack">
+        <p class="muted small mt-0">Completed matches and training sessions from an old season can pile up over time, inflating Stats/History and every future automatic backup snapshot. Archiving copies out everything finished before a date you choose (nothing scheduled, live, or still in progress is ever touched, regardless of its date), then removes just that from this device.</p>
+        <div class="field" style="margin-bottom:0;">
+          <label>Archive everything completed before</label>
+          <input type="date" id="archive-cutoff-date" value="${escapeHtml(archiveCutoffDate)}" max="${todayIso()}" />
+        </div>
+        <p class="muted small" style="margin:0;">${archiveSummaryText(archiveCutoffDate, archiveCounts)}</p>
+        <button class="btn secondary block" data-action="copy-archive" ${archiveCutoffDate && (archiveCounts.games || archiveCounts.trainings) ? '' : 'disabled'}>📦 Copy Archive</button>
+        <textarea id="archive-fallback" readonly ${archiveFallbackVisible ? '' : 'hidden'} style="width:100%; min-height:100px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;">${archiveCutoffDate ? escapeHtml(JSON.stringify(buildArchivePayload(archiveCutoffDate), null, 2)) : ''}</textarea>
+        ${archiveCopiedForDate && archiveCopiedForDate === archiveCutoffDate ? `
+          <button class="btn danger block" data-action="remove-archived">🗑 Remove Archived Data From This Device</button>
+        ` : ''}
+      </div>
+      </div>
+    </details>
 
     <div class="section-title">Diagnostics</div>
     <div class="card stack">

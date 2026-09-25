@@ -1,5 +1,5 @@
 import { getState, update, findPlayer } from '../store.js';
-import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, copyToClipboard, comparePlayersBy, usedTeamAllocationsInOrder } from '../util.js';
+import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, copyToClipboard, comparePlayersBy, usedTeamAllocationsInOrder, matchEligiblePlayers } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { parseRosterFile, TEMPLATE_CSV } from '../importRoster.js';
 import { isMatchdayOnly } from '../cloudSync.js';
@@ -191,11 +191,11 @@ function openPlayerForm(playerId) {
           <input type="text" name="name" required value="${escapeHtml(p.name)}" placeholder="e.g. Ava Martinez" />
         </div>
         <div class="field">
-          <label>Jersey #</label>
+          <label>Jersey # <span class="muted small">(optional)</span></label>
           <input type="number" name="jerseyNumber" min="0" max="99" value="${p.jerseyNumber ?? ''}" style="max-width:120px;" />
         </div>
         <div class="field">
-          <label>Preferred position(s)</label>
+          <label>Preferred position(s) <span class="muted small">(optional)</span></label>
           <div class="chip-list">
             ${POSITIONS.map((pos) => `
               <label class="checkbox-row" style="border:1px solid var(--line); border-radius:999px; padding:6px 12px; margin:0;">
@@ -206,27 +206,27 @@ function openPlayerForm(playerId) {
           </div>
         </div>
         <div class="field">
-          <label>Streaming classification (for fair team-splitting)</label>
+          <label>Streaming classification <span class="muted small">(optional, for fair team-splitting)</span></label>
           <select name="skillStream">
             <option value="" ${!p.skillStream ? 'selected' : ''}>Unclassified</option>
             ${STREAMS.map((s) => `<option value="${s}" ${p.skillStream === s ? 'selected' : ''}>Stream ${s}</option>`).join('')}
           </select>
         </div>
         <div class="field">
-          <label>Team allocation</label>
+          <label>Team allocation <span class="muted small">(optional)</span></label>
           <input type="text" name="teamAllocation" value="${escapeHtml(p.teamAllocation || '')}" placeholder="e.g. 9.4" style="max-width:160px;" />
           <div class="muted small" style="margin-top:4px;">Which of your club's teams this player is actually rostered to — for clubs running one big squad across several named teams (e.g. 9.4, 9.5). Separate from Balance Teams' random daily split.</div>
         </div>
         <div class="field">
-          <label>Guardian name</label>
+          <label>Guardian name <span class="muted small">(optional)</span></label>
           <input type="text" name="guardianName" value="${escapeHtml(p.guardianName)}" />
         </div>
         <div class="field">
-          <label>Guardian phone</label>
+          <label>Guardian phone <span class="muted small">(optional)</span></label>
           <input type="tel" name="guardianPhone" value="${escapeHtml(p.guardianPhone)}" />
         </div>
         <div class="field">
-          <label>Notes</label>
+          <label>Notes <span class="muted small">(optional)</span></label>
           <textarea name="notes" placeholder="Anything worth remembering — allergies, pickup arrangements, injuries, etc.">${escapeHtml(p.notes || '')}</textarea>
         </div>
         <label class="checkbox-row">
@@ -256,7 +256,7 @@ function openPlayerForm(playerId) {
         guestTeamNameField.hidden = !guestCheckbox.checked;
       });
 
-      form.addEventListener('submit', (e) => {
+      form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(form);
         const isGuest = fd.get('isGuest') === 'on';
@@ -274,6 +274,20 @@ function openPlayerForm(playerId) {
           guestTeamName: isGuest ? (fd.get('guestTeamName') || '').trim() : '',
         };
         if (!data.name) return;
+
+        // Advisory only — a coach might genuinely reuse a retired number
+        // — but a duplicate jersey number is an easy sideline typo that
+        // otherwise saves silently and only surfaces confusion later, on
+        // the lineup or a live match.
+        if (data.jerseyNumber != null && data.active && !data.isGuest) {
+          const dupe = matchEligiblePlayers(getState().players)
+            .find((pl) => pl.id !== existing?.id && pl.jerseyNumber === data.jerseyNumber);
+          if (dupe) {
+            const proceed = await confirmDialog(`${dupe.name} already wears #${data.jerseyNumber}. Save ${data.name || 'this player'} with the same number anyway?`, { okLabel: 'Save Anyway' });
+            if (!proceed) return;
+          }
+        }
+
         update((state) => {
           if (existing) {
             Object.assign(findPlayer(existing.id), data);

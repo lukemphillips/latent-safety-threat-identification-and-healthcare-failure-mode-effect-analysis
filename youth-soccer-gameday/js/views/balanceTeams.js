@@ -229,6 +229,7 @@ export function renderBalanceTeams(app, gameId) {
         </div>
       ` : ''}
       ${active.length ? `
+        <div class="muted small" style="margin-bottom:6px;">↔ Swipe sideways on the table to see the Team column</div>
         <table style="width:100%; border-collapse:collapse; font-size:13px;">
           <thead>
             <tr>

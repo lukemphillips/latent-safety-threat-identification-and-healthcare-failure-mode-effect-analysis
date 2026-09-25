@@ -108,6 +108,14 @@ export function renderLiveGame(app, gameId) {
       <a class="icon-btn" href="#/game/${game.id}" aria-label="Back to game">✕</a>
     </div>
 
+    ${!isCompleted ? `
+      <div class="live-mini-bar">
+        <span class="live-mini-clock">${formatClock(periodElapsedSeconds)}</span>
+        <span class="live-mini-score">Us ${live.scoreUs} – ${live.scoreThem} ${escapeHtml(game.opponent)}</span>
+        <button class="btn sm secondary" data-action="log-goal-us">⚽ Log Goal</button>
+      </div>
+    ` : ''}
+
     ${!isCompleted ? `<a class="btn ghost sm" href="#/game/${game.id}/lineup" style="margin-bottom:12px; display:inline-flex;">👤 Squad tab — add a late arrival</a>` : ''}
 
     <div class="card timer-card">
@@ -249,7 +257,7 @@ export function renderLiveGame(app, gameId) {
       });
     });
 
-    app.querySelector('[data-action="log-goal-us"]').addEventListener('click', () => openGoalModal(gameId, onPitchPool));
+    app.querySelectorAll('[data-action="log-goal-us"]').forEach((btn) => btn.addEventListener('click', () => openGoalModal(gameId, onPitchPool)));
     app.querySelector('[data-action="log-goal-them"]').addEventListener('click', () => {
       update((state) => {
         const g = state.games.find((x) => x.id === gameId);
