@@ -187,7 +187,7 @@ export function renderBalanceTeams(app, gameId) {
       </div>
     </div>
 
-    ${game ? `<a class="btn ghost sm" href="#/game/${game.id}" style="margin-bottom:12px; display:inline-flex;">← Back to game</a>` : ''}
+    <a class="btn ghost sm" href="${game ? `#/game/${game.id}` : '#/roster'}" style="margin-bottom:12px; display:inline-flex;">← Back to ${game ? 'game' : 'Roster'}</a>
 
     <div class="banner info">
       ${game

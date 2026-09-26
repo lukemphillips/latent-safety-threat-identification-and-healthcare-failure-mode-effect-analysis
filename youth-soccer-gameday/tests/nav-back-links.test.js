@@ -51,6 +51,33 @@ function assert(cond, msg) {
   await page.waitForTimeout(150);
   assert(await page.evaluate(() => location.hash) === '#/training', 'Clicking it actually returns to the Training list');
 
+  // ============ Balance Teams (opened from Roster): back link to Roster ============
+  await page.goto(BASE + '/index.html#/roster');
+  await page.waitForTimeout(150);
+  await page.click('a[href="#/balance"]');
+  await page.waitForTimeout(150);
+  const balanceBackLink = await page.$('a[href="#/roster"]');
+  assert(!!balanceBackLink, 'Balance Teams (standalone) shows a link back to Roster');
+  const balanceBackText = (await balanceBackLink.textContent()).trim();
+  assert(balanceBackText.includes('Back to Roster'), `Balance Teams back link reads correctly, got "${balanceBackText}"`);
+  await balanceBackLink.click();
+  await page.waitForTimeout(150);
+  assert(await page.evaluate(() => location.hash) === '#/roster', 'Clicking it actually returns to the Roster list');
+
+  // Balance Teams opened FROM a game still links back to that game, not Roster.
+  await page.goto(BASE + '/index.html#/schedule');
+  await page.waitForTimeout(150);
+  await page.click('.card[href*="/game/"]');
+  await page.waitForTimeout(150);
+  const gameIdMatch = await page.evaluate(() => location.hash.match(/#\/game\/([^/]+)/));
+  const gameId = gameIdMatch[1];
+  await page.goto(`${BASE}/index.html#/balance/${gameId}`);
+  await page.waitForTimeout(150);
+  const balanceGameBackLink = await page.$(`a[href="#/game/${gameId}"]`);
+  assert(!!balanceGameBackLink, 'Balance Teams opened from a game still links back to that game');
+  const balanceGameBackText = (await balanceGameBackLink.textContent()).trim();
+  assert(balanceGameBackText.includes('Back to game'), `Game-linked Balance Teams back link reads correctly, got "${balanceGameBackText}"`);
+
   // ============ Help page: Home tab highlighted ============
   await page.goto(BASE + '/index.html#/');
   await page.waitForTimeout(150);
