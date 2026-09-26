@@ -85,7 +85,7 @@ export function renderSettings(app) {
           <input type="number" name="numPeriods" min="1" max="4" value="${team.numPeriods}" />
         </div>
       </div>
-      <p class="muted small" style="margin-top:-8px;">Used to pre-fill new games — each game can still set its own match length when it's scheduled.</p>
+      <p class="muted small" style="margin-top:-8px;">Used to pre-fill new games — each game can still set its own format and match length when it's scheduled.</p>
       <div class="field">
         <label>Minimum minutes on the pitch before a sub</label>
         <input type="number" name="minStintMinutes" min="0" max="30" step="1" value="${team.minStintMinutes ?? 4}" />
@@ -244,13 +244,16 @@ export function renderSettings(app) {
         // bench, so nobody is silently dropped or stranded in a slot the
         // pitch no longer renders.
         state.games.forEach((g) => {
-          if (g.status !== 'completed') {
-            // A chosen formation belongs to one squad size — carrying its
-            // id over to a resized game would point at a shape that no
-            // longer applies, so fall back to the new size's own default.
-            g.formationId = null;
-            g.lineup = { slots: remapLineupToFormat(g.lineup?.slots, newFormat) };
-          }
+          // A game with its own Format override (set when it was scheduled,
+          // or edited afterward) already plays at whatever size it chose —
+          // a change to the TEAM's default shouldn't resize it out from
+          // under that override.
+          if (g.status === 'completed' || g.squadFormat != null) return;
+          // A chosen formation belongs to one squad size — carrying its
+          // id over to a resized game would point at a shape that no
+          // longer applies, so fall back to the new size's own default.
+          g.formationId = null;
+          g.lineup = { slots: remapLineupToFormat(g.lineup?.slots, newFormat) };
         });
       }
     });

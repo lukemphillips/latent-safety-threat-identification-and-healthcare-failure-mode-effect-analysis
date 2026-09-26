@@ -26,7 +26,12 @@ const defaultBadgeHtml = brandBadgeEl.innerHTML;
 let brandLogoUrl = null;
 
 const NAV_ITEMS = [
-  { match: (p) => p.length === 0, path: '#/', label: 'Home', icon: '🏠' },
+  // Help isn't its own bottom-nav destination (it's reached from Dashboard's
+  // ❓ icon or a link in Settings), so it rides along with Home — same
+  // precedent as Balance Teams riding along with Roster below — rather
+  // than leaving a coach on Help with no tab highlighted and no sense of
+  // where "back" is.
+  { match: (p) => p.length === 0 || p[0] === 'help', path: '#/', label: 'Home', icon: '🏠' },
   { match: (p) => p[0] === 'roster' || p[0] === 'balance', path: '#/roster', label: 'Roster', icon: '👥' },
   { match: (p) => p[0] === 'schedule' || p[0] === 'game', path: '#/schedule', label: 'Matchday', icon: '⚽' },
   { match: (p) => p[0] === 'stats', path: '#/stats', label: 'Stats', icon: '📊' },

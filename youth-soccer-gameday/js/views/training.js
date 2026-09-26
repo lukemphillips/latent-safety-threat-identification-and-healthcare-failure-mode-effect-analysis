@@ -155,6 +155,8 @@ export function renderTrainingDetail(app, trainingId, tab) {
       </div>
     </div>
 
+    <a class="btn ghost sm" href="#/training" style="margin-bottom:12px; display:inline-flex;">← Back to Training</a>
+
     <div class="card">
       <div class="spread" style="align-items:center;">
         <span class="small">${(training.presentIds || []).length} attending${(training.groups || []).length ? ` · ${training.groups.length} groups` : ''}${(training.matchTeams || []).length ? ` · ${training.matchTeams.length} match teams` : ''}${(training.blocks || []).length ? ` · ${training.blocks.length} plan blocks` : ''}</span>

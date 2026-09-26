@@ -89,6 +89,13 @@ export function gamePeriodMinutes(game, team) {
   return game.periodMinutes ?? team.periodMinutes;
 }
 
+// squadFormat is the resolved value for a specific game — game.squadFormat
+// if that game overrode the team default (e.g. a friendly played 5-a-side
+// while the team's usual league format is 7-a-side), else the team's own.
+export function gameSquadFormat(game, team) {
+  return game.squadFormat ?? team.squadFormat;
+}
+
 export function formatPercent(fraction) {
   if (!Number.isFinite(fraction)) return '—';
   return `${Math.round(fraction * 100)}%`;

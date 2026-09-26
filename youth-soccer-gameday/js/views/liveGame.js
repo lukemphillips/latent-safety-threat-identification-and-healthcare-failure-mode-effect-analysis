@@ -1,5 +1,5 @@
 import { getState, update, findGame, saveAutoBackup } from '../store.js';
-import { uid, escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile, matchEligiblePlayers, playerPositions } from '../util.js';
+import { uid, escapeHtml, formatClock, formatDate, periodLabel, matchTypeBadgeHtml, gameNumPeriods, gamePeriodMinutes, gameSquadFormat, upcomingSubs, pickIncoming, pickOutgoing, tryDownloadFile, matchEligiblePlayers, playerPositions } from '../util.js';
 import { outfieldTargetCount, formationFor, formationOptionsFor } from '../formations.js';
 import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -37,9 +37,10 @@ export function renderLiveGame(app, gameId) {
   const byId = Object.fromEntries(active.map((p) => [p.id, p]));
   const live = game.live;
   const isCompleted = game.status === 'completed';
-  const targetOutfield = outfieldTargetCount(team.squadFormat);
-  const formation = formationFor(team.squadFormat, game.formationId, team.customFormations || []);
-  const formationOptions = formationOptionsFor(team.squadFormat, team.customFormations || []);
+  const squadFormat = gameSquadFormat(game, team);
+  const targetOutfield = outfieldTargetCount(squadFormat);
+  const formation = formationFor(squadFormat, game.formationId, team.customFormations || []);
+  const formationOptions = formationOptionsFor(squadFormat, team.customFormations || []);
   const slotByPlayerId = Object.fromEntries(
     Object.entries(game.lineup?.slots || {}).filter(([, pid]) => pid).map(([slotId, pid]) => [pid, slotId])
   );
@@ -548,7 +549,7 @@ function openFormationModal(gameId, formationOptions, currentFormationId) {
         const newFormationId = new FormData(e.target).get('formationId');
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
-          const newFormation = formationFor(state.team.squadFormat, newFormationId, state.team.customFormations || []);
+          const newFormation = formationFor(gameSquadFormat(g, state.team), newFormationId, state.team.customFormations || []);
           g.formationId = newFormationId;
           g.lineup.slots = remapLiveFormation(g.lineup.slots, g.live.onField, g.live.gkByPeriod[g.live.currentPeriod], newFormation);
         });

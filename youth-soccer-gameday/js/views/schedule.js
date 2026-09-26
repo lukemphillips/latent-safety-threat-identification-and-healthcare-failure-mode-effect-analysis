@@ -1,7 +1,12 @@
 import { getState, update } from '../store.js';
 import { uid, escapeHtml, formatDate, formatTime, sortByDateTime, todayIso, nowHHMM, matchTypeBadgeHtml, matchEligiblePlayers } from '../util.js';
-import { emptyLineupSlots } from '../formations.js';
+import { emptyLineupSlots, SQUAD_FORMAT_SIZES } from '../formations.js';
 import { openModal, closeModal } from '../modal.js';
+
+export function squadFormatOptionsHtml(selected) {
+  return SQUAD_FORMAT_SIZES
+    .map((size) => `<option value="${size}" ${size === selected ? 'selected' : ''}>${size}-a-side</option>`).join('');
+}
 
 export function renderSchedule(app) {
   const { games } = getState();
@@ -113,6 +118,11 @@ export function openGameForm(prefill) {
           <input type="checkbox" name="isHome" ${pf.isHome === false ? '' : 'checked'} />
           Home game
         </label>
+        <div class="field">
+          <label>Format</label>
+          <select name="squadFormat">${squadFormatOptionsHtml(pf.squadFormat ?? team.squadFormat)}</select>
+          <p class="muted small" style="margin:4px 0 0;">Only for this match — your team's usual format (${team.squadFormat}-a-side) is unaffected. Handy for a friendly or tournament played at a different size.</p>
+        </div>
         <div class="field-row">
           <div class="field">
             <label>Minutes per period</label>
@@ -166,6 +176,13 @@ export function openGameForm(prefill) {
 
         const periodMinutes = Number(fd.get('periodMinutes')) || team.periodMinutes;
         const numPeriods = Number(fd.get('numPeriods')) || team.numPeriods;
+        const squadFormat = Number(fd.get('squadFormat')) || team.squadFormat;
+        // Only stored on the game when it actually differs from the team's
+        // current default — left null (inherit), a game keeps tracking the
+        // team default even if that's changed later in Settings (which
+        // reshapes every inheriting game's lineup); an explicit override
+        // here is a deliberate choice for just this match and stays put.
+        const squadFormatOverride = squadFormat !== team.squadFormat ? squadFormat : null;
         const secondOpponent = (fd.get('secondOpponent') || '').trim();
         const addSecond = fd.get('addSecondMatch') === 'on' && secondOpponent;
 
@@ -187,6 +204,7 @@ export function openGameForm(prefill) {
             isHome: fd.get('isHome') === 'on',
             periodMinutes,
             numPeriods,
+            squadFormat: squadFormatOverride,
             status: 'scheduled',
             captainId: null,
             playerOfMatchId: null,
@@ -196,12 +214,12 @@ export function openGameForm(prefill) {
           };
           state.games.push({
             id: firstId, opponent, time: fd.get('time'), rsvps: buildRsvps(), presentIds: [],
-            lineup: { slots: emptyLineupSlots(state.team.squadFormat) }, ...shared,
+            lineup: { slots: emptyLineupSlots(squadFormat) }, ...shared,
           });
           if (secondId) {
             state.games.push({
               id: secondId, opponent: secondOpponent, time: fd.get('secondTime') || fd.get('time'), rsvps: buildRsvps(), presentIds: [],
-              lineup: { slots: emptyLineupSlots(state.team.squadFormat) }, ...shared,
+              lineup: { slots: emptyLineupSlots(squadFormat) }, ...shared,
             });
           }
         });

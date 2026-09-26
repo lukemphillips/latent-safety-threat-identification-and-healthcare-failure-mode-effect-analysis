@@ -195,17 +195,46 @@ function evenRow(count, y, jitter = 0) {
   });
 }
 
+function layoutSlots(size, def, mid, fwd) {
+  const slots = [{ id: 'gk', role: 'GK', x: 50, y: size >= 11 ? 93 : 92 }];
+  evenRow(def, 72, -3).forEach((pos, i) => slots.push({ id: `d${i + 1}`, role: 'DEF', ...pos }));
+  evenRow(mid, 47, 3).forEach((pos, i) => slots.push({ id: `m${i + 1}`, role: 'MID', ...pos }));
+  evenRow(fwd, 16, -3).forEach((pos, i) => slots.push({ id: `f${i + 1}`, role: 'FWD', ...pos }));
+  return slots;
+}
+
 export function buildCustomFormation({ id, size, label, def, mid, fwd }) {
   const total = 1 + def + mid + fwd;
   if (total !== size) {
     throw new Error(`A ${size}-a-side formation needs ${size - 1} outfield players (GK + DEF + MID + FWD), got ${def + mid + fwd}.`);
   }
-  const slots = [{ id: 'gk', role: 'GK', x: 50, y: size >= 11 ? 93 : 92 }];
-  evenRow(def, 72, -3).forEach((pos, i) => slots.push({ id: `d${i + 1}`, role: 'DEF', ...pos }));
-  evenRow(mid, 47, 3).forEach((pos, i) => slots.push({ id: `m${i + 1}`, role: 'MID', ...pos }));
-  evenRow(fwd, 16, -3).forEach((pos, i) => slots.push({ id: `f${i + 1}`, role: 'FWD', ...pos }));
-  return { id: id || `custom-${Date.now()}`, size, label, slots, custom: true, def, mid, fwd };
+  return { id: id || `custom-${Date.now()}`, size, label, slots: layoutSlots(size, def, mid, fwd), custom: true, def, mid, fwd };
 }
+
+// A same-shape sibling of buildCustomFormation, but flagged as a built-in
+// default suggestion (no `custom: true`) rather than something the coach
+// made — used below to fill out PRESET_FORMATIONS for squad sizes that
+// don't have hand-placed coordinates of their own.
+function presetFormation(size, def, mid, fwd) {
+  return { id: `${size}-${def}-${mid}-${fwd}`, size, label: `${size}-a-side · ${def}-${mid}-${fwd}`, slots: layoutSlots(size, def, mid, fwd) };
+}
+
+// Fills out the smaller/larger squad sizes a coach can pick for an
+// individual match (see the Format field on the Game form) with a
+// couple of sensible default shapes each, generated the same way as a
+// coach's own custom formations rather than hand-placed like 5/7/9/11
+// above.
+PRESET_FORMATIONS[3] = [presetFormation(3, 1, 0, 1), presetFormation(3, 0, 1, 1)];
+PRESET_FORMATIONS[4] = [presetFormation(4, 1, 1, 1), presetFormation(4, 1, 0, 2)];
+PRESET_FORMATIONS[6] = [presetFormation(6, 2, 2, 1), presetFormation(6, 1, 3, 1)];
+PRESET_FORMATIONS[8] = [presetFormation(8, 3, 3, 1), presetFormation(8, 2, 3, 2)];
+PRESET_FORMATIONS[10] = [presetFormation(10, 3, 4, 2), presetFormation(10, 4, 4, 1)];
+
+// Every squad size a match can be played at, smallest first — object keys
+// that look like plain integers ("3", "11") are always iterated in
+// ascending numeric order by JS regardless of insertion order, so this
+// doesn't need its own manual sort.
+export const SQUAD_FORMAT_SIZES = Object.keys(PRESET_FORMATIONS).map(Number);
 
 // Every formation available for a squad size — the built-in suggestions
 // plus whichever ones this team has created of their own, customs listed

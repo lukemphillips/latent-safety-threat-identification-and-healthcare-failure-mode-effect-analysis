@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate, sortByDateTime, matchEligiblePlayers, STREAM_ORDER, comparePlayersBy, shuffleArray, usedTeamAllocationsInOrder } from '../util.js';
+import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate, sortByDateTime, matchEligiblePlayers, STREAM_ORDER, comparePlayersBy, shuffleArray, usedTeamAllocationsInOrder, gameSquadFormat } from '../util.js';
 import { isJuniorAgeGroup } from '../ageFormats.js';
 import { buildGroupsByStream } from '../trainingGroups.js';
 import { formationFor, emptyLineupSlots } from '../formations.js';
@@ -136,7 +136,7 @@ function sendSquadToMatch(playerIds, gameId) {
     if (!g) return;
     // Respects a formation the coach already picked for this game (e.g. on
     // its Squad tab) rather than silently resetting it back to the default.
-    const formation = formationFor(state.team.squadFormat, g.formationId, state.team.customFormations || []);
+    const formation = formationFor(gameSquadFormat(g, state.team), g.formationId, state.team.customFormations || []);
     g.presentIds = [...playerIds];
     const presentPlayers = state.players.filter((p) => playerIds.includes(p.id));
     g.lineup = { slots: autoFillLineup(formation, presentPlayers, emptyLineupSlots(formation)) };
