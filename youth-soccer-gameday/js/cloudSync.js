@@ -287,7 +287,7 @@ export async function joinWithLink(url, coachName) {
   if (!trimmedUrl) throw new Error('Paste the Cloud Sync link you were given.');
 
   const result = await pullFromCloud(trimmedUrl);
-  saveConfig({ url: trimmedUrl, role: result.role, coachName: coachName || '', lastSyncedAt: new Date().toISOString() });
+  saveConfig({ url: trimmedUrl, role: result.role, coachName: coachName || '', lastSyncedAt: new Date().toISOString(), lastServerMeta: result.meta || null });
   if (result.data) applyCloudSync(result.data);
   markSynced();
   return result;
@@ -307,6 +307,11 @@ export async function syncNow() {
 
   const pulled = await pullFromCloud(cfg.url);
   const mergeResult = pulled.data ? applyCloudSync(pulled.data, cfg.lastSyncedPlayers) : null;
+  // Captured from the PULL, before this device's own push below overwrites
+  // it on the server — so it reflects whoever synced most recently before
+  // this device, which is the useful "who else is syncing with me" signal
+  // (a device just echoing its own last push back at itself isn't).
+  if (pulled.meta) saveConfig({ ...cfg, lastServerMeta: pulled.meta });
   await pushToCloud(cfg.url, cfg.coachName);
   markSynced();
   return mergeResult;
