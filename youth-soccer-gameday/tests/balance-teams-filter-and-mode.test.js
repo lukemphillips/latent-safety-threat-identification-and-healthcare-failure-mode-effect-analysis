@@ -48,14 +48,18 @@ function assert(cond, msg) {
   const rowCountFiltered = await page.$$eval('table tbody tr', (els) => els.length);
   assert(rowCountFiltered === 4, `Filtering to "9.4" shows only those 4 players, got ${rowCountFiltered}`);
 
-  // Filtering the view doesn't change who's selected for the split.
+  // Filtering scopes who's actually included for the split, not just which
+  // rows are shown — a coach who filters and taps Random Split straight
+  // away (without first clearing everyone else) should only get those 4.
   const squadHeading = await page.textContent('.section-title:has-text("Squad")');
-  assert(squadHeading.includes(`/${active.length})`), `Squad heading still counts the whole roster while filtered, got "${squadHeading}"`);
+  assert(squadHeading.includes(`(4/${active.length})`), `Squad heading reflects only the 4 filtered players just from filtering, got "${squadHeading}"`);
 
   await page.click('[data-action="clear-team-alloc-filter"]');
   await page.waitForTimeout(100);
   const rowCountAfterClear = await page.$$eval('table tbody tr', (els) => els.length);
   assert(rowCountAfterClear === active.length, `Clearing the filter shows everyone again, got ${rowCountAfterClear}`);
+  const squadHeadingAfterClear = await page.textContent('.section-title:has-text("Squad")');
+  assert(squadHeadingAfterClear.includes(`(${active.length}/${active.length})`), `Clearing the filter restores everyone to the included count too, got "${squadHeadingAfterClear}"`);
 
   // ============ Select All while filtered only adds the filtered team ============
   // Reported bug: filter the squad list down to one team allocation, then

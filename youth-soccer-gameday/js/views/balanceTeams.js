@@ -168,14 +168,20 @@ export function renderBalanceTeams(app, gameId) {
     targetGameId = (game && game.status === 'scheduled') ? game.id : (upcoming[0]?.id || null);
   }
 
-  const included = active.filter((p) => includedIds.has(p.id));
-  const canSplit = included.length >= teamCount * 2;
-
   const teamAllocValues = usedTeamAllocationsInOrder(active);
   // Drop a filter that no longer matches anyone (e.g. the last player with
   // that value was reassigned) instead of silently showing an empty list.
   if (squadTeamAllocFilter && !teamAllocValues.includes(squadTeamAllocFilter)) squadTeamAllocFilter = null;
   const squadRows = squadTeamAllocFilter ? active.filter((p) => p.teamAllocation === squadTeamAllocFilter) : active;
+
+  // A Team Allocation filter scopes the whole page, not just which rows
+  // are shown — a coach who filters to one team and taps Random Split
+  // expects only that team's players in the result, without first having
+  // to manually deselect everyone else with "Select None". Checkboxes
+  // still give fine control WITHIN the current filter (e.g. leaving one
+  // player out of that team's split).
+  const included = squadRows.filter((p) => includedIds.has(p.id));
+  const canSplit = included.length >= teamCount * 2;
 
   app.innerHTML = `
     <div class="page-title">
@@ -362,7 +368,7 @@ export function renderBalanceTeams(app, gameId) {
   const splitBtn = app.querySelector('[data-action="split"]');
   if (splitBtn) {
     splitBtn.addEventListener('click', () => {
-      split = splitByMode(active.filter((p) => includedIds.has(p.id)), teamCount, splitMode);
+      split = splitByMode(included, teamCount, splitMode);
       resetImportStatus();
       renderBalanceTeams(app, gameId);
     });
