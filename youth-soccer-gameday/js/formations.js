@@ -195,9 +195,12 @@ function evenRow(count, y, jitter = 0) {
   });
 }
 
-function layoutSlots(size, def, mid, fwd) {
-  const slots = [{ id: 'gk', role: 'GK', x: 50, y: size >= 11 ? 93 : 92 }];
-  evenRow(def, 72, -3).forEach((pos, i) => slots.push({ id: `d${i + 1}`, role: 'DEF', ...pos }));
+function layoutSlots(size, def, mid, fwd, gk = true) {
+  const slots = gk ? [{ id: 'gk', role: 'GK', x: 50, y: size >= 11 ? 93 : 92 }] : [];
+  // Without a keeper anchoring the very back of the pitch, shift the
+  // defensive line a little deeper so it still reads as "closest to goal"
+  // rather than leaving an odd empty gap behind it.
+  evenRow(def, gk ? 72 : 78, -3).forEach((pos, i) => slots.push({ id: `d${i + 1}`, role: 'DEF', ...pos }));
   evenRow(mid, 47, 3).forEach((pos, i) => slots.push({ id: `m${i + 1}`, role: 'MID', ...pos }));
   evenRow(fwd, 16, -3).forEach((pos, i) => slots.push({ id: `f${i + 1}`, role: 'FWD', ...pos }));
   return slots;
@@ -214,17 +217,32 @@ export function buildCustomFormation({ id, size, label, def, mid, fwd }) {
 // A same-shape sibling of buildCustomFormation, but flagged as a built-in
 // default suggestion (no `custom: true`) rather than something the coach
 // made — used below to fill out PRESET_FORMATIONS for squad sizes that
-// don't have hand-placed coordinates of their own.
-function presetFormation(size, def, mid, fwd) {
-  return { id: `${size}-${def}-${mid}-${fwd}`, size, label: `${size}-a-side · ${def}-${mid}-${fwd}`, slots: layoutSlots(size, def, mid, fwd) };
+// don't have hand-placed coordinates of their own. `gk = false` omits the
+// goalkeeper slot entirely, for very small formats (e.g. 3-a-side) that
+// are commonly played without a dedicated keeper.
+function presetFormation(size, def, mid, fwd, gk = true) {
+  const label = `${size}-a-side · ${gk ? '' : 'No GK · '}${def}-${mid}-${fwd}`;
+  const id = gk ? `${size}-${def}-${mid}-${fwd}` : `${size}-nogk-${def}-${mid}-${fwd}`;
+  return { id, size, label, slots: layoutSlots(size, def, mid, fwd, gk) };
+}
+
+// Whether a formation dedicates a pitch slot to a goalkeeper at all — false
+// for the keeperless small-sided presets below. Every live-match feature
+// that assumes exactly one keeper (the Goalkeeper card, GK Save, the
+// "confirm keeper" prompt when a new period starts) checks this first and
+// skips itself entirely when it's false, rather than asking a coach to
+// name a keeper their format doesn't have.
+export function formationHasGk(formation) {
+  return formation.slots.some((s) => s.role === 'GK');
 }
 
 // Fills out the smaller/larger squad sizes a coach can pick for an
 // individual match (see the Format field on the Game form) with a
 // couple of sensible default shapes each, generated the same way as a
 // coach's own custom formations rather than hand-placed like 5/7/9/11
-// above.
-PRESET_FORMATIONS[3] = [presetFormation(3, 1, 0, 1), presetFormation(3, 0, 1, 1)];
+// above. 3-a-side is commonly played with no designated goalkeeper at
+// all (everyone defends and attacks) — both its presets skip the GK slot.
+PRESET_FORMATIONS[3] = [presetFormation(3, 1, 1, 1, false), presetFormation(3, 0, 1, 2, false)];
 PRESET_FORMATIONS[4] = [presetFormation(4, 1, 1, 1), presetFormation(4, 1, 0, 2)];
 PRESET_FORMATIONS[6] = [presetFormation(6, 2, 2, 1), presetFormation(6, 1, 3, 1)];
 PRESET_FORMATIONS[8] = [presetFormation(8, 3, 3, 1), presetFormation(8, 2, 3, 2)];

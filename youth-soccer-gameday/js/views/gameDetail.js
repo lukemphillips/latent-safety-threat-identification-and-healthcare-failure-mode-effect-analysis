@@ -1,6 +1,6 @@
 import { getState, update, findGame } from '../store.js';
 import { uid, escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions, gameNumPeriods, gamePeriodMinutes, gameSquadFormat, matchEligiblePlayers } from '../util.js';
-import { formationFor, formationOptionsFor, remapLineupToFormat } from '../formations.js';
+import { formationFor, formationOptionsFor, remapLineupToFormat, formationHasGk } from '../formations.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { openGameForm, squadFormatOptionsHtml } from './schedule.js';
 import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../subPlan.js';
@@ -312,7 +312,7 @@ function renderSquadTab(container, game) {
         <button class="btn ghost sm" data-action="clear-lineup">Clear Lineup</button>
       </div>
     </div>
-    <div class="banner info">Tap an open spot on the pitch, then tap a player to place them — or use "Auto-Fill" to place everyone present by their preferred position, then adjust from there. The GK spot sets your ${periodLabel(gameNumPeriods(game, team), 1)} keeper.</div>
+    <div class="banner info">Tap an open spot on the pitch, then tap a player to place them — or use "Auto-Fill" to place everyone present by their preferred position, then adjust from there.${formationHasGk(formation) ? ` The GK spot sets your ${periodLabel(gameNumPeriods(game, team), 1)} keeper.` : ' This format has no dedicated goalkeeper spot — everyone here is an outfield player.'}</div>
     <div class="pitch-wrap">
       <div class="pitch">
         ${formation.slots.map((slot) => pitchSlotHtml(slot, slots[slot.id] ? byId[slots[slot.id]] : null)).join('')}
@@ -643,9 +643,10 @@ async function startGame(game) {
   const outfieldIds = Object.entries(game.lineup.slots)
     .filter(([slotId, pid]) => slotId !== 'gk' && pid)
     .map(([, pid]) => pid);
+  const hasGk = formationHasGk(formationFor(gameSquadFormat(game, team), game.formationId, team.customFormations || []));
 
   if (!presentIds.length && !(await confirmDialog('No players marked present yet. Start the game anyway?'))) return;
-  if (!gkId && !(await confirmDialog(`No goalkeeper set for the ${periodLabel(gameNumPeriods(game, team), 1)}. Start anyway?`))) return;
+  if (hasGk && !gkId && !(await confirmDialog(`No goalkeeper set for the ${periodLabel(gameNumPeriods(game, team), 1)}. Start anyway?`))) return;
 
   const carryover = matchDayCarryover(games, game);
   const playingTime = {};
