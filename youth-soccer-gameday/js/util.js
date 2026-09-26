@@ -129,16 +129,18 @@ export async function copyToClipboard(text, { onSuccess, onFallback } = {}) {
 }
 
 // Best-effort: triggers a browser download of `text` as a named file —
-// used for the automatic post-match backup (see liveGame.js). Works on a
-// normal page, but a sandboxed embedding (like the Claude Artifact viewer)
-// blocks a page from starting its own downloads, so this silently does
-// nothing there. The automatic localStorage snapshot (store.js) and the
-// manual Backup button in Settings are the mechanisms guaranteed to work
-// in that context — this is a bonus when it's not blocked, not the only
-// safety net.
-export function tryDownloadFile(filename, text) {
+// used for the automatic post-match backup (see liveGame.js) and the
+// Roster import CSV template. Works on a normal page, but a sandboxed
+// embedding (like the Claude Artifact viewer) blocks a page from starting
+// its own downloads, so this silently does nothing there — callers that
+// need to know (e.g. to show a fallback) can check the boolean it
+// returns. The automatic localStorage snapshot (store.js) and the manual
+// Backup button in Settings are the mechanisms guaranteed to work for a
+// backup in that context; this is a bonus when it's not blocked, not the
+// only safety net.
+export function tryDownloadFile(filename, text, mimeType = 'application/json') {
   try {
-    const blob = new Blob([text], { type: 'application/json' });
+    const blob = new Blob([text], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -147,8 +149,10 @@ export function tryDownloadFile(filename, text) {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
   } catch (e) {
-    console.warn('Automatic backup file download not available here', e);
+    console.warn('File download not available here', e);
+    return false;
   }
 }
 

@@ -1,5 +1,5 @@
 import { getState, update, findPlayer } from '../store.js';
-import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, copyToClipboard, comparePlayersBy, usedTeamAllocationsInOrder, matchEligiblePlayers } from '../util.js';
+import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, tryDownloadFile, comparePlayersBy, usedTeamAllocationsInOrder, matchEligiblePlayers } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { parseRosterFile, TEMPLATE_CSV } from '../importRoster.js';
 import { isMatchdayOnly } from '../cloudSync.js';
@@ -344,7 +344,7 @@ function openImportModal() {
         <p class="muted small mt-0">Import from a .csv or .xlsx file. The first row should have headers — we'll match common ones like Name, Jersey #, Position(s), Stream, Guardian Name, Guardian Phone. Only "Name" is required.</p>
         <div class="card-row" style="background:var(--green-100); border-radius:10px; padding:10px 12px;">
           <span class="small">New to this? Start from a template.</span>
-          <button type="button" class="btn secondary sm" data-action="copy-template">📋 Copy CSV Template</button>
+          <button type="button" class="btn secondary sm" data-action="download-template">⬇️ Download CSV Template</button>
         </div>
         <textarea id="import-template-fallback" readonly hidden style="width:100%; min-height:80px; font-family:monospace; font-size:11.5px; padding:8px; border:1px solid var(--line); border-radius:8px;">${escapeHtml(TEMPLATE_CSV)}</textarea>
         <div class="field">
@@ -367,7 +367,7 @@ function openImportModal() {
       const fileInput = modalEl.querySelector('input[name="file"]');
       const statusEl = modalEl.querySelector('#import-status');
       const previewEl = modalEl.querySelector('#import-preview');
-      const copyBtn = modalEl.querySelector('[data-action="copy-template"]');
+      const downloadBtn = modalEl.querySelector('[data-action="download-template"]');
       const fallbackEl = modalEl.querySelector('#import-template-fallback');
       const importAsGuestsCheckbox = modalEl.querySelector('#import-as-guests');
       const guestTeamNameField = modalEl.querySelector('#import-guest-team-name-field');
@@ -377,17 +377,20 @@ function openImportModal() {
         guestTeamNameField.hidden = !importAsGuestsCheckbox.checked;
       });
 
-      copyBtn.addEventListener('click', async () => {
-        await copyToClipboard(TEMPLATE_CSV, {
-          onSuccess: () => { copyBtn.textContent = '✅ Copied!'; },
-          onFallback: () => {
-            fallbackEl.hidden = false;
-            fallbackEl.focus();
-            fallbackEl.select();
-            copyBtn.textContent = 'Select the text below and copy it';
-          },
-        });
-        setTimeout(() => { copyBtn.textContent = '📋 Copy CSV Template'; }, 2500);
+      downloadBtn.addEventListener('click', () => {
+        const downloaded = tryDownloadFile('roster-template.csv', TEMPLATE_CSV, 'text/csv');
+        if (downloaded) {
+          downloadBtn.textContent = '✅ Downloaded!';
+        } else {
+          // Sandboxed embeddings (e.g. the Claude Artifact viewer) block a
+          // page from starting its own downloads — fall back to showing
+          // the raw CSV so it can still be selected and saved by hand.
+          fallbackEl.hidden = false;
+          fallbackEl.focus();
+          fallbackEl.select();
+          downloadBtn.textContent = 'Select the text below and save it as .csv';
+        }
+        setTimeout(() => { downloadBtn.textContent = '⬇️ Download CSV Template'; }, 2500);
       });
 
       fileInput.addEventListener('change', async () => {
