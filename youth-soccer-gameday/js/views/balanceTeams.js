@@ -274,13 +274,17 @@ export function renderBalanceTeams(app, gameId) {
   `;
 
   app.querySelector('[data-action="select-all"]').addEventListener('click', () => {
-    includedIds = new Set(active.map((p) => p.id));
+    // Scoped to whatever the Team Allocation filter is currently showing
+    // (squadRows === active when no filter is set) — selecting "all"
+    // while filtered to one team should only add that team, not silently
+    // pull in everyone else hidden by the filter.
+    squadRows.forEach((p) => includedIds.add(p.id));
     split = null;
     resetImportStatus();
     renderBalanceTeams(app, gameId);
   });
   app.querySelector('[data-action="select-none"]').addEventListener('click', () => {
-    includedIds = new Set();
+    squadRows.forEach((p) => includedIds.delete(p.id));
     split = null;
     resetImportStatus();
     renderBalanceTeams(app, gameId);

@@ -28,7 +28,7 @@ function assert(cond, msg) {
   // them up on the roster first.
   let state = await page.evaluate(() => JSON.parse(localStorage.getItem('ysg-data-v2')));
   const active = state.players.filter((p) => p.active && !p.isGuest);
-  const allocatedIds = active.slice(0, 3).map((p) => p.id);
+  const allocatedIds = active.slice(0, 4).map((p) => p.id);
   await page.evaluate(async (ids) => {
     const mod = await import('/js/store.js');
     mod.update((s) => {
@@ -46,7 +46,7 @@ function assert(cond, msg) {
   await page.click('[data-team-alloc-filter="9.4"]');
   await page.waitForTimeout(100);
   const rowCountFiltered = await page.$$eval('table tbody tr', (els) => els.length);
-  assert(rowCountFiltered === 3, `Filtering to "9.4" shows only those 3 players, got ${rowCountFiltered}`);
+  assert(rowCountFiltered === 4, `Filtering to "9.4" shows only those 4 players, got ${rowCountFiltered}`);
 
   // Filtering the view doesn't change who's selected for the split.
   const squadHeading = await page.textContent('.section-title:has-text("Squad")');
@@ -56,6 +56,31 @@ function assert(cond, msg) {
   await page.waitForTimeout(100);
   const rowCountAfterClear = await page.$$eval('table tbody tr', (els) => els.length);
   assert(rowCountAfterClear === active.length, `Clearing the filter shows everyone again, got ${rowCountAfterClear}`);
+
+  // ============ Select All while filtered only adds the filtered team ============
+  // Reported bug: filter the squad list down to one team allocation, then
+  // "Select All" pulled in the ENTIRE roster instead of just the 4 players
+  // the filter was showing, so a random split included everyone.
+  await page.click('[data-action="select-none"]');
+  await page.waitForTimeout(100);
+  await page.click('[data-team-alloc-filter="9.4"]');
+  await page.waitForTimeout(100);
+  await page.click('[data-action="select-all"]');
+  await page.waitForTimeout(100);
+
+  const squadHeadingAfterFilteredSelectAll = await page.textContent('.section-title:has-text("Squad")');
+  assert(squadHeadingAfterFilteredSelectAll.includes(`(4/${active.length})`), `"Select All" while filtered to "9.4" only selects those 4, got "${squadHeadingAfterFilteredSelectAll}"`);
+
+  await page.click('[data-action="split"]');
+  await page.waitForTimeout(150);
+  const splitPlayerNames = await page.$$eval('.player-row .player-name', (els) => els.map((e) => e.textContent.trim()));
+  assert(splitPlayerNames.length === 4, `Random split with the filtered selection only includes those 4 players, got ${splitPlayerNames.length}: ${JSON.stringify(splitPlayerNames)}`);
+
+  // Reset squad selection back to everyone for the rest of this test.
+  await page.click('[data-action="clear-team-alloc-filter"]');
+  await page.waitForTimeout(100);
+  await page.click('[data-action="select-all"]');
+  await page.waitForTimeout(100);
 
   // ============ Balance by ability or stream ============
   const modeTabs = await page.$$eval('[data-split-mode]', (els) => els.map((e) => e.textContent.trim()));
