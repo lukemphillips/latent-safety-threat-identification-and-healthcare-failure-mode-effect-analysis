@@ -361,6 +361,29 @@ export async function diagnoseCloudSyncConnection(url) {
     lines.push(`3. Baseline request to a well-known, unrelated site: FAILED (${e.name}: ${e.message}).`);
   }
 
+  // Sync Now itself goes through XMLHttpRequest (see callAppsScript above),
+  // not fetch() — if every probe above comes back clean but Sync Now still
+  // fails, the difference is the transport, not the network or CORS, and
+  // these two probes are the direct comparison.
+  //
+  // The POST probe sends `{}` rather than real data — the script rejects
+  // that (missing team/players/games) before it ever writes anything (see
+  // doPost in buildAppsScript above), so this exercises the exact same
+  // network/CORS/transport path as a real push without touching any real
+  // team data.
+  const xhrProbe = (method, body) =>
+    new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.timeout = 15000;
+      xhr.open(method, url, true);
+      xhr.onload = () => resolve(`OK — HTTP ${xhr.status}.`);
+      xhr.onerror = () => resolve('FAILED (network error).');
+      xhr.ontimeout = () => resolve('FAILED (timed out).');
+      xhr.send(body);
+    });
+  lines.push(`4. XHR GET to your Cloud Sync link (what Sync Now itself uses to pull): ${await xhrProbe('GET')}`);
+  lines.push(`5. XHR POST to your Cloud Sync link (what Sync Now itself uses to push): ${await xhrProbe('POST', JSON.stringify({}))}`);
+
   return lines.join('\n');
 }
 
