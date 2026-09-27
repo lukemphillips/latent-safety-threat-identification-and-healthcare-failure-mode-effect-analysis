@@ -265,37 +265,61 @@ function doPost(e) {
 `;
 }
 
-// Deliberately never sets a Content-Type header. A fetch() body left as a
-// plain string defaults to "text/plain;charset=UTF-8", which keeps this a
-// CORS "simple request" — Google Apps Script Web Apps don't handle the
-// preflight OPTIONS request a browser would otherwise send first for
-// "application/json", so setting that header here would break every
-// cross-origin POST. e.postData.contents on the script side gets the raw
-// JSON text regardless of what Content-Type it was labeled with.
-async function callAppsScript(url, options) {
-  let res;
-  try {
-    res = await fetch(url, options);
-  } catch (e) {
+// Uses XMLHttpRequest rather than fetch(). Google Apps Script's /exec URL
+// always answers with a 302 to a script.googleusercontent.com URL that
+// actually delivers the response body — WebKit (Safari, and every browser
+// on iOS, since Apple requires them all to use WebKit under the hood) has
+// a long-documented bug following that specific cross-origin redirect
+// under fetch(), which surfaces as a plain "TypeError: Load failed" with
+// no further detail, even though the exact same URL loads fine when
+// pasted directly into the address bar (top-level navigation isn't
+// subject to CORS at all, so it never hits this). XMLHttpRequest follows
+// the same redirect through a different code path that isn't affected.
+//
+// Deliberately never sets a request header. A body sent as a plain string
+// defaults to Content-Type "text/plain;charset=UTF-8" under both fetch()
+// and XHR, which keeps this a CORS "simple request" — Google Apps Script
+// Web Apps don't handle the preflight OPTIONS request a browser would
+// otherwise send first for "application/json", so setting that header
+// here would break every cross-origin POST. e.postData.contents on the
+// script side gets the raw JSON text regardless of what Content-Type it
+// was labeled with.
+function callAppsScript(url, { method = 'GET', body } = {}) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.timeout = 20000;
+    xhr.open(method, url, true);
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(`Cloud Sync returned an error (HTTP ${xhr.status}). The pasted script may need updating — see "Update Script" in Settings.`));
+        return;
+      }
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(xhr.responseText);
+      } catch (e) {
+        reject(new Error('Cloud Sync returned something unexpected — double check the link was pasted in full.'));
+        return;
+      }
+      if (parsedBody.error) {
+        reject(new Error(parsedBody.error));
+        return;
+      }
+      resolve(parsedBody);
+    };
     // The previous version of this message discarded the real browser
     // error entirely, which made a genuine connection problem and a
-    // server-side bug masquerading as one indistinguishable — appending
-    // the actual error name/message here is the only way to tell them
-    // apart without opening devtools.
-    const detail = (e && (e.name ? `${e.name}: ${e.message}` : e.message)) || String(e);
-    throw new Error(`Could not reach Cloud Sync — check the link and your connection. (${detail})`);
-  }
-  if (!res.ok) {
-    throw new Error(`Cloud Sync returned an error (HTTP ${res.status}). The pasted script may need updating — see "Update Script" in Settings.`);
-  }
-  let body;
-  try {
-    body = await res.json();
-  } catch (e) {
-    throw new Error('Cloud Sync returned something unexpected — double check the link was pasted in full.');
-  }
-  if (body.error) throw new Error(body.error);
-  return body;
+    // server-side bug masquerading as one indistinguishable — naming what
+    // actually happened here is the only way to tell them apart without
+    // opening devtools.
+    xhr.onerror = () => {
+      reject(new Error('Could not reach Cloud Sync — check the link and your connection. (network error)'));
+    };
+    xhr.ontimeout = () => {
+      reject(new Error('Could not reach Cloud Sync — the request timed out. Check your connection and try again.'));
+    };
+    xhr.send(body);
+  });
 }
 
 // GET only ever reads — both roles are allowed to see the full shared
@@ -309,14 +333,14 @@ async function callAppsScript(url, options) {
 // explicit Cache-Control header telling it not to. A device that hit a
 // cached response would show every sync as "successful" while silently
 // never seeing what anyone else has pushed since — indistinguishable from
-// Cloud Sync being broken. `cache: 'no-store'` tells fetch itself to skip
-// any cache; the appended timestamp is a second, belt-and-suspenders
-// safeguard against a cache that ignores that directive, by making sure
-// this is never actually the same URL twice. Neither adds a header, so
-// this still qualifies as a CORS "simple request" (see callAppsScript).
+// Cloud Sync being broken. Appending a timestamp guarantees this is never
+// actually the same URL twice, so nothing (browser cache or an
+// intermediate proxy) has a matching entry to serve back. It doesn't add
+// a header, so this still qualifies as a CORS "simple request" (see
+// callAppsScript).
 export function pullFromCloud(url) {
   const bustedUrl = `${url}${url.includes('?') ? '&' : '?'}_ts=${Date.now()}`;
-  return callAppsScript(bustedUrl, { method: 'GET', cache: 'no-store' });
+  return callAppsScript(bustedUrl, { method: 'GET' });
 }
 
 // POST always sends this device's team/roster/matches; the Apps Script
