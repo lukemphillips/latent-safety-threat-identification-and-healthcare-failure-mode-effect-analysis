@@ -220,8 +220,22 @@ async function callAppsScript(url, options) {
 // GET only ever reads — both roles are allowed to see the full shared
 // team, since the two-tier split here is about who can change things,
 // not who can see them.
+//
+// The same URL gets fetched over and over (every sync pulls the exact
+// same "?token=..." link) — exactly the shape a browser's HTTP cache (or
+// a proxy sitting in between, e.g. on mobile data) heuristically caches a
+// plain GET response for, since the Apps Script response carries no
+// explicit Cache-Control header telling it not to. A device that hit a
+// cached response would show every sync as "successful" while silently
+// never seeing what anyone else has pushed since — indistinguishable from
+// Cloud Sync being broken. `cache: 'no-store'` tells fetch itself to skip
+// any cache; the appended timestamp is a second, belt-and-suspenders
+// safeguard against a cache that ignores that directive, by making sure
+// this is never actually the same URL twice. Neither adds a header, so
+// this still qualifies as a CORS "simple request" (see callAppsScript).
 export function pullFromCloud(url) {
-  return callAppsScript(url, { method: 'GET' });
+  const bustedUrl = `${url}${url.includes('?') ? '&' : '?'}_ts=${Date.now()}`;
+  return callAppsScript(bustedUrl, { method: 'GET', cache: 'no-store' });
 }
 
 // POST always sends this device's team/roster/matches; the Apps Script
