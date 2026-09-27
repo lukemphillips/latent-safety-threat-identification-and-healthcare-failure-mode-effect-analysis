@@ -277,7 +277,16 @@ async function callAppsScript(url, options) {
   try {
     res = await fetch(url, options);
   } catch (e) {
-    throw new Error('Could not reach Cloud Sync — check the link and your connection.');
+    // The previous version of this message discarded the real browser
+    // error entirely, which made a genuine connection problem and a
+    // server-side bug masquerading as one indistinguishable — appending
+    // the actual error name/message here is the only way to tell them
+    // apart without opening devtools.
+    const detail = (e && (e.name ? `${e.name}: ${e.message}` : e.message)) || String(e);
+    throw new Error(`Could not reach Cloud Sync — check the link and your connection. (${detail})`);
+  }
+  if (!res.ok) {
+    throw new Error(`Cloud Sync returned an error (HTTP ${res.status}). The pasted script may need updating — see "Update Script" in Settings.`);
   }
   let body;
   try {
