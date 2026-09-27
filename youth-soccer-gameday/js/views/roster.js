@@ -308,24 +308,44 @@ function openPlayerForm(playerId) {
               (r) => r.playerAId !== existing.id && r.playerBId !== existing.id
             );
             state.games.forEach((g) => {
-              delete g.rsvps[existing.id];
-              g.presentIds = (g.presentIds || []).filter((id) => id !== existing.id);
-              if (g.captainId === existing.id) g.captainId = null;
-              if (g.playerOfMatchId === existing.id) g.playerOfMatchId = null;
-              g.subPlan = (g.subPlan || []).filter((e) => e.outId !== existing.id && e.inId !== existing.id);
+              // Only a game this player actually appeared in changes at all —
+              // most games in the list are untouched by this loop, and
+              // stamping updatedAt on every one of them regardless would let
+              // this device wrongly win Cloud Sync's merge tie-break against
+              // genuine progress logged elsewhere on games it never really
+              // edited.
+              let changed = false;
+              if (g.rsvps[existing.id] !== undefined) { delete g.rsvps[existing.id]; changed = true; }
+              if ((g.presentIds || []).includes(existing.id)) {
+                g.presentIds = g.presentIds.filter((id) => id !== existing.id);
+                changed = true;
+              }
+              if (g.captainId === existing.id) { g.captainId = null; changed = true; }
+              if (g.playerOfMatchId === existing.id) { g.playerOfMatchId = null; changed = true; }
+              if ((g.subPlan || []).some((e) => e.outId === existing.id || e.inId === existing.id)) {
+                g.subPlan = g.subPlan.filter((e) => e.outId !== existing.id && e.inId !== existing.id);
+                changed = true;
+              }
               if (g.lineup?.slots) {
                 Object.keys(g.lineup.slots).forEach((slotId) => {
-                  if (g.lineup.slots[slotId] === existing.id) g.lineup.slots[slotId] = null;
+                  if (g.lineup.slots[slotId] === existing.id) { g.lineup.slots[slotId] = null; changed = true; }
                 });
               }
               if (g.live) {
-                g.live.onField = (g.live.onField || []).filter((id) => id !== existing.id);
-                g.live.sentOff = (g.live.sentOff || []).filter((id) => id !== existing.id);
-                delete g.live.playingTime?.[existing.id];
+                if ((g.live.onField || []).includes(existing.id)) {
+                  g.live.onField = g.live.onField.filter((id) => id !== existing.id);
+                  changed = true;
+                }
+                if ((g.live.sentOff || []).includes(existing.id)) {
+                  g.live.sentOff = g.live.sentOff.filter((id) => id !== existing.id);
+                  changed = true;
+                }
+                if (g.live.playingTime?.[existing.id] !== undefined) { delete g.live.playingTime[existing.id]; changed = true; }
                 Object.keys(g.live.gkByPeriod || {}).forEach((period) => {
-                  if (g.live.gkByPeriod[period] === existing.id) g.live.gkByPeriod[period] = null;
+                  if (g.live.gkByPeriod[period] === existing.id) { g.live.gkByPeriod[period] = null; changed = true; }
                 });
               }
+              if (changed) g.updatedAt = Date.now();
             });
           });
           closeModal();

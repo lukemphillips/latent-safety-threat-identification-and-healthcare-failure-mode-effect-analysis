@@ -140,6 +140,15 @@ function sendSquadToMatch(playerIds, gameId) {
     g.presentIds = [...playerIds];
     const presentPlayers = state.players.filter((p) => playerIds.includes(p.id));
     g.lineup = { slots: autoFillLineup(formation, presentPlayers, emptyLineupSlots(formation)) };
+    // For a still-scheduled game, presentIds/lineup are invisible to
+    // gameCompleteness (store.js) — it only looks at status and live event
+    // count — so updatedAt is the ONLY thing Cloud Sync's merge (gameIsNewer)
+    // can use to tell this squad assignment apart from another coach's
+    // stale, untouched copy of the same game. Missing this stamp meant the
+    // assignment could silently lose that tie-break and never reach anyone
+    // else's device (see gameDetail.js's touchGame, which does this for
+    // every other pre-match edit).
+    g.updatedAt = Date.now();
   });
 }
 

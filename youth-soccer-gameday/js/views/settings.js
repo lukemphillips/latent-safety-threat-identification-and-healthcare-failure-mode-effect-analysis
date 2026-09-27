@@ -254,6 +254,11 @@ export function renderSettings(app) {
           // longer applies, so fall back to the new size's own default.
           g.formationId = null;
           g.lineup = { slots: remapLineupToFormat(g.lineup?.slots, newFormat) };
+          // See balanceTeams.js's sendSquadToMatch for why this matters:
+          // a reshaped lineup is invisible to gameCompleteness, so without
+          // this stamp Cloud Sync's merge can't tell it apart from another
+          // coach's stale copy and the reshape never reaches their device.
+          g.updatedAt = Date.now();
         });
       }
     });
