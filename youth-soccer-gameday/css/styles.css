@@ -544,6 +544,15 @@ dialog.modal::backdrop { background: rgba(9, 20, 14, 0.5); }
 .modal-body { padding: 8px 16px 20px; overflow-y: auto; }
 .modal-actions { display: flex; gap: 8px; margin-top: 6px; }
 
+/* Training: small-sided match round timer/score — stays pinned under the
+   topbar while the team cards below it scroll, same idea as .live-mini-bar,
+   so the clock and score are still visible while scanning the rosters. */
+.match-round-card {
+  position: sticky;
+  top: 58px;
+  z-index: 15;
+}
+
 /* Utility */
 .stack { display: flex; flex-direction: column; gap: 8px; }
 .row { display: flex; align-items: center; gap: 8px; }

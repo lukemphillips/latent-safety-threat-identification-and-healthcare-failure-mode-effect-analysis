@@ -611,7 +611,7 @@ function matchRoundCardHtml(round) {
   const finished = !round.running && round.elapsedSeconds > 0 && round.elapsedSeconds >= round.durationSeconds;
   const scores = round.scores || [0, 0];
   return `
-    <div class="card">
+    <div class="card match-round-card">
       <div style="font-weight:700; margin-bottom:10px;">⏱️ Match Timer &amp; Score</div>
       <div class="spread" style="align-items:flex-end; flex-wrap:wrap; gap:12px;">
         <div class="field" style="max-width:120px; margin-bottom:0;">

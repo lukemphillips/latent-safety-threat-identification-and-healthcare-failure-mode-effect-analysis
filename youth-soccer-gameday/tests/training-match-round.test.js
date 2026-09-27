@@ -15,6 +15,11 @@ async function setRoundMinutes(page, minutes) {
   }, minutes);
 }
 
+function clockToSeconds(text) {
+  const [mm, ss] = text.trim().split(':').map(Number);
+  return mm * 60 + ss;
+}
+
 (async () => {
   const browser = await launch();
   const page = await browser.newPage();
@@ -53,6 +58,9 @@ async function setRoundMinutes(page, minutes) {
   assert(!!(await page.$('[data-match-round-clock]')), 'Round timer/scoreboard appears once match teams exist');
   const clockTextDefault = await page.textContent('[data-match-round-clock]');
   assert(clockTextDefault.trim() === '10:00', `Default round length is 10:00, got "${clockTextDefault.trim()}"`);
+
+  const roundCardIsSticky = await page.evaluate(() => !!document.querySelector('.match-round-card'));
+  assert(roundCardIsSticky, 'The Match Timer & Score card carries the sticky class so it stays pinned while scrolling');
 
   const teamCountBuilt = await page.evaluate(async () => {
     const mod = await import('/js/store.js');
@@ -106,6 +114,25 @@ async function setRoundMinutes(page, minutes) {
   await page.waitForTimeout(2200);
   const clockAfterTicks = await page.textContent('[data-match-round-clock]');
   assert(['00:57', '00:58'].includes(clockAfterTicks.trim()), `Clock counted down after ~2s, got "${clockAfterTicks.trim()}"`);
+  const elapsedBeforeNav = 60 - clockToSeconds(clockAfterTicks);
+
+  // ============ The clock keeps running while navigating clean away from ============
+  // ============ Training entirely, same as the Plan timer and a live match ============
+  await page.goto(`${BASE}/index.html#/`);
+  await page.waitForTimeout(2200);
+  const stillRunningAway = await page.evaluate(async () => {
+    const mod = await import('/js/store.js');
+    return mod.getState().trainings[0].matchRound.running;
+  });
+  assert(stillRunningAway, 'The round keeps running (in state) while on a completely different screen');
+
+  await page.goto(`${BASE}/index.html#/training/${trainingId}/matches`);
+  await page.waitForTimeout(150);
+  const clockAfterNav = await page.textContent('[data-match-round-clock]');
+  const elapsedAfterNav = 60 - clockToSeconds(clockAfterNav);
+  assert(elapsedAfterNav > elapsedBeforeNav + 1, `Elapsed time actually advanced while away (not just resumed on return), went from ~${elapsedBeforeNav}s to ~${elapsedAfterNav}s`);
+  const toggleLabelAfterNav = (await page.textContent('[data-action="round-toggle"]')).trim();
+  assert(toggleLabelAfterNav.includes('Pause'), `Still shows as running after coming back, got "${toggleLabelAfterNav}"`);
 
   // ============ Pause actually stops the clock, not just the label ============
   await page.click('[data-action="round-toggle"]');
