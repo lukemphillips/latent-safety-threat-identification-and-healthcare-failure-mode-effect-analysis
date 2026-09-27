@@ -612,6 +612,7 @@ function matchRoundCardHtml(round) {
   const scores = round.scores || [0, 0];
   return `
     <div class="card">
+      <div style="font-weight:700; margin-bottom:10px;">⏱️ Match Timer &amp; Score</div>
       <div class="spread" style="align-items:flex-end; flex-wrap:wrap; gap:12px;">
         <div class="field" style="max-width:120px; margin-bottom:0;">
           <label>Round length (min)</label>
@@ -629,7 +630,6 @@ function matchRoundCardHtml(round) {
         <div class="muted" style="font-size:20px; align-self:center;">–</div>
         ${scoreCounterHtml(1, 'Score B', scores[1] || 0)}
       </div>
-      <div class="muted small" style="text-align:center; margin-top:8px;">A quick scoreboard for whichever match is on — not tied to a specific team, so it still makes sense with 3+ teams rotating through.</div>
     </div>
   `;
 }
