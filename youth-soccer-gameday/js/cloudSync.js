@@ -322,6 +322,48 @@ function callAppsScript(url, { method = 'GET', body } = {}) {
   });
 }
 
+// Browsers deliberately withhold *why* a cross-origin request failed
+// (DNS, TLS, a dropped connection, and a CORS block all surface as the
+// exact same generic error) — a privacy protection against sites
+// fingerprinting someone's network, not a gap in this app's own error
+// handling. This runs three probes to get past that ceiling:
+//   1. The real Cloud Sync URL under mode: 'no-cors' — this only cares
+//      whether the network connection itself completes, since a no-cors
+//      response is never readable regardless of its headers. Succeeding
+//      here despite the normal request failing pins the problem on CORS
+//      headers specifically, not on connectivity.
+//   2. The real Cloud Sync URL exactly as Sync Now requests it.
+//   3. A well-known, definitely CORS-enabled external endpoint
+//      (GitHub's own API) as a baseline — if even this fails, whatever's
+//      wrong isn't specific to Google Apps Script, it's this device or
+//      network blocking cross-origin requests generally.
+export async function diagnoseCloudSyncConnection(url) {
+  const lines = [];
+
+  try {
+    await fetch(url, { mode: 'no-cors' });
+    lines.push('1. no-cors request to your Cloud Sync link: OK — a connection to Google was made.');
+  } catch (e) {
+    lines.push(`1. no-cors request to your Cloud Sync link: FAILED (${e.name}: ${e.message}) — the connection itself didn't complete.`);
+  }
+
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    lines.push(`2. Normal (CORS) request to your Cloud Sync link: OK — HTTP ${res.status}.`);
+  } catch (e) {
+    lines.push(`2. Normal (CORS) request to your Cloud Sync link: FAILED (${e.name}: ${e.message}).`);
+  }
+
+  try {
+    const res = await fetch('https://api.github.com/zen', { mode: 'cors' });
+    lines.push(`3. Baseline request to a well-known, unrelated site: OK — HTTP ${res.status}.`);
+  } catch (e) {
+    lines.push(`3. Baseline request to a well-known, unrelated site: FAILED (${e.name}: ${e.message}).`);
+  }
+
+  return lines.join('\n');
+}
+
 // GET only ever reads — both roles are allowed to see the full shared
 // team, since the two-tier split here is about who can change things,
 // not who can see them.

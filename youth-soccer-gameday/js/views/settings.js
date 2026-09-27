@@ -3,7 +3,7 @@ import { PRESET_FORMATIONS, formationOptionsFor, buildCustomFormation, remapLine
 import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers, todayIso } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
-import { getSyncConfig, isMatchdayOnly, buildAppsScript, generateSyncTokens, setUpAsFullEditor, joinWithLink, syncNow, disconnectCloudSync } from '../cloudSync.js';
+import { getSyncConfig, isMatchdayOnly, buildAppsScript, generateSyncTokens, setUpAsFullEditor, joinWithLink, syncNow, disconnectCloudSync, diagnoseCloudSyncConnection } from '../cloudSync.js';
 
 // Guards a post-await re-render (e.g. after "Sync Now", which can take a
 // couple of seconds against a real Apps Script) against overwriting a
@@ -313,6 +313,20 @@ export function renderSettings(app) {
           cloudSyncNowBtn.textContent = '🔄 Sync Now';
           alertDialog(err.message || 'Sync failed — check the connection and try again.');
         }
+      }
+    });
+  }
+  const cloudDiagnoseBtn = app.querySelector('[data-action="cloud-sync-diagnose"]');
+  if (cloudDiagnoseBtn) {
+    cloudDiagnoseBtn.addEventListener('click', async () => {
+      cloudDiagnoseBtn.disabled = true;
+      cloudDiagnoseBtn.textContent = 'Checking…';
+      try {
+        const report = await diagnoseCloudSyncConnection(syncConfig.url);
+        alertDialog(report, { title: 'Connection Diagnosis' });
+      } finally {
+        cloudDiagnoseBtn.disabled = false;
+        cloudDiagnoseBtn.textContent = '🔍 Diagnose Connection';
       }
     });
   }
@@ -706,6 +720,7 @@ function cloudSyncSectionHtml(syncConfig) {
       ${syncConfig.lastServerMeta && syncConfig.lastServerMeta.updatedAt ? `<div class="small muted">Shared data last updated${syncConfig.lastServerMeta.updatedBy ? ` by ${escapeHtml(syncConfig.lastServerMeta.updatedBy)}` : ' by another device'} on ${new Date(syncConfig.lastServerMeta.updatedAt).toLocaleString()}</div>` : ''}
       <div class="banner warn">⚠️ Running two matches at once (e.g. two pitches) is fine — each match syncs back independently. Just never have <strong>two devices both live-tracking the same match</strong> at the same time: sync isn't real-time, so whichever device syncs first can silently overwrite the other's events for that match. One device per live match.</div>
       <button class="btn secondary block" data-action="cloud-sync-now">🔄 Sync Now</button>
+      <button class="btn ghost block" data-action="cloud-sync-diagnose">🔍 Diagnose Connection</button>
       ${syncConfig.role === 'editor' && syncConfig.baseUrl ? '<button class="btn ghost block" data-action="cloud-sync-show-links">📋 Show Share Links</button>' : ''}
       ${syncConfig.role === 'editor' && syncConfig.baseUrl ? '<button class="btn ghost block" data-action="cloud-sync-update-script">🔧 Update Script (bug fix)</button>' : ''}
       ${syncConfig.role === 'editor' && !syncConfig.baseUrl ? `<p class="muted small" style="margin:0;">Share links can only be shown again on the device that originally ran "Set Up Cloud Sync" — this one connected with a link instead, so it doesn't have what's needed to rebuild them.</p>` : ''}
