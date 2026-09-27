@@ -324,6 +324,14 @@ export function renderSettings(app) {
       openShareLinksModal(`${cfg.baseUrl}?token=${cfg.fullEditToken}`, `${cfg.baseUrl}?token=${cfg.matchdayToken}`);
     });
   }
+  const cloudUpdateScriptBtn = app.querySelector('[data-action="cloud-sync-update-script"]');
+  if (cloudUpdateScriptBtn) {
+    cloudUpdateScriptBtn.addEventListener('click', () => {
+      const cfg = getSyncConfig();
+      if (!cfg || !cfg.fullEditToken || !cfg.matchdayToken) return;
+      openUpdateScriptModal(cfg);
+    });
+  }
   const cloudDisconnectBtn = app.querySelector('[data-action="cloud-sync-disconnect"]');
   if (cloudDisconnectBtn) {
     cloudDisconnectBtn.addEventListener('click', async () => {
@@ -699,6 +707,7 @@ function cloudSyncSectionHtml(syncConfig) {
       <div class="banner warn">⚠️ Running two matches at once (e.g. two pitches) is fine — each match syncs back independently. Just never have <strong>two devices both live-tracking the same match</strong> at the same time: sync isn't real-time, so whichever device syncs first can silently overwrite the other's events for that match. One device per live match.</div>
       <button class="btn secondary block" data-action="cloud-sync-now">🔄 Sync Now</button>
       ${syncConfig.role === 'editor' && syncConfig.baseUrl ? '<button class="btn ghost block" data-action="cloud-sync-show-links">📋 Show Share Links</button>' : ''}
+      ${syncConfig.role === 'editor' && syncConfig.baseUrl ? '<button class="btn ghost block" data-action="cloud-sync-update-script">🔧 Update Script (bug fix)</button>' : ''}
       ${syncConfig.role === 'editor' && !syncConfig.baseUrl ? `<p class="muted small" style="margin:0;">Share links can only be shown again on the device that originally ran "Set Up Cloud Sync" — this one connected with a link instead, so it doesn't have what's needed to rebuild them.</p>` : ''}
       <button class="btn ghost block" data-action="cloud-sync-disconnect">Disconnect This Device</button>
     </div>
@@ -802,6 +811,45 @@ function openShareLinksModal(fullEditUrl, matchdayUrl) {
           onFallback: () => { modalEl.querySelector('#full-edit-link-text').select(); },
         });
         setTimeout(() => { btn.textContent = '📋 Copy Full Edit Link'; }, 2500);
+      });
+    },
+  });
+}
+
+// Regenerates the script text with this device's own already-stored
+// tokens (so the URLs everyone already has keep working unchanged) —
+// for a coach whose Google Sheet is still running an older version of
+// the script pasted in before a bug fix here. Google Apps Script has no
+// way to push an update to an already-deployed script automatically;
+// the coach has to paste the replacement in themselves and redeploy the
+// SAME deployment (Deploy > Manage deployments > pencil icon > Version:
+// New version), not create a new one, or the URL (and everyone's links)
+// would change.
+function openUpdateScriptModal(cfg) {
+  const scriptText = buildAppsScript({ fullEditToken: cfg.fullEditToken, matchdayToken: cfg.matchdayToken });
+  openModal({
+    title: 'Update Cloud Sync Script',
+    bodyHtml: `
+      <p class="muted small mt-0">Fixes a bug where two coaches syncing separate matches around the same time could have one match silently revert to "scheduled" on everyone's device. This updates the script only — your Matchday/Full Edit links stay exactly the same, so nothing needs re-sending.</p>
+      <ol class="stack" style="margin:0; padding-left:18px;">
+        <li>Open the Google Sheet you set Cloud Sync up with, then <strong>Extensions → Apps Script</strong>.</li>
+        <li>Select all the existing code and delete it, then paste in the replacement below.</li>
+      </ol>
+      <textarea id="cloud-sync-update-script" readonly style="width:100%; min-height:140px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px; margin:10px 0;"></textarea>
+      <button type="button" class="btn ghost sm" data-action="copy-cloud-update-script" style="margin-bottom:10px;">📋 Copy Script</button>
+      <ol class="stack" style="margin:0; padding-left:18px;" start="3">
+        <li>Click <strong>Deploy → Manage deployments</strong>, click the pencil (✏️) icon next to the existing deployment, set <strong>Version</strong> to <strong>New version</strong>, then Deploy. This keeps the same URL — don't create a brand-new deployment.</li>
+      </ol>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#cloud-sync-update-script').value = scriptText;
+      modalEl.querySelector('[data-action="copy-cloud-update-script"]').addEventListener('click', async (e) => {
+        const btn = e.target;
+        await copyToClipboard(scriptText, {
+          onSuccess: () => { btn.textContent = '✅ Copied'; },
+          onFallback: () => { modalEl.querySelector('#cloud-sync-update-script').select(); btn.textContent = 'Select the text above and copy it'; },
+        });
+        setTimeout(() => { btn.textContent = '📋 Copy Script'; }, 2500);
       });
     },
   });

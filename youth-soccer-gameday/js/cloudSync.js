@@ -142,6 +142,47 @@ function writeStored_(data, updatedBy) {
   sheet.getRange(META_CELL).setValue(JSON.stringify({ updatedAt: new Date().toISOString(), updatedBy: updatedBy || '' }));
 }
 
+// Same "how far along is this" score the app itself uses to pick between
+// two copies of a game (store.js's gameCompleteness/gameIsNewer) — status
+// first, then how much has actually been logged, then updatedAt as a
+// last tiebreak. Without this check here, on the server, a push landing
+// after someone else's is a BLIND overwrite of the whole games array —
+// two coaches each running their own separate match and syncing normally
+// throughout the day is exactly the case that hits this: whichever
+// device's sync happens to land last would silently revert every OTHER
+// match to whatever stale copy that device last knew about, even though
+// the client-side merge (which only ever protects what a device pulls
+// INTO itself) had nothing wrong with it. Merging here, at the one place
+// every device's data actually lands, is the only way to stop a slower
+// or earlier-started sync from clobbering a genuinely newer one.
+var STATUS_RANK_ = { scheduled: 0, live: 1, completed: 2 };
+function gameCompleteness_(g) {
+  return (STATUS_RANK_[g.status] || 0) * 10000 + ((g.live && g.live.subLog && g.live.subLog.length) || 0);
+}
+function gameIsNewer_(incoming, existing) {
+  var c1 = gameCompleteness_(incoming);
+  var c2 = gameCompleteness_(existing);
+  if (c1 !== c2) return c1 > c2;
+  return (incoming.updatedAt || 0) > (existing.updatedAt || 0);
+}
+function mergeGames_(currentGames, postedGames) {
+  var byId = {};
+  (currentGames || []).forEach(function (g) { byId[g.id] = g; });
+  (postedGames || []).forEach(function (incoming) {
+    var existing = byId[incoming.id];
+    if (!existing || gameIsNewer_(incoming, existing)) byId[incoming.id] = incoming;
+  });
+  var result = [];
+  var seenIds = {};
+  (postedGames || []).forEach(function (g) {
+    if (!seenIds[g.id]) { result.push(byId[g.id]); seenIds[g.id] = true; }
+  });
+  (currentGames || []).forEach(function (g) {
+    if (!seenIds[g.id]) { result.push(byId[g.id]); seenIds[g.id] = true; }
+  });
+  return result;
+}
+
 function doGet(e) {
   var token = (e && e.parameter && e.parameter.token) || '';
   var role = roleForToken_(token);
@@ -169,7 +210,11 @@ function doPost(e) {
   var toStore;
 
   if (role === 'editor') {
-    toStore = posted;
+    toStore = {
+      team: posted.team,
+      players: posted.players,
+      games: mergeGames_(current ? current.games : [], posted.games),
+    };
   } else {
     // Matchday: only games change, plus any brand-new players (e.g. a
     // late arrival). Team settings and edits/deletes to existing players
@@ -183,7 +228,7 @@ function doPost(e) {
     toStore = {
       team: current.team,
       players: (current.players || []).concat(newPlayers),
-      games: posted.games,
+      games: mergeGames_(current.games, posted.games),
     };
   }
 

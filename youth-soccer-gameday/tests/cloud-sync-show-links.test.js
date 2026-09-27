@@ -75,6 +75,21 @@ function assert(cond, msg) {
   assert(matchdayLinkValue.includes('token=matchdaytoken'), `Matchday link is rebuilt correctly, got "${matchdayLinkValue}"`);
   assert(fullEditLinkValue.includes('token=fulledittoken'), `Full Edit link is rebuilt correctly, got "${fullEditLinkValue}"`);
 
+  // "Update Script" (for a coach whose Google Sheet still runs an older,
+  // pre-bugfix script) is gated the same way as Show Share Links, and
+  // regenerates the script text with THIS device's own already-stored
+  // tokens — the point is the links stay exactly the same, only the
+  // pasted-in code changes.
+  await page.keyboard.press('Escape'); // close the Show Share Links modal first
+  await page.waitForTimeout(150);
+  const updateScriptBtn = await page.$('[data-action="cloud-sync-update-script"]');
+  assert(!!updateScriptBtn, '"Update Script" is shown on the device that actually set Cloud Sync up');
+  await updateScriptBtn.click();
+  await page.waitForSelector('#cloud-sync-update-script');
+  const updatedScriptValue = await page.inputValue('#cloud-sync-update-script');
+  assert(updatedScriptValue.includes("'fulledittoken'") && updatedScriptValue.includes("'matchdaytoken'"), 'The regenerated script carries this device\'s own existing tokens, not freshly generated ones');
+  assert(updatedScriptValue.includes('mergeGames_'), 'The regenerated script includes the server-side games merge fix');
+
   assert(errors.length === 0, 'No console/page errors: ' + errors.join(', '));
 
   await browser.close();
