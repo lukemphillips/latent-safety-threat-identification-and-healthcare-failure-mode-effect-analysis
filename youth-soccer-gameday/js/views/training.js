@@ -444,7 +444,13 @@ function buildMatchTeams(players, count, mode) {
 const DEFAULT_ROUND_SECONDS = 600;
 
 function defaultMatchRound(durationSeconds) {
-  return { running: false, elapsedSeconds: 0, durationSeconds: durationSeconds || DEFAULT_ROUND_SECONDS, scores: {} };
+  // Exactly two tally counters, deliberately not tied to a specific match
+  // team's id — the moment 3+ teams exist (round-robin, or just more than
+  // one game running side by side) "score per team" stops meaning anything
+  // consistent, since there's no fixed notion of who's playing whom. This
+  // is just a plain scoreboard for whichever single match the coach is
+  // actually watching, same idea as chalk marks on a whiteboard.
+  return { running: false, elapsedSeconds: 0, durationSeconds: durationSeconds || DEFAULT_ROUND_SECONDS, scores: [0, 0] };
 }
 
 function renderMatchesTab(container, training) {
@@ -485,7 +491,7 @@ function renderMatchesTab(container, training) {
     ${teams.length ? `
       ${matchRoundCardHtml(round)}
       <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; margin-top:12px;">
-        ${teams.map((t) => matchTeamCardHtml(t, byId, round.scores[t.id] || 0)).join('')}
+        ${teams.map((t) => matchTeamCardHtml(t, byId)).join('')}
       </div>
     ` : '<div class="card empty" style="margin-top:12px;">No match teams yet — tap Build Match Teams above.</div>'}
   `;
@@ -508,13 +514,12 @@ function renderMatchesTab(container, training) {
       const t = state.trainings.find((x) => x.id === training.id);
       t.matchTeamCount = count;
       t.matchTeams = newTeams;
-      // New teams mean new team ids — any scores kept against the old ones
-      // would just be orphaned, so a fresh split also starts the scoreboard
-      // over. The round length itself is left alone (round-only fields set
-      // below, not a fresh defaultMatchRound()) since that's a per-session
-      // preference, not tied to any particular split.
+      // A fresh split is a fresh scrimmage, so the scoreboard starts over
+      // too — the round length itself is left alone (only scores reset
+      // below, not a fresh defaultMatchRound()) since that's a
+      // per-session preference, not tied to any particular split.
       if (!t.matchRound) t.matchRound = defaultMatchRound();
-      t.matchRound.scores = {};
+      t.matchRound.scores = [0, 0];
     });
   });
 
@@ -556,21 +561,21 @@ function renderMatchesTab(container, training) {
 
   container.querySelectorAll('[data-action="round-score-inc"]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.scoreIndex);
       update((state) => {
         const t = state.trainings.find((x) => x.id === training.id);
         if (!t.matchRound) t.matchRound = defaultMatchRound();
-        const teamId = btn.dataset.teamId;
-        t.matchRound.scores[teamId] = (t.matchRound.scores[teamId] || 0) + 1;
+        t.matchRound.scores[idx] = (t.matchRound.scores[idx] || 0) + 1;
       });
     });
   });
   container.querySelectorAll('[data-action="round-score-dec"]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.scoreIndex);
       update((state) => {
         const t = state.trainings.find((x) => x.id === training.id);
         if (!t.matchRound) return;
-        const teamId = btn.dataset.teamId;
-        t.matchRound.scores[teamId] = Math.max(0, (t.matchRound.scores[teamId] || 0) - 1);
+        t.matchRound.scores[idx] = Math.max(0, (t.matchRound.scores[idx] || 0) - 1);
       });
     });
   });
@@ -588,9 +593,23 @@ export function patchMatchRoundClock(training) {
   clockEl.textContent = formatClock(remaining);
 }
 
+function scoreCounterHtml(index, label, score) {
+  return `
+    <div style="text-align:center;">
+      <div class="muted small" style="margin-bottom:4px;">${escapeHtml(label)}</div>
+      <div class="row" style="gap:6px; align-items:center; justify-content:center;">
+        <button type="button" class="btn ghost sm" data-action="round-score-dec" data-score-index="${index}" ${score ? '' : 'disabled'} aria-label="Decrease ${escapeHtml(label)} score">−</button>
+        <div style="font-size:26px; font-weight:800; min-width:28px; text-align:center;">${score}</div>
+        <button type="button" class="btn secondary sm" data-action="round-score-inc" data-score-index="${index}" aria-label="Increase ${escapeHtml(label)} score">+1</button>
+      </div>
+    </div>
+  `;
+}
+
 function matchRoundCardHtml(round) {
   const remaining = Math.max(0, round.durationSeconds - round.elapsedSeconds);
   const finished = !round.running && round.elapsedSeconds > 0 && round.elapsedSeconds >= round.durationSeconds;
+  const scores = round.scores || [0, 0];
   return `
     <div class="card">
       <div class="spread" style="align-items:flex-end; flex-wrap:wrap; gap:12px;">
@@ -605,24 +624,23 @@ function matchRoundCardHtml(round) {
         </div>
       </div>
       ${finished ? '<div class="banner info" style="margin-top:10px;">⏰ Time! Tap Reset to run another round.</div>' : ''}
+      <div class="row" style="gap:24px; justify-content:center; margin-top:14px; padding-top:14px; border-top:1px solid var(--line);">
+        ${scoreCounterHtml(0, 'Score A', scores[0] || 0)}
+        <div class="muted" style="font-size:20px; align-self:center;">–</div>
+        ${scoreCounterHtml(1, 'Score B', scores[1] || 0)}
+      </div>
+      <div class="muted small" style="text-align:center; margin-top:8px;">A quick scoreboard for whichever match is on — not tied to a specific team, so it still makes sense with 3+ teams rotating through.</div>
     </div>
   `;
 }
 
-function matchTeamCardHtml(team, byId, score) {
+function matchTeamCardHtml(team, byId) {
   const teamPlayers = team.playerIds.map((id) => byId[id]).filter(Boolean);
   const counts = { A: 0, B: 0, C: 0, D: 0, none: 0 };
   teamPlayers.forEach((p) => { counts[p.skillStream && counts[p.skillStream] !== undefined ? p.skillStream : 'none'] += 1; });
   return `
     <div class="card" style="flex:1 1 220px;">
-      <div class="spread" style="align-items:center; margin-bottom:6px;">
-        <div style="font-weight:700;">${escapeHtml(team.name)} (${teamPlayers.length})</div>
-        <div class="row" style="gap:6px; align-items:center;">
-          <button type="button" class="btn ghost sm" data-action="round-score-dec" data-team-id="${team.id}" ${score ? '' : 'disabled'} aria-label="Decrease ${escapeHtml(team.name)}'s score">−</button>
-          <div style="font-size:20px; font-weight:800; min-width:22px; text-align:center;">${score}</div>
-          <button type="button" class="btn secondary sm" data-action="round-score-inc" data-team-id="${team.id}" aria-label="Increase ${escapeHtml(team.name)}'s score">+1</button>
-        </div>
-      </div>
+      <div style="font-weight:700; margin-bottom:6px;">${escapeHtml(team.name)} (${teamPlayers.length})</div>
       <div class="muted small" style="margin-bottom:8px;">A:${counts.A} · B:${counts.B} · C:${counts.C} · D:${counts.D}${counts.none ? ` · Unclassified:${counts.none}` : ''}</div>
       <div class="stack">
         ${teamPlayers.length ? teamPlayers.map((p) => `
@@ -703,12 +721,12 @@ function formatTrainingForShare(training, players, teamName) {
 
   const matchTeams = training.matchTeams || [];
   if (matchTeams.length) {
-    const scores = training.matchRound?.scores || {};
-    lines.push('', `Match Teams (${training.matchMode === 'mixed' ? 'mixed ability' : 'same stream'}):`);
+    const scores = training.matchRound?.scores;
+    const scoreSuffix = scores && (scores[0] || scores[1]) ? ` — Score ${scores[0] || 0}-${scores[1] || 0}` : '';
+    lines.push('', `Match Teams (${training.matchMode === 'mixed' ? 'mixed ability' : 'same stream'})${scoreSuffix}:`);
     matchTeams.forEach((t) => {
       const names = t.playerIds.map((id) => byId[id]?.name).filter(Boolean);
-      const score = scores[t.id] ? ` — ${scores[t.id]}` : '';
-      lines.push(`  ${t.name} (${names.length})${score}: ${names.join(', ') || '—'}`);
+      lines.push(`  ${t.name} (${names.length}): ${names.join(', ') || '—'}`);
     });
   }
 

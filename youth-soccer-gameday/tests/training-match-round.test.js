@@ -54,33 +54,39 @@ async function setRoundMinutes(page, minutes) {
   const clockTextDefault = await page.textContent('[data-match-round-clock]');
   assert(clockTextDefault.trim() === '10:00', `Default round length is 10:00, got "${clockTextDefault.trim()}"`);
 
-  const teamIds = await page.evaluate(async () => {
+  const teamCountBuilt = await page.evaluate(async () => {
     const mod = await import('/js/store.js');
-    return mod.getState().trainings[0].matchTeams.map((t) => t.id);
+    return mod.getState().trainings[0].matchTeams.length;
   });
-  assert(teamIds.length === 2, `Two match teams were built, got ${teamIds.length}`);
+  assert(teamCountBuilt === 2, `Two match teams were built, got ${teamCountBuilt}`);
+
+  // The scoreboard lives in the timer card itself and isn't tied to either
+  // built team's identity — just two generic counters (indices 0/1).
+  assert(!!(await page.$('[data-action="round-score-inc"][data-score-index="0"]')), 'Score A +1 button exists in the round card');
+  assert(!!(await page.$('[data-action="round-score-inc"][data-score-index="1"]')), 'Score B +1 button exists in the round card');
+  assert(!(await page.$('[data-team-id]')), 'No score control is scoped to a specific team id anymore');
 
   // ============ Score a few goals before the clock even starts ============
-  await page.click(`[data-action="round-score-inc"][data-team-id="${teamIds[0]}"]`);
-  await page.click(`[data-action="round-score-inc"][data-team-id="${teamIds[0]}"]`);
-  await page.click(`[data-action="round-score-inc"][data-team-id="${teamIds[1]}"]`);
+  await page.click('[data-action="round-score-inc"][data-score-index="0"]');
+  await page.click('[data-action="round-score-inc"][data-score-index="0"]');
+  await page.click('[data-action="round-score-inc"][data-score-index="1"]');
   await page.waitForTimeout(100);
   const scoresAfterTaps = await page.evaluate(async () => {
     const mod = await import('/js/store.js');
     return mod.getState().trainings[0].matchRound.scores;
   });
-  assert(Object.values(scoresAfterTaps).sort().join(',') === '1,2', `Scores recorded correctly (2-1), got ${JSON.stringify(scoresAfterTaps)}`);
+  assert(scoresAfterTaps[0] === 2 && scoresAfterTaps[1] === 1, `Scores recorded correctly (2-1), got ${JSON.stringify(scoresAfterTaps)}`);
 
-  const decSelector = `[data-action="round-score-dec"][data-team-id="${teamIds[1]}"]`;
+  const decSelector = '[data-action="round-score-dec"][data-score-index="1"]';
   await page.click(decSelector);
   await page.waitForTimeout(100);
-  const scoreAfterDec = await page.evaluate(async (id) => {
+  const scoreAfterDec = await page.evaluate(async () => {
     const mod = await import('/js/store.js');
-    return mod.getState().trainings[0].matchRound.scores[id] || 0;
-  }, teamIds[1]);
+    return mod.getState().trainings[0].matchRound.scores[1] || 0;
+  });
   assert(scoreAfterDec === 0, `"−" undoes a mis-tap, got ${scoreAfterDec}`);
   const decBtnDisabled = await page.isDisabled(decSelector);
-  assert(decBtnDisabled, 'The "−" button disables itself once a team is back at 0');
+  assert(decBtnDisabled, 'The "−" button disables itself once a counter is back at 0');
 
   // ============ Shorten the round so the countdown test stays fast ============
   await setRoundMinutes(page, 1);
@@ -138,22 +144,42 @@ async function setRoundMinutes(page, minutes) {
     const t = mod.getState().trainings[0];
     return { scores: t.matchRound.scores, elapsedSeconds: t.matchRound.elapsedSeconds, durationSeconds: t.matchRound.durationSeconds, teamCount: t.matchTeams.length };
   });
-  assert(Object.keys(afterReset.scores).length === 0, `Reset clears scores, got ${JSON.stringify(afterReset.scores)}`);
+  assert((afterReset.scores[0] || 0) === 0 && (afterReset.scores[1] || 0) === 0, `Reset clears both scores, got ${JSON.stringify(afterReset.scores)}`);
   assert(afterReset.elapsedSeconds === 0, 'Reset zeroes the clock');
   assert(afterReset.durationSeconds === 60, 'Reset keeps the round length the coach set (1 min), not the original default');
   assert(afterReset.teamCount === 2, 'Reset does not rebuild or remove the match teams');
 
-  // ============ Randomize Again also clears the scoreboard (new team ids) ============
-  await page.click(`[data-action="round-score-inc"][data-team-id="${teamIds[0]}"]`);
+  // ============ Randomize Again also clears the scoreboard ============
+  await page.click('[data-action="round-score-inc"][data-score-index="0"]');
   await page.waitForTimeout(100);
   await page.click('[data-action="build-matches"]');
   await page.waitForTimeout(150);
   const afterRebuild = await page.evaluate(async () => {
     const mod = await import('/js/store.js');
-    const t = mod.getState().trainings[0];
-    return { scores: t.matchRound.scores, teamIds: t.matchTeams.map((x) => x.id) };
+    return mod.getState().trainings[0].matchRound.scores;
   });
-  assert(Object.keys(afterRebuild.scores).length === 0, `Randomize Again clears the scoreboard, got ${JSON.stringify(afterRebuild.scores)}`);
+  assert((afterRebuild[0] || 0) === 0 && (afterRebuild[1] || 0) === 0, `Randomize Again clears the scoreboard, got ${JSON.stringify(afterRebuild)}`);
+
+  // ============ Score display works fine with 3 teams built (no per-team binding) ============
+  await page.evaluate(() => {
+    const el = document.querySelector('#match-team-count');
+    el.value = '3';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.click('[data-action="build-matches"]');
+  await page.waitForTimeout(150);
+  const teamCountAfter3 = await page.evaluate(async () => {
+    const mod = await import('/js/store.js');
+    return mod.getState().trainings[0].matchTeams.length;
+  });
+  assert(teamCountAfter3 === 3, `3 match teams built, got ${teamCountAfter3}`);
+  await page.click('[data-action="round-score-inc"][data-score-index="0"]');
+  await page.waitForTimeout(100);
+  const scoreWith3Teams = await page.evaluate(async () => {
+    const mod = await import('/js/store.js');
+    return mod.getState().trainings[0].matchRound.scores[0];
+  });
+  assert(scoreWith3Teams === 1, `The generic scoreboard still works fine with 3 teams built, got ${scoreWith3Teams}`);
 
   assert(errors.length === 0, 'No console/page errors: ' + errors.join(', '));
 
