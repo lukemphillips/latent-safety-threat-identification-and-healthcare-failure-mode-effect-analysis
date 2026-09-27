@@ -11,7 +11,7 @@ import { renderSettings } from './views/settings.js';
 import { renderStats } from './views/stats.js';
 import { renderBalanceTeams } from './views/balanceTeams.js';
 import { renderHelp } from './views/help.js';
-import { renderTraining, renderTrainingDetail, patchLiveTimerClock } from './views/training.js';
+import { renderTraining, renderTrainingDetail, patchLiveTimerClock, patchMatchRoundClock } from './views/training.js';
 import { advanceTrainingLive } from './trainingPlanLogic.js';
 import { renderDrillLibrary } from './views/drills.js';
 import { isCloudSyncConnected, syncSilently } from './cloudSync.js';
@@ -179,6 +179,34 @@ setInterval(() => {
     } else {
       const freshTraining = getState().trainings.find((t) => t.id === liveTraining.id);
       patchLiveTimerClock(freshTraining);
+    }
+  }
+
+  // A small-sided match round's own countdown (Training > Matches tab) —
+  // independent of the Plan session's live timer above, since a coach can
+  // run one without the other. Ticks down to 0:00 and stops itself, same
+  // "patch just the clock text" reasoning as the Plan timer: a full
+  // re-render every second risks eating a tap on Start/Pause or a score
+  // button.
+  const liveMatchRoundTraining = getState().trainings.find((t) => t.matchRound && t.matchRound.running);
+  if (liveMatchRoundTraining) {
+    let justFinished = false;
+    updateSilently((state) => {
+      const t = state.trainings.find((x) => x.id === liveMatchRoundTraining.id);
+      if (!t || !t.matchRound || !t.matchRound.running) return;
+      t.matchRound.elapsedSeconds += 1;
+      if (t.matchRound.elapsedSeconds >= t.matchRound.durationSeconds) {
+        t.matchRound.elapsedSeconds = t.matchRound.durationSeconds;
+        t.matchRound.running = false;
+        justFinished = true;
+      }
+    });
+    if (justFinished) {
+      playSubDueAlert();
+      notifyListeners();
+    } else {
+      const freshMatchRoundTraining = getState().trainings.find((t) => t.id === liveMatchRoundTraining.id);
+      patchMatchRoundClock(freshMatchRoundTraining);
     }
   }
 }, 1000);

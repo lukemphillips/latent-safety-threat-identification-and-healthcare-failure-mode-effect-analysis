@@ -441,6 +441,12 @@ function buildMatchTeams(players, count, mode) {
   return groups.map((g, i) => ({ id: uid(), name: `Team ${i + 1}`, playerIds: g.playerIds }));
 }
 
+const DEFAULT_ROUND_SECONDS = 600;
+
+function defaultMatchRound(durationSeconds) {
+  return { running: false, elapsedSeconds: 0, durationSeconds: durationSeconds || DEFAULT_ROUND_SECONDS, scores: {} };
+}
+
 function renderMatchesTab(container, training) {
   const { players } = getState();
   const presentIds = new Set(training.presentIds || []);
@@ -450,6 +456,7 @@ function renderMatchesTab(container, training) {
   const teamCount = Math.min(training.matchTeamCount || MATCH_MIN_TEAMS, maxTeams);
   const mode = training.matchMode || 'same';
   const teams = training.matchTeams || [];
+  const round = training.matchRound || defaultMatchRound();
 
   if (!present.length) {
     container.innerHTML = `<div class="banner info">Mark who's here on the Attendance tab first, then come back to set up small-sided matches.</div>`;
@@ -476,8 +483,9 @@ function renderMatchesTab(container, training) {
     </div>
 
     ${teams.length ? `
+      ${matchRoundCardHtml(round)}
       <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; margin-top:12px;">
-        ${teams.map((t) => matchTeamCardHtml(t, byId)).join('')}
+        ${teams.map((t) => matchTeamCardHtml(t, byId, round.scores[t.id] || 0)).join('')}
       </div>
     ` : '<div class="card empty" style="margin-top:12px;">No match teams yet — tap Build Match Teams above.</div>'}
   `;
@@ -500,17 +508,121 @@ function renderMatchesTab(container, training) {
       const t = state.trainings.find((x) => x.id === training.id);
       t.matchTeamCount = count;
       t.matchTeams = newTeams;
+      // New teams mean new team ids — any scores kept against the old ones
+      // would just be orphaned, so a fresh split also starts the scoreboard
+      // over. The round length itself is left alone (round-only fields set
+      // below, not a fresh defaultMatchRound()) since that's a per-session
+      // preference, not tied to any particular split.
+      if (!t.matchRound) t.matchRound = defaultMatchRound();
+      t.matchRound.scores = {};
+    });
+  });
+
+  const minutesInput = container.querySelector('#round-minutes');
+  if (minutesInput) {
+    minutesInput.addEventListener('change', () => {
+      const mins = Math.max(1, Math.min(60, Number(minutesInput.value) || Math.round(DEFAULT_ROUND_SECONDS / 60)));
+      update((state) => {
+        const t = state.trainings.find((x) => x.id === training.id);
+        if (!t.matchRound) t.matchRound = defaultMatchRound();
+        t.matchRound.durationSeconds = mins * 60;
+      });
+    });
+  }
+
+  const roundToggleBtn = container.querySelector('[data-action="round-toggle"]');
+  if (roundToggleBtn) {
+    roundToggleBtn.addEventListener('click', () => {
+      update((state) => {
+        const t = state.trainings.find((x) => x.id === training.id);
+        if (!t.matchRound) t.matchRound = defaultMatchRound();
+        // Time already ran out — pressing the button again starts a fresh
+        // round from 0:00 rather than trying to resume from "finished".
+        if (t.matchRound.elapsedSeconds >= t.matchRound.durationSeconds) t.matchRound.elapsedSeconds = 0;
+        t.matchRound.running = !t.matchRound.running;
+      });
+    });
+  }
+
+  const roundResetBtn = container.querySelector('[data-action="round-reset"]');
+  if (roundResetBtn) {
+    roundResetBtn.addEventListener('click', () => {
+      update((state) => {
+        const t = state.trainings.find((x) => x.id === training.id);
+        t.matchRound = defaultMatchRound(t.matchRound?.durationSeconds);
+      });
+    });
+  }
+
+  container.querySelectorAll('[data-action="round-score-inc"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      update((state) => {
+        const t = state.trainings.find((x) => x.id === training.id);
+        if (!t.matchRound) t.matchRound = defaultMatchRound();
+        const teamId = btn.dataset.teamId;
+        t.matchRound.scores[teamId] = (t.matchRound.scores[teamId] || 0) + 1;
+      });
+    });
+  });
+  container.querySelectorAll('[data-action="round-score-dec"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      update((state) => {
+        const t = state.trainings.find((x) => x.id === training.id);
+        if (!t.matchRound) return;
+        const teamId = btn.dataset.teamId;
+        t.matchRound.scores[teamId] = Math.max(0, (t.matchRound.scores[teamId] || 0) - 1);
+      });
     });
   });
 }
 
-function matchTeamCardHtml(team, byId) {
+// A running round patches just its own clock text on the ordinary 1-second
+// tick (see main.js) rather than a full re-render — same reasoning as the
+// Plan tab's live timer: re-rendering every second risks eating a tap on
+// Start/Pause or a score button out from under the coach's thumb.
+export function patchMatchRoundClock(training) {
+  if (!training?.matchRound?.running) return;
+  const clockEl = document.querySelector('[data-match-round-clock]');
+  if (!clockEl) return;
+  const remaining = Math.max(0, training.matchRound.durationSeconds - training.matchRound.elapsedSeconds);
+  clockEl.textContent = formatClock(remaining);
+}
+
+function matchRoundCardHtml(round) {
+  const remaining = Math.max(0, round.durationSeconds - round.elapsedSeconds);
+  const finished = !round.running && round.elapsedSeconds > 0 && round.elapsedSeconds >= round.durationSeconds;
+  return `
+    <div class="card">
+      <div class="spread" style="align-items:flex-end; flex-wrap:wrap; gap:12px;">
+        <div class="field" style="max-width:120px; margin-bottom:0;">
+          <label>Round length (min)</label>
+          <input type="number" id="round-minutes" min="1" max="60" value="${Math.round(round.durationSeconds / 60)}" ${round.running ? 'disabled' : ''} />
+        </div>
+        <div data-match-round-clock style="font-size:34px; font-weight:800; font-variant-numeric:tabular-nums; text-align:center; flex:1;">${formatClock(remaining)}</div>
+        <div class="row" style="gap:8px;">
+          <button class="btn ${round.running ? 'secondary' : ''}" data-action="round-toggle">${round.running ? '⏸ Pause' : (!finished && round.elapsedSeconds ? '▶ Resume' : '▶ Start')}</button>
+          <button class="btn ghost" data-action="round-reset">↺ Reset</button>
+        </div>
+      </div>
+      ${finished ? '<div class="banner info" style="margin-top:10px;">⏰ Time! Tap Reset to run another round.</div>' : ''}
+    </div>
+  `;
+}
+
+function matchTeamCardHtml(team, byId, score) {
   const teamPlayers = team.playerIds.map((id) => byId[id]).filter(Boolean);
   const counts = { A: 0, B: 0, C: 0, D: 0, none: 0 };
   teamPlayers.forEach((p) => { counts[p.skillStream && counts[p.skillStream] !== undefined ? p.skillStream : 'none'] += 1; });
   return `
     <div class="card" style="flex:1 1 220px;">
-      <div style="font-weight:700; margin-bottom:6px;">${escapeHtml(team.name)} (${teamPlayers.length})</div>
+      <div class="spread" style="align-items:center; margin-bottom:6px;">
+        <div style="font-weight:700;">${escapeHtml(team.name)} (${teamPlayers.length})</div>
+        <div class="row" style="gap:6px; align-items:center;">
+          <button type="button" class="btn ghost sm" data-action="round-score-dec" data-team-id="${team.id}" ${score ? '' : 'disabled'} aria-label="Decrease ${escapeHtml(team.name)}'s score">−</button>
+          <div style="font-size:20px; font-weight:800; min-width:22px; text-align:center;">${score}</div>
+          <button type="button" class="btn secondary sm" data-action="round-score-inc" data-team-id="${team.id}" aria-label="Increase ${escapeHtml(team.name)}'s score">+1</button>
+        </div>
+      </div>
       <div class="muted small" style="margin-bottom:8px;">A:${counts.A} · B:${counts.B} · C:${counts.C} · D:${counts.D}${counts.none ? ` · Unclassified:${counts.none}` : ''}</div>
       <div class="stack">
         ${teamPlayers.length ? teamPlayers.map((p) => `
@@ -591,10 +703,12 @@ function formatTrainingForShare(training, players, teamName) {
 
   const matchTeams = training.matchTeams || [];
   if (matchTeams.length) {
+    const scores = training.matchRound?.scores || {};
     lines.push('', `Match Teams (${training.matchMode === 'mixed' ? 'mixed ability' : 'same stream'}):`);
     matchTeams.forEach((t) => {
       const names = t.playerIds.map((id) => byId[id]?.name).filter(Boolean);
-      lines.push(`  ${t.name} (${names.length}): ${names.join(', ') || '—'}`);
+      const score = scores[t.id] ? ` — ${scores[t.id]}` : '';
+      lines.push(`  ${t.name} (${names.length})${score}: ${names.join(', ') || '—'}`);
     });
   }
 
