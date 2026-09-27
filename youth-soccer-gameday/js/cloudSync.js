@@ -165,75 +165,102 @@ function gameIsNewer_(incoming, existing) {
   if (c1 !== c2) return c1 > c2;
   return (incoming.updatedAt || 0) > (existing.updatedAt || 0);
 }
+function isGameLike_(g) {
+  return !!(g && typeof g === 'object');
+}
 function mergeGames_(currentGames, postedGames) {
+  // A genuine game object without an id can't be merged by id at all —
+  // carry it through unmerged rather than letting it collide with every
+  // other id-less entry under the same "undefined" key, or throw trying
+  // to compare it. Anything that isn't even an object at all (null, a
+  // stray string) is just dropped rather than preserved forever.
+  var validCurrent = (currentGames || []).filter(function (g) { return isGameLike_(g) && g.id; });
+  var validPosted = (postedGames || []).filter(function (g) { return isGameLike_(g) && g.id; });
+  var idless = (currentGames || []).concat(postedGames || []).filter(function (g) { return isGameLike_(g) && !g.id; });
+
   var byId = {};
-  (currentGames || []).forEach(function (g) { byId[g.id] = g; });
-  (postedGames || []).forEach(function (incoming) {
+  validCurrent.forEach(function (g) { byId[g.id] = g; });
+  validPosted.forEach(function (incoming) {
     var existing = byId[incoming.id];
     if (!existing || gameIsNewer_(incoming, existing)) byId[incoming.id] = incoming;
   });
   var result = [];
   var seenIds = {};
-  (postedGames || []).forEach(function (g) {
+  validPosted.forEach(function (g) {
     if (!seenIds[g.id]) { result.push(byId[g.id]); seenIds[g.id] = true; }
   });
-  (currentGames || []).forEach(function (g) {
+  validCurrent.forEach(function (g) {
     if (!seenIds[g.id]) { result.push(byId[g.id]); seenIds[g.id] = true; }
   });
-  return result;
+  return result.concat(idless);
 }
 
+// Every path through doGet/doPost must return valid JSON, never let an
+// exception escape uncaught — an uncaught error makes Apps Script return
+// its own HTML error response instead, which doesn't carry the CORS
+// header a cross-origin fetch() needs. The browser then throws a plain
+// network error, indistinguishable from a real connection problem, for
+// what was actually a bug in this script. Wrapping every handler is what
+// turns that into a visible, readable error instead.
 function doGet(e) {
-  var token = (e && e.parameter && e.parameter.token) || '';
-  var role = roleForToken_(token);
-  if (!role) return jsonResponse_({ error: 'Invalid or missing Cloud Sync link.' });
-  var stored = readStored_();
-  return jsonResponse_({ role: role, data: stored.data, meta: stored.meta });
+  try {
+    var token = (e && e.parameter && e.parameter.token) || '';
+    var role = roleForToken_(token);
+    if (!role) return jsonResponse_({ error: 'Invalid or missing Cloud Sync link.' });
+    var stored = readStored_();
+    return jsonResponse_({ role: role, data: stored.data, meta: stored.meta });
+  } catch (err) {
+    return jsonResponse_({ error: 'Server error in doGet: ' + (err && err.message || String(err)) });
+  }
 }
 
 function doPost(e) {
-  var token = (e && e.parameter && e.parameter.token) || '';
-  var role = roleForToken_(token);
-  if (!role) return jsonResponse_({ error: 'Invalid or missing Cloud Sync link.' });
-
-  var posted;
   try {
-    posted = JSON.parse(e.postData.contents);
-  } catch (err) {
-    return jsonResponse_({ error: 'Malformed request.' });
-  }
-  if (!posted || !posted.team || !posted.players || !posted.games) {
-    return jsonResponse_({ error: 'Expected team, players, and games.' });
-  }
+    var token = (e && e.parameter && e.parameter.token) || '';
+    var role = roleForToken_(token);
+    if (!role) return jsonResponse_({ error: 'Invalid or missing Cloud Sync link.' });
 
-  var current = readStored_().data;
-  var toStore;
-
-  if (role === 'editor') {
-    toStore = {
-      team: posted.team,
-      players: posted.players,
-      games: mergeGames_(current ? current.games : [], posted.games),
-    };
-  } else {
-    // Matchday: only games change, plus any brand-new players (e.g. a
-    // late arrival). Team settings and edits/deletes to existing players
-    // are never accepted from this token, no matter what was posted.
-    if (!current) {
-      return jsonResponse_({ error: 'No shared team data yet — ask the Full Edit coach to sync first.' });
+    var posted;
+    try {
+      posted = JSON.parse(e.postData.contents);
+    } catch (err) {
+      return jsonResponse_({ error: 'Malformed request.' });
     }
-    var existingIds = {};
-    (current.players || []).forEach(function (p) { existingIds[p.id] = true; });
-    var newPlayers = (posted.players || []).filter(function (p) { return !existingIds[p.id]; });
-    toStore = {
-      team: current.team,
-      players: (current.players || []).concat(newPlayers),
-      games: mergeGames_(current.games, posted.games),
-    };
-  }
+    if (!posted || !posted.team || !posted.players || !posted.games) {
+      return jsonResponse_({ error: 'Expected team, players, and games.' });
+    }
 
-  writeStored_(toStore, posted.syncedByName || '');
-  return jsonResponse_({ ok: true, role: role });
+    var current = readStored_().data;
+    var toStore;
+
+    if (role === 'editor') {
+      toStore = {
+        team: posted.team,
+        players: posted.players,
+        games: mergeGames_(current ? current.games : [], posted.games),
+      };
+    } else {
+      // Matchday: only games change, plus any brand-new players (e.g. a
+      // late arrival). Team settings and edits/deletes to existing players
+      // are never accepted from this token, no matter what was posted.
+      if (!current) {
+        return jsonResponse_({ error: 'No shared team data yet — ask the Full Edit coach to sync first.' });
+      }
+      var existingIds = {};
+      (current.players || []).forEach(function (p) { existingIds[p.id] = true; });
+      var newPlayers = (posted.players || []).filter(function (p) { return !existingIds[p.id]; });
+      toStore = {
+        team: current.team,
+        players: (current.players || []).concat(newPlayers),
+        games: mergeGames_(current.games, posted.games),
+      };
+    }
+
+    writeStored_(toStore, posted.syncedByName || '');
+    return jsonResponse_({ ok: true, role: role });
+  } catch (err) {
+    return jsonResponse_({ error: 'Server error in doPost: ' + (err && err.message || String(err)) });
+  }
 }
 `;
 }
