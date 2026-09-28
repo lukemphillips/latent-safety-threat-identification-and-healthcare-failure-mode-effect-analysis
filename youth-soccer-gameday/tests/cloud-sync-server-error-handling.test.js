@@ -42,7 +42,7 @@ async function main() {
     games: [{ id: 'g1', status: 'completed', updatedAt: 2000, live: { subLog: [] } }, { status: 'scheduled' }],
   });
   assert(idlessResult.ok === true, `A game missing an id doesn't crash the push, got ${JSON.stringify(idlessResult)}`);
-  const afterIdless = JSON.parse(server._cells.A1);
+  const afterIdless = server.doGet({ token: 'fulledittoken' }).data;
   assert(afterIdless.games.some((g) => g.id === 'g1' && g.status === 'completed'), 'The valid game in that same push still merges correctly');
   assert(afterIdless.games.length === 2, `The id-less game is carried through rather than silently dropped, got ${afterIdless.games.length} games`);
 

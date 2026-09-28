@@ -7,13 +7,39 @@
 // went untested for as long as it did.
 const vm = require('vm');
 
+function colLetter(col) {
+  let s = '';
+  while (col > 0) {
+    const rem = (col - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    col = Math.floor((col - 1) / 26);
+  }
+  return s;
+}
+
 function createAppsScriptSandbox(scriptSource) {
-  const cells = { A1: '', B1: '' };
+  const cells = {};
+  // Real Apps Script's Range.getRange supports both the 'A1' string form
+  // and a (row, column) numeric form — the real script uses both (fixed
+  // cells like 'B1', and numbered rows for chunked storage), so this stub
+  // needs to resolve either to the same underlying cell key.
   const sheet = {
-    getRange: (cell) => ({
-      getValue: () => cells[cell],
-      setValue: (v) => { cells[cell] = v; },
-    }),
+    getRange: (a, b) => {
+      const key = typeof a === 'string' ? a : `${colLetter(b)}${a}`;
+      return {
+        getValue: () => cells[key] || '',
+        // Mirrors a real, hard Google Sheets limit — a cell refuses more
+        // than 50,000 characters — so a test against this stub can prove
+        // the storage code actually respects it, not just that the stub
+        // happens to allow anything.
+        setValue: (v) => {
+          if (typeof v === 'string' && v.length > 50000) {
+            throw new Error('This action would edit a cell with more than 50000 characters, which is not currently supported.');
+          }
+          cells[key] = v;
+        },
+      };
+    },
   };
   const spreadsheet = {
     getSheetByName: () => sheet,

@@ -104,8 +104,22 @@ var FULL_EDIT_TOKEN = '${fullEditToken}';
 var MATCHDAY_TOKEN = '${matchdayToken}';
 
 var SHEET_NAME = 'BootRoomData';
-var DATA_CELL = 'A1';
+var CHUNK_COUNT_CELL = 'A1';
 var META_CELL = 'B1';
+// Google Sheets refuses to store more than 50,000 characters in a single
+// cell — a real, hard platform limit, not a bug in this script. A team's
+// combined team/roster/games JSON starts small but grows every match
+// (especially the live-tracking detail on a completed game), and once it
+// crosses that line, Range.setValue throws inside Apps Script. That kind
+// of platform-level failure isn't always something this script's own
+// try/catch can even see — the request can come back as an error page
+// with no CORS header at all, which every browser then reports to the
+// app as a bare, contentless network failure. Splitting the JSON across
+// as many numbered cells as it takes (A2, A3, A4, ...) keeps every
+// individual cell safely under the limit, so total storage scales with
+// however many chunks are needed instead of stopping dead at 50,000
+// characters.
+var CHUNK_SIZE_ = 40000;
 
 function getSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -126,19 +140,46 @@ function jsonResponse_(obj) {
 
 function readStored_() {
   var sheet = getSheet_();
-  var raw = sheet.getRange(DATA_CELL).getValue();
+  var chunkCount = parseInt(sheet.getRange(CHUNK_COUNT_CELL).getValue(), 10) || 0;
   var metaRaw = sheet.getRange(META_CELL).getValue();
-  if (!raw) return { data: null, meta: null };
+  var meta = null;
   try {
-    return { data: JSON.parse(raw), meta: metaRaw ? JSON.parse(metaRaw) : null };
+    meta = metaRaw ? JSON.parse(metaRaw) : null;
   } catch (e) {
-    return { data: null, meta: null };
+    meta = null;
+  }
+  if (!chunkCount) return { data: null, meta: meta };
+  var parts = [];
+  for (var i = 0; i < chunkCount; i++) {
+    // Row 2 onward, column A — chunk 0 in A2, chunk 1 in A3, and so on.
+    parts.push(sheet.getRange(2 + i, 1).getValue());
+  }
+  try {
+    return { data: JSON.parse(parts.join('')), meta: meta };
+  } catch (e) {
+    return { data: null, meta: meta };
   }
 }
 
 function writeStored_(data, updatedBy) {
   var sheet = getSheet_();
-  sheet.getRange(DATA_CELL).setValue(JSON.stringify(data));
+  var json = JSON.stringify(data);
+  var chunks = [];
+  for (var i = 0; i < json.length; i += CHUNK_SIZE_) {
+    chunks.push(json.slice(i, i + CHUNK_SIZE_));
+  }
+  var previousChunkCount = parseInt(sheet.getRange(CHUNK_COUNT_CELL).getValue(), 10) || 0;
+  for (var k = 0; k < chunks.length; k++) {
+    sheet.getRange(2 + k, 1).setValue(chunks[k]);
+  }
+  // Clear any chunk cells left over from a previous, longer write — the
+  // new data is often shorter (e.g. after season archiving), and a stale
+  // chunk past the new count would otherwise sit there unreferenced by
+  // reads but never actually gone.
+  for (var j = chunks.length; j < previousChunkCount; j++) {
+    sheet.getRange(2 + j, 1).setValue('');
+  }
+  sheet.getRange(CHUNK_COUNT_CELL).setValue(chunks.length);
   sheet.getRange(META_CELL).setValue(JSON.stringify({ updatedAt: new Date().toISOString(), updatedBy: updatedBy || '' }));
 }
 

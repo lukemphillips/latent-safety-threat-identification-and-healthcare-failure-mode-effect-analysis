@@ -56,7 +56,7 @@ async function main() {
   const kateResult = server.doPost({ token: 'matchdaytoken' }, { team, players, games: kateGames, syncedByName: 'Kate' });
   assert(kateResult.ok, 'Kate\'s push succeeds');
 
-  let stored = JSON.parse(server._cells.A1);
+  let stored = server.doGet({ token: 'fulledittoken' }).data;
   assert(stored.games.find((g) => g.id === kateGameId).status === 'completed', 'Right after Kate\'s push, the server shows her match completed');
 
   // ============ Luke, syncing around the same time, pushes his own STALE copy ============
@@ -72,7 +72,7 @@ async function main() {
   const lukeResult = server.doPost({ token: 'matchdaytoken' }, { team, players, games: lukeGames, syncedByName: 'Luke' });
   assert(lukeResult.ok, 'Luke\'s push succeeds');
 
-  stored = JSON.parse(server._cells.A1);
+  stored = server.doGet({ token: 'fulledittoken' }).data;
   const kateGameAfterLuke = stored.games.find((g) => g.id === kateGameId);
   const lukeGameAfterLuke = stored.games.find((g) => g.id === lukeGameId);
   assert(kateGameAfterLuke.status === 'completed', `Kate's completed match survives Luke's later, stale push — got status "${kateGameAfterLuke.status}"`);
@@ -86,7 +86,7 @@ async function main() {
     { id: lukeGameId, opponent: 'Luke\'s Opponent', status: 'scheduled', updatedAt: 1000 },
   ];
   server.doPost({ token: 'matchdaytoken' }, { team, players, games: kateSecondSync, syncedByName: 'Kate' });
-  stored = JSON.parse(server._cells.A1);
+  stored = server.doGet({ token: 'fulledittoken' }).data;
   const lukeGameAfterKateAgain = stored.games.find((g) => g.id === lukeGameId);
   assert(lukeGameAfterKateAgain.status === 'completed', `Order doesn't matter: Luke's completed match also survives Kate's later, stale push — got status "${lukeGameAfterKateAgain.status}"`);
 
@@ -96,7 +96,7 @@ async function main() {
     { id: lukeGameId, opponent: 'Luke\'s Opponent', status: 'completed', updatedAt: 2500, live: { scoreUs: 2, scoreThem: 0, subLog: [{ type: 'goal' }, { type: 'goal' }] } },
   ];
   server.doPost({ token: 'matchdaytoken' }, { team, players, games: editedKateGame, syncedByName: 'Kate' });
-  stored = JSON.parse(server._cells.A1);
+  stored = server.doGet({ token: 'fulledittoken' }).data;
   assert(stored.games.find((g) => g.id === kateGameId).live.scoreUs === 4, 'A genuine post-match correction to an already-completed game still comes through');
 
   // ============ Editor-role pushes are protected the same way, not just Matchday ============
@@ -105,7 +105,7 @@ async function main() {
     { id: lukeGameId, opponent: 'Luke\'s Opponent', status: 'completed', updatedAt: 2500, live: { scoreUs: 2, scoreThem: 0, subLog: [{ type: 'goal' }, { type: 'goal' }] } },
   ];
   server.doPost({ token: 'fulledittoken' }, { team, players, games: editorStalePush });
-  stored = JSON.parse(server._cells.A1);
+  stored = server.doGet({ token: 'fulledittoken' }).data;
   assert(stored.games.find((g) => g.id === kateGameId).status === 'completed', 'A stale push from the Full Edit token doesn\'t clobber a completed match either');
 
   console.log('\nALL SERVER-SIDE GAMES-MERGE TESTS PASSED');
