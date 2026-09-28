@@ -311,15 +311,47 @@ function callAppsScript(url, { method = 'GET', body } = {}) {
     // error entirely, which made a genuine connection problem and a
     // server-side bug masquerading as one indistinguishable — naming what
     // actually happened here is the only way to tell them apart without
-    // opening devtools.
+    // opening devtools. The payload size is included too: a tiny request
+    // (like the diagnostic tool's probes) can succeed on a patchy mobile
+    // connection while a much bigger one — a full team, roster, and a
+    // whole match's worth of live events — drops mid-upload, so knowing
+    // the size is what tells the two apart after the fact.
+    const sizeNote = body ? ` — payload ~${Math.ceil(body.length / 1024)} KB` : '';
     xhr.onerror = () => {
-      reject(new Error('Could not reach Cloud Sync — check the link and your connection. (network error)'));
+      reject(new Error(`Could not reach Cloud Sync — check the link and your connection. (network error${sizeNote})`));
     };
     xhr.ontimeout = () => {
-      reject(new Error('Could not reach Cloud Sync — the request timed out. Check your connection and try again.'));
+      reject(new Error(`Could not reach Cloud Sync — the request timed out. Check your connection and try again.${sizeNote}`));
     };
     xhr.send(body);
   });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// A dropped connection or a slow upload over a patchy mobile connection —
+// exactly the real-world condition on match day at a pitch with weak
+// signal — fails a single attempt without Cloud Sync being genuinely
+// unreachable. Retrying a couple of times, with a short pause so a
+// momentary signal drop can clear, turns that into a non-issue instead of
+// a hard failure. Never retries a clean error the script itself returned
+// (a bad token, a validation failure) since sending the exact same
+// request again can't fix those.
+async function callAppsScriptWithRetries(url, options, attempts = 3) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await callAppsScript(url, options);
+    } catch (e) {
+      const retryable = /network error|timed out/.test(e.message);
+      if (!retryable || attempt === attempts) {
+        if (retryable && attempts > 1) e.message += ` [after ${attempt} attempt${attempt > 1 ? 's' : ''}]`;
+        throw e;
+      }
+      await sleep(1500 * attempt);
+    }
+  }
 }
 
 // Browsers deliberately withhold *why* a cross-origin request failed
@@ -405,7 +437,7 @@ export async function diagnoseCloudSyncConnection(url) {
 // callAppsScript).
 export function pullFromCloud(url) {
   const bustedUrl = `${url}${url.includes('?') ? '&' : '?'}_ts=${Date.now()}`;
-  return callAppsScript(bustedUrl, { method: 'GET' });
+  return callAppsScriptWithRetries(bustedUrl, { method: 'GET' });
 }
 
 // POST always sends this device's team/roster/matches; the Apps Script
@@ -416,7 +448,7 @@ export function pullFromCloud(url) {
 // comment near the top of this file.
 export function pushToCloud(url, coachName) {
   const { team, players, games } = getState();
-  return callAppsScript(url, {
+  return callAppsScriptWithRetries(url, {
     method: 'POST',
     body: JSON.stringify({ team, players, games, syncedByName: coachName || '' }),
   });
