@@ -1,5 +1,5 @@
 import { getState, update } from '../store.js';
-import { escapeHtml, formatDate, formatMinutes, formatPercent, formatPositions, matchTypeBadgeHtml, sortByDateTime, startOfWeekIso, weekLabel, uid, periodLabel, gameNumPeriods, gamePeriodMinutes, matchEligiblePlayers } from '../util.js';
+import { escapeHtml, formatDate, formatMinutes, formatPercent, formatPositions, matchTypeBadgeHtml, sortByDateTime, startOfWeekIso, weekLabel, monthKey, monthLabel, uid, periodLabel, gameNumPeriods, gamePeriodMinutes, matchEligiblePlayers } from '../util.js';
 import { openModal, closeModal, alertDialog } from '../modal.js';
 
 // Reads a weekly award's chosen players regardless of whether it's the
@@ -123,6 +123,31 @@ function weeksWithGames() {
     .sort((a, b) => b.weekStart.localeCompare(a.weekStart));
 }
 
+// Groups match history by calendar month, most recent first, so a full
+// season's worth of matches collapses into a handful of drop-down
+// sections instead of one long unbroken list. Only the most recent month
+// starts open.
+function historyByMonth(history) {
+  const byMonth = {};
+  history.forEach((g) => {
+    const key = monthKey(g.date);
+    byMonth[key] = byMonth[key] || [];
+    byMonth[key].push(g);
+  });
+  return Object.entries(byMonth)
+    .map(([key, gamesInMonth]) => {
+      let w = 0, d = 0, l = 0;
+      gamesInMonth.forEach((g) => {
+        if (g.status !== 'completed' || !g.live) return;
+        if (g.live.scoreUs > g.live.scoreThem) w += 1;
+        else if (g.live.scoreUs < g.live.scoreThem) l += 1;
+        else d += 1;
+      });
+      return { key, games: gamesInMonth, w, d, l };
+    })
+    .sort((a, b) => b.key.localeCompare(a.key));
+}
+
 function headToHead() {
   const { games } = getState();
   const completed = games.filter((g) => g.status === 'completed' && g.live);
@@ -226,9 +251,15 @@ export function renderStats(app) {
   const trainingsTrackedCount = (trainings || []).filter((t) => (t.presentIds || []).length > 0).length;
   const rows = sortRows(computeLeaderRows());
   const history = sortByDateTime(games).reverse();
+  const months = historyByMonth(history);
   const h2h = headToHead();
   const columns = sortColumns(team);
   const weeks = weeksWithGames();
+  // Only the most recent couple of weeks need to be visible right away —
+  // older ones are still one tap away, just tucked behind a drop-down
+  // instead of adding to how far a coach has to scroll every time.
+  const recentWeeks = weeks.slice(0, 2);
+  const earlierWeeks = weeks.slice(2);
 
   app.innerHTML = `
     <div class="page-title">
@@ -240,7 +271,13 @@ export function renderStats(app) {
 
     ${weeks.length ? `
       <div class="section-title">🏅 Player of the Week</div>
-      ${weeks.map(weekRowHtml).join('')}
+      <div id="recent-weeks">${recentWeeks.map(weekRowHtml).join('')}</div>
+      ${earlierWeeks.length ? `
+        <details class="card" id="earlier-weeks">
+          <summary style="cursor:pointer; font-weight:700;">${earlierWeeks.length} earlier week${earlierWeeks.length === 1 ? '' : 's'}</summary>
+          <div class="stack" style="margin-top:10px;">${earlierWeeks.map(weekRowHtml).join('')}</div>
+        </details>
+      ` : ''}
     ` : ''}
 
     <div class="section-title">Leaders</div>
@@ -268,7 +305,7 @@ export function renderStats(app) {
     ${goalkeeperStatsHtml()}
 
     <div class="section-title">History</div>
-    ${history.length ? history.map(historyRowHtml).join('') : '<div class="card empty">No games yet.</div>'}
+    ${history.length ? months.map((m, i) => historyMonthHtml(m, i === 0)).join('') : '<div class="card empty">No games yet.</div>'}
 
     ${h2h.length ? `
       <div class="section-title">Head-to-Head</div>
@@ -391,25 +428,41 @@ function leaderRowHtml(row, columns, team) {
   `;
 }
 
+// One drop-down per calendar month — the most recent starts open, every
+// earlier one starts collapsed, so History reads as a handful of tappable
+// headers instead of a scroll through every match the team's ever played.
+function historyMonthHtml(month, isOpen) {
+  const record = (month.w || month.d || month.l) ? ` — ${month.w}W ${month.d}D ${month.l}L` : '';
+  return `
+    <details class="card" data-month="${month.key}" ${isOpen ? 'open' : ''}>
+      <summary style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:700;">
+        <span>${escapeHtml(monthLabel(month.key))}</span>
+        <span class="small muted" style="font-weight:400;">${month.games.length} match${month.games.length === 1 ? '' : 'es'}${record}</span>
+      </summary>
+      <div style="margin-top:8px;">
+        ${month.games.map(historyRowHtml).join('')}
+      </div>
+    </details>
+  `;
+}
+
 function historyRowHtml(game) {
   const result = game.status === 'completed' && game.live
     ? resultBadge(game.live.scoreUs, game.live.scoreThem)
     : '';
   const scoreText = game.status === 'completed' && game.live ? `${game.live.scoreUs}-${game.live.scoreThem}` : '';
   return `
-    <a class="card" href="#/game/${game.id}" style="display:block;">
-      <div class="card-row">
-        <div>
-          <div style="font-weight:700; font-size:14.5px;">${game.isHome ? 'vs' : '@'} ${escapeHtml(game.opponent)}</div>
-          <div class="muted small">${formatDate(game.date)}${game.matchType === 'tournament' && game.tournamentName ? ' · ' + escapeHtml(game.tournamentName) : ''}</div>
+    <a class="sublog-item" href="#/game/${game.id}" style="text-decoration:none; color:inherit;">
+      <div>
+        <div style="font-weight:700; font-size:14.5px;">${game.isHome ? 'vs' : '@'} ${escapeHtml(game.opponent)}</div>
+        <div class="muted small">${formatDate(game.date)}${game.matchType === 'tournament' && game.tournamentName ? ' · ' + escapeHtml(game.tournamentName) : ''}</div>
+      </div>
+      <div class="stack" style="align-items:flex-end;">
+        <div class="row">
+          ${result}
+          ${scoreText ? `<span style="font-weight:800;">${scoreText}</span>` : `<span class="badge ${game.status}">${game.status}</span>`}
         </div>
-        <div class="stack" style="align-items:flex-end;">
-          <div class="row">
-            ${result}
-            ${scoreText ? `<span style="font-weight:800;">${scoreText}</span>` : `<span class="badge ${game.status}">${game.status}</span>`}
-          </div>
-          ${matchTypeBadgeHtml(game)}
-        </div>
+        ${matchTypeBadgeHtml(game)}
       </div>
     </a>
   `;

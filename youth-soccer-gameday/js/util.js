@@ -30,6 +30,19 @@ export function weekLabel(weekStartIso) {
   return `Week of ${formatDate(weekStartIso)}`;
 }
 
+// "YYYY-MM" for a given ISO date — used to group a season's matches by
+// month on the Stats page, so History can collapse everything but the
+// most recent month instead of listing every match ever played.
+export function monthKey(isoDate) {
+  return isoDate.slice(0, 7);
+}
+
+export function monthLabel(monthKeyStr) {
+  const d = new Date(monthKeyStr + '-01T00:00:00');
+  if (Number.isNaN(d.getTime())) return monthKeyStr;
+  return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+}
+
 export function formatTime(hhmm) {
   if (!hhmm) return '';
   const [h, m] = hhmm.split(':').map(Number);
