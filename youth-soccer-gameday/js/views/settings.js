@@ -3,6 +3,7 @@ import { PRESET_FORMATIONS, formationOptionsFor, buildCustomFormation, remapLine
 import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers, todayIso } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
+import { APP_VERSION } from '../version.js';
 import { getSyncConfig, isMatchdayOnly, buildAppsScript, generateSyncTokens, setUpAsFullEditor, joinWithLink, syncNow, disconnectCloudSync, diagnoseCloudSyncConnection } from '../cloudSync.js';
 
 // Guards a post-await re-render (e.g. after "Sync Now", which can take a
@@ -187,6 +188,7 @@ export function renderSettings(app) {
       <button class="btn secondary block" data-action="copy-error-log" ${errorLog.length ? '' : 'disabled'}>📋 Copy Error Log</button>
       <textarea id="error-log-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;">${escapeHtml(formatErrorLogText())}</textarea>
       <button class="btn ghost block" data-action="clear-error-log" ${errorLog.length ? '' : 'disabled'}>Clear Log</button>
+      <div class="small muted" style="text-align:center;">App version ${escapeHtml(APP_VERSION)}</div>
     </div>
   `;
 
