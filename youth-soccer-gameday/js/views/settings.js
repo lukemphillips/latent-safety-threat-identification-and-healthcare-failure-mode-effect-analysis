@@ -32,6 +32,10 @@ let archiveFallbackVisible = false;
 export function renderSettings(app) {
   const { team, players, games, trainings, drills } = getState();
   const hasSeasonActivity = games.length > 0 || trainings.length > 0 || drills.length > 0;
+  // Once a coach has actually entered their own team, "Reload Sample
+  // Data" is no longer a first-run demo shortcut — it's a trap that
+  // silently replaces real work with the Thunder FC placeholder.
+  const hasRealTeamData = !!team.name || players.length > 0;
   const errorLog = getErrorLog();
   const autoBackups = getAutoBackups();
   const syncConfig = getSyncConfig();
@@ -139,8 +143,8 @@ export function renderSettings(app) {
 
     <div class="section-title">Data</div>
     <div class="card stack">
-      <p class="muted small mt-0">Use these to demo the app or start fresh.</p>
-      <button class="btn secondary block" data-action="reset-sample">Reload Sample Data</button>
+      <p class="muted small mt-0">${hasRealTeamData ? 'Use this to start over from a blank team.' : 'Use these to demo the app or start fresh.'}</p>
+      ${hasRealTeamData ? '' : '<button class="btn secondary block" data-action="reset-sample">Reload Sample Data</button>'}
       <button class="btn danger block" data-action="clear-data">Clear All Data</button>
     </div>
     <details class="card" ${hasSeasonActivity ? 'open' : ''}>
@@ -264,9 +268,12 @@ export function renderSettings(app) {
     });
   });
 
-  app.querySelector('[data-action="reset-sample"]').addEventListener('click', async () => {
-    if (await confirmDialog('Reload sample team, roster, and games? This replaces current data.', { okLabel: 'Reload', danger: true })) resetToSample();
-  });
+  const resetSampleBtn = app.querySelector('[data-action="reset-sample"]');
+  if (resetSampleBtn) {
+    resetSampleBtn.addEventListener('click', async () => {
+      if (await confirmDialog('Reload sample team, roster, and games? This replaces current data.', { okLabel: 'Reload', danger: true })) resetToSample();
+    });
+  }
   app.querySelector('[data-action="clear-data"]').addEventListener('click', async () => {
     if (await confirmDialog('Clear all players and games? This cannot be undone.', { okLabel: 'Clear All', danger: true })) clearAllData();
   });
@@ -613,9 +620,13 @@ function openMergeModal(app) {
   openModal({
     title: "Merge in Another Coach's Backup",
     bodyHtml: `
-      <p class="muted small mt-0">Paste the backup the other coach copied with "Backup Team Data" on their phone. This adds their game(s) and any players not already here — it won't remove or overwrite anything already on this device.</p>
+      <p class="muted small mt-0">Choose the backup file the other coach shared, or paste the JSON they copied with "Backup Team Data" on their phone. This adds their game(s) and any players not already here — it won't remove or overwrite anything already on this device.</p>
       <form id="merge-form" class="stack">
-        <textarea name="backup" required style="width:100%; min-height:160px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;" placeholder="Paste the other coach's backup JSON here"></textarea>
+        <label class="btn secondary block" style="text-align:center; cursor:pointer;">
+          📁 Choose Backup File
+          <input type="file" accept="application/json,.json" id="merge-file-input" hidden />
+        </label>
+        <textarea name="backup" required style="width:100%; min-height:160px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;" placeholder="…or paste the other coach's backup JSON here"></textarea>
         <div id="merge-error" class="small" style="color:var(--red);" hidden></div>
         <button type="submit" class="btn secondary block">Merge In</button>
       </form>
@@ -626,6 +637,19 @@ function openMergeModal(app) {
       // modal: an alert would close this modal to show itself, losing
       // whatever was pasted right when a typo needs fixing.
       const showError = (msg) => { errorEl.textContent = msg; errorEl.hidden = false; };
+
+      const fileInput = modalEl.querySelector('#merge-file-input');
+      const textarea = modalEl.querySelector('textarea[name="backup"]');
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        errorEl.hidden = true;
+        try {
+          textarea.value = await file.text();
+        } catch {
+          showError("Couldn't read that file — try pasting the backup instead.");
+        }
+      });
 
       modalEl.querySelector('#merge-form').addEventListener('submit', (e) => {
         e.preventDefault();
@@ -664,9 +688,13 @@ function openRestoreModal() {
   openModal({
     title: 'Restore from Backup',
     bodyHtml: `
-      <p class="muted small mt-0">Paste a backup you copied earlier with "Backup Team Data". This replaces everything currently in the app on this device.</p>
+      <p class="muted small mt-0">Pick a backup file, or paste one you copied earlier with "Backup Team Data". This replaces everything currently in the app on this device.</p>
       <form id="restore-form" class="stack">
-        <textarea name="backup" required style="width:100%; min-height:160px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;" placeholder="Paste backup JSON here"></textarea>
+        <label class="btn secondary block" style="text-align:center; cursor:pointer;">
+          📁 Choose Backup File
+          <input type="file" accept="application/json,.json" id="restore-file-input" hidden />
+        </label>
+        <textarea name="backup" required style="width:100%; min-height:160px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;" placeholder="…or paste backup JSON here"></textarea>
         <div id="restore-error" class="small" style="color:var(--red);" hidden></div>
         <button type="submit" class="btn danger block">Restore (replaces current data)</button>
       </form>
@@ -678,6 +706,19 @@ function openRestoreModal() {
       // whatever the coach pasted right when they need to fix a typo.
       const showError = (msg) => { errorEl.textContent = msg; errorEl.hidden = false; };
 
+      const fileInput = modalEl.querySelector('#restore-file-input');
+      const textarea = modalEl.querySelector('textarea[name="backup"]');
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        errorEl.hidden = true;
+        try {
+          textarea.value = await file.text();
+        } catch {
+          showError("Couldn't read that file — try pasting the backup instead.");
+        }
+      });
+
       modalEl.querySelector('#restore-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         errorEl.hidden = true;
@@ -686,7 +727,7 @@ function openRestoreModal() {
         try {
           parsed = JSON.parse(raw);
         } catch {
-          showError("That text isn't valid JSON — make sure you copied the whole backup.");
+          showError("That text isn't valid JSON — make sure you copied or selected the whole backup.");
           return;
         }
         if (!parsed || !parsed.team || !Array.isArray(parsed.players) || !Array.isArray(parsed.games)) {
@@ -799,6 +840,7 @@ function openShareLinksModal(fullEditUrl, matchdayUrl) {
     title: 'Cloud Sync Is Set Up',
     bodyHtml: `
       <p class="muted small mt-0">This device is connected with Full Edit access. Copy the link below and send it (text, WhatsApp, email — however's easiest) to each other coach.</p>
+      <div class="banner warn">⚠️ Save <strong>both</strong> links somewhere outside this app right now (a note, an email to yourself) — not just this Matchday one. Only this device can show either of them again later, and only as long as its browser storage survives. That storage holds your entire team, roster, and match history too: clearing this browser's site data/cookies for this app (not just its "cached files") wipes all of it with no warning, and Sync only protects what's already been pushed. Back up from Settings → Data regularly regardless.</div>
       <div class="field">
         <label>Matchday link — for other coaches</label>
         <textarea id="matchday-link-text" readonly style="width:100%; min-height:50px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;">${escapeHtml(matchdayUrl)}</textarea>

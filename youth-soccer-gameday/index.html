@@ -30,5 +30,48 @@
   </div>
 
   <script type="module" src="js/main.js"></script>
+  <script>
+    // A stale cached copy of the app's JS has repeatedly caused confusing,
+    // hard-to-diagnose failures (a bug fix looking like it "didn't work")
+    // with zero visible symptom pointing at the real cause. This check is
+    // deliberately NOT part of the app's own module bundle — if it were,
+    // it would suffer from exactly the same staleness it's meant to
+    // detect. version.txt is stamped with the deploy's commit SHA by the
+    // GitHub Pages workflow on every push, and this fetch always bypasses
+    // any cache (no-store plus a timestamp no cache could have a stored
+    // response for), so it reliably sees the CURRENT version even when
+    // everything else on the page is running an old cached copy.
+    (function () {
+      var STORAGE_KEY = 'ysg-seen-app-version';
+      fetch('version.txt?_ts=' + Date.now(), { cache: 'no-store' })
+        .then(function (res) { return res.ok ? res.text() : null; })
+        .then(function (current) {
+          if (!current) return;
+          current = current.trim();
+          var seen = null;
+          try { seen = localStorage.getItem(STORAGE_KEY); } catch (e) {}
+          if (!seen) {
+            try { localStorage.setItem(STORAGE_KEY, current); } catch (e) {}
+            return;
+          }
+          if (seen === current) return;
+          var bar = document.createElement('div');
+          bar.setAttribute('role', 'alert');
+          bar.style.cssText = 'position:fixed; left:0; right:0; bottom:0; z-index:9999; background:#92400e; color:#fff; font:13px/1.4 -apple-system,sans-serif; padding:12px 14px; box-shadow:0 -2px 10px rgba(0,0,0,.2);';
+          bar.innerHTML =
+            '<strong>A newer version of this app is available.</strong> Your browser is showing an older cached copy, which can make recent fixes look like they didn\'t work. ' +
+            'To update: on iPhone/Android, open your browser\'s menu → Settings → Privacy → Clear Browsing Data, and check ONLY “Cached Images and Files.” ' +
+            '<strong>Leave “Cookies and Site Data” unchecked</strong> — that’s what holds your team’s actual data, and clearing it deletes everything on this device. ' +
+            'Then fully close and reopen the browser.' +
+            '<div style="margin-top:8px;"><button type="button" style="background:#fff; color:#92400e; border:none; border-radius:6px; padding:6px 12px; font-weight:700; cursor:pointer;">Got it</button></div>';
+          bar.querySelector('button').addEventListener('click', function () {
+            try { localStorage.setItem(STORAGE_KEY, current); } catch (e) {}
+            bar.remove();
+          });
+          document.body.appendChild(bar);
+        })
+        .catch(function () {});
+    })();
+  </script>
 </body>
 </html>

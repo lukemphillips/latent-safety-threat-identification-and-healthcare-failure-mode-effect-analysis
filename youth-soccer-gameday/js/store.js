@@ -165,13 +165,22 @@ export function subscribe(fn) {
   return () => listeners.delete(fn);
 }
 
+// "Reload Sample Data" is only ever offered on a device with no real team
+// data yet (see settings.js) — there's nothing worth protecting there, so
+// no snapshot before it.
 export function resetToSample() {
   state = sampleData();
   persist();
   listeners.forEach((fn) => fn(state));
 }
 
+// Unlike Reload Sample Data, Clear All Data stays available even once
+// there's real, meaningful data — snapshot whatever's about to be
+// destroyed first. A confirm dialog only stops a misclick, not a confirm
+// the coach actually meant but later regrets, and this is otherwise
+// irreversible.
 export function clearAllData() {
+  saveAutoBackup();
   state = emptyData();
   persist();
   listeners.forEach((fn) => fn(state));
