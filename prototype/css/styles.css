@@ -183,7 +183,7 @@ table.admin-table .mini-btn { font-size: 0.78rem; padding: 0.25rem 0.6rem; min-h
 .numpad-key:active { background: var(--accent-soft); }
 .numpad-row2 { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
 .numpad-back { flex: 1; min-height: 2.6rem; }
-.numpad-done { flex: 1; }
+.numpad-row2 .btn { flex: 2; }
 
 /* Persistent patient/MTP header banner */
 .patient-banner { display: flex; align-items: center; gap: 1rem; background: var(--surface); border-bottom: 1px solid var(--line); padding: 0.5rem 1rem; flex-wrap: wrap; }
@@ -204,3 +204,28 @@ table.admin-table .mini-btn { font-size: 0.78rem; padding: 0.25rem 0.6rem; min-h
 .tier-banner.regular { background: var(--green-soft); color: var(--green); }
 .time-field-row { display: flex; align-items: center; gap: 0.5rem; }
 .time-field-row input { max-width: 6rem; }
+
+/* Inline vitals entry strip -- always visible on Primary/Secondary Survey,
+   no modal, chained keypad entry across fields, one explicit commit tap. */
+.vitals-strip { background: var(--accent-soft); border: 1px solid var(--accent); border-radius: var(--radius); padding: 0.9rem 1.1rem; margin-bottom: 1rem; }
+.vitals-strip-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; }
+@media (max-width: 1000px) { .vitals-strip-grid { grid-template-columns: repeat(3, 1fr); } }
+.vitals-strip-grid .field { margin-bottom: 0; }
+.vitals-strip-grid .field label { font-size: 0.68rem; }
+.vitals-strip-grid input { min-height: 2.6rem; text-align: center; font-size: 1.1rem; font-weight: 700; }
+.vitals-strip .toggles { display: flex; gap: 1.2rem; flex-wrap: wrap; margin: 0.7rem 0 0.2rem; }
+.vitals-strip .toggles label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; }
+.vitals-strip .toggles input[type=checkbox] { width: 1.15rem; height: 1.15rem; }
+
+.criteria-toggle { background: none; border: 1px dashed var(--line); border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.85rem; color: var(--accent); font-weight: 600; margin-top: 0.3rem; }
+
+/* Team display: allergy banner + ABCDE/team/location panels */
+.allergy-banner { border-radius: 10px; padding: 0.6rem 1rem; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 0.8rem; }
+.allergy-banner.alert { background: var(--red); color: #fff; }
+.allergy-banner.clear { background: rgba(47,122,79,0.3); color: #fff; }
+.allergy-banner.unknown { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); }
+.abcde-row { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.abcde-chip { background: rgba(255,255,255,0.1); border-radius: 8px; padding: 0.4rem 0.7rem; font-size: 0.85rem; }
+.abcde-chip b { display: block; font-size: 0.68rem; opacity: 0.65; text-transform: uppercase; }
+.abcde-chip.warn { background: var(--red); }
+.stale-tag { font-size: 0.72rem; color: var(--amber); font-weight: 700; margin-left: 0.5rem; }

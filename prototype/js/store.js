@@ -356,11 +356,15 @@ function openNumpad(input, opts) {
   const allowDecimal = opts.decimal !== false;
   const allowNegative = !!opts.negative;
   const rows = [["7", "8", "9"], ["4", "5", "6"], ["1", "2", "3"], [allowNegative ? "-" : "", "0", allowDecimal ? "." : ""]];
+  const next = nextNumericField(input);
   const pop = document.createElement("div");
   pop.id = "numpad-popup";
   pop.className = "numpad-popup";
   pop.innerHTML = `<div class="numpad-grid">${rows.flat().map((k) => (k ? `<button type="button" class="numpad-key" data-k="${k}">${k}</button>` : `<span></span>`)).join("")}</div>
-    <div class="numpad-row2"><button type="button" class="numpad-key numpad-back" data-k="back">⌫ Back</button><button type="button" class="btn numpad-done">Done</button></div>`;
+    <div class="numpad-row2">
+      <button type="button" class="numpad-key numpad-back" data-k="back">⌫</button>
+      ${next ? `<button type="button" class="btn numpad-next">Next field →</button>` : `<button type="button" class="btn numpad-done">Done</button>`}
+    </div>`;
   document.body.appendChild(pop);
   positionNumpad(pop, input);
 
@@ -370,8 +374,27 @@ function openNumpad(input, opts) {
     else input.value += btn.dataset.k;
     input.dispatchEvent(new Event("input", { bubbles: true }));
   }));
-  pop.querySelector(".numpad-done").addEventListener("mousedown", (e) => { e.preventDefault(); closeNumpad(); });
+  const doneBtn = pop.querySelector(".numpad-done");
+  if (doneBtn) doneBtn.addEventListener("mousedown", (e) => { e.preventDefault(); closeNumpad(); });
+  const nextBtn = pop.querySelector(".numpad-next");
+  if (nextBtn) nextBtn.addEventListener("mousedown", (e) => { e.preventDefault(); closeNumpad(); next.focus(); });
   setTimeout(() => document.addEventListener("mousedown", numpadOutsideHandler, true), 0);
+}
+// Chained entry: within a container marked data-field-group, "Next field"
+// jumps to the next numeric field in DOM order instead of making the scribe
+// tap back out to find it -- this is what makes typing a full set of vitals
+// (HR, systolic, diastolic, RR, SpO2...) one continuous motion instead of a
+// separate focus-tap per value.
+function nextNumericField(input) {
+  const group = input.closest("[data-field-group]");
+  if (!group) return null;
+  // offsetParent is null for display:none elements -- skip fields hidden by
+  // a toggle (e.g. ETCO2 when "intubated" isn't checked), or "Next" would
+  // silently focus an unfocusable field and the chain would just dead-end.
+  const fields = Array.from(group.querySelectorAll("[data-numeric]")).filter((f) => f.offsetParent !== null);
+  const idx = fields.indexOf(input);
+  if (idx === -1 || idx === fields.length - 1) return null;
+  return fields[idx + 1];
 }
 function numpadOutsideHandler(e) {
   const pop = document.getElementById("numpad-popup");

@@ -177,7 +177,13 @@ function wireQuickActions(root) {
   root.querySelectorAll("[data-qa]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const kind = btn.dataset.qa;
-      if (kind === "vitals") openVitalsModal();
+      if (kind === "vitals") {
+        // Primary/Secondary already have the inline strip on screen -- jump
+        // straight to it instead of opening a redundant modal on top of it.
+        const inlineHr = (currentStage === "primary" || currentStage === "secondary") ? root.querySelector('input[id$="-hr"]') : null;
+        if (inlineHr) { inlineHr.scrollIntoView({ behavior: "smooth", block: "center" }); inlineHr.focus(); }
+        else openVitalsQuickModal();
+      }
       if (kind === "gas") openGasModal();
       if (kind === "med") openMedicationModal();
       if (kind === "intervention") openInterventionModal();
@@ -190,7 +196,7 @@ function wireQuickActions(root) {
 // A small "Time" control shared by every logging modal: defaults to now,
 // stays editable (per "times default to now, but ability to edit").
 function timeFieldHtml(id) {
-  return h`<div class="field"><label>Time</label><div class="time-field-row"><input type="text" id="${id}" data-numeric="int" value="${nowHM()}" placeholder="HH:MM"></div></div>`;
+  return h`<div class="field"><label>Time</label><div class="time-field-row"><input type="text" id="${id}" value="${nowHM()}" placeholder="HH:MM"></div></div>`;
 }
 
 // ---------------- Field binding helper ----------------
@@ -270,7 +276,8 @@ function renderPreAlert() {
       ${renderCriteriaGroup("vitalSigns", CALLOUT_CRITERIA.vitalSigns, r.criteria.vitalSigns)}
       ${renderCriteriaGroup("injuries", CALLOUT_CRITERIA.injuries, r.criteria.injuries)}
       ${renderCriteriaGroup("elderly", CALLOUT_CRITERIA.elderly, r.criteria.elderly)}
-      ${renderCriteriaGroup("highRisk", CALLOUT_CRITERIA.highRisk, r.criteria.highRisk)}
+      ${highRiskExpanded ? renderCriteriaGroup("highRisk", CALLOUT_CRITERIA.highRisk, r.criteria.highRisk)
+        : h`<button type="button" class="criteria-toggle" id="show-highrisk-btn">+ Show high-risk mechanism criteria (used only if none of the above apply)${r.criteria.highRisk.length ? ` — ${r.criteria.highRisk.length} already ticked` : ""}</button>`}
       <div class="field"><label>Other / additional notes on criteria</label><input type="text" id="pa-crit-notes" value="${esc(r.criteriaNotes)}"></div>
 
       <div class="tier-banner ${tierBannerClass(suggested)}">Suggested tier: ${esc(suggested)}</div>
@@ -288,6 +295,7 @@ function renderPreAlert() {
     </div>
     ${quickActionsBar()}`;
 }
+let highRiskExpanded = false;
 function wirePreAlert(root) {
   bindField(root, "preAlert", "eta", "#pa-eta");
   bindField(root, "preAlert", "age", "#pa-age");
@@ -324,6 +332,8 @@ function wirePreAlert(root) {
   root.querySelector("#activate-callout-btn").addEventListener("click", () => {
     Store.updateRecord("preAlert", { callOutActivatedAt: Date.now(), timeOfCall: Store.state.record.preAlert.timeOfCall || Date.now() });
   });
+  const showHighRiskBtn = root.querySelector("#show-highrisk-btn");
+  if (showHighRiskBtn) showHighRiskBtn.addEventListener("click", () => { highRiskExpanded = true; renderStage(); });
 }
 
 // ================= HANDOVER =================
@@ -426,6 +436,11 @@ function renderPrimary() {
   const statuses = { airway: ["Patent", "Compromised", "Secured"], breathing: ["Normal", "Reduced", "Absent"], circulation: ["Stable", "Compromised", "Peri-arrest"] };
   const statusTiles = (key) => statuses[key].map((v) => h`<button type="button" class="tile ${r[key] === v ? "selected" : ""} ${v === "Compromised" || v === "Peri-arrest" || v === "Absent" ? "danger" : ""}" data-key="${key}" data-val="${esc(v)}">${esc(v)}</button>`).join("");
   return h`
+    <div class="card vitals-strip">
+      <h3>Record vitals — type and tap Record, no extra screen to open</h3>
+      ${vitalsFieldsHtml("vs")}
+      <div class="btn-row"><button class="btn big" id="vs-record">Record vitals</button></div>
+    </div>
     <div class="card">
       <h2>Primary Survey (ABCDE)</h2>
       <h3>A — Airway</h3>
@@ -453,7 +468,7 @@ function renderPrimary() {
       </div>
     </div>
     <div class="grid-2">
-      <div class="card"><h3>Vital signs &amp; timeline <span class="badge grey">§7.1</span></h3>${renderVitalsSummary()}<div class="btn-row"><button class="btn secondary" id="pv-add-vitals">+ Add vitals</button></div></div>
+      <div class="card"><h3>Vitals timeline <span class="badge grey">§7.1</span></h3>${renderVitalsSummary()}</div>
       <div class="card"><h3>Point-of-care blood gas <span class="badge grey">§7.5</span></h3>${renderGasSummary()}<div class="btn-row"><button class="btn secondary" id="pv-add-gas">+ Add gas</button></div></div>
     </div>
     <div class="grid-2">
@@ -477,6 +492,7 @@ function mtpButtonsHtml() {
   return btns.join("");
 }
 function wirePrimary(root) {
+  wireVitalsFields(root, "vs");
   root.querySelectorAll("#airway-tiles .tile, #breathing-tiles .tile, #circulation-tiles .tile").forEach((t) => {
     t.addEventListener("click", () => Store.updateRecord("primary", { [t.dataset.key]: t.dataset.val }));
   });
@@ -486,7 +502,6 @@ function wirePrimary(root) {
   root.querySelector("#complete-primary").addEventListener("click", () => {
     Store.updateRecord("primary", { completedAt: Date.now(), completedBy: currentUserName() });
   });
-  root.querySelector("#pv-add-vitals").addEventListener("click", openVitalsModal);
   root.querySelector("#pv-add-gas").addEventListener("click", openGasModal);
   root.querySelector("#pv-add-med").addEventListener("click", openMedicationModal);
   root.querySelector("#pv-add-int").addEventListener("click", openInterventionModal);
@@ -500,11 +515,16 @@ function wirePrimary(root) {
 function renderSecondary() {
   const r = Store.state.record.secondary;
   return h`
+    <div class="card vitals-strip">
+      <h3>Record vitals</h3>
+      ${vitalsFieldsHtml("svs")}
+      <div class="btn-row"><button class="btn big" id="svs-record">Record vitals</button></div>
+    </div>
     <div class="card">
       <h2>Secondary Survey</h2>
       <h3>AMPLE history</h3>
       <div class="grid-2">
-        <div class="field"><label>Allergies</label><input type="text" id="s-allergies" value="${esc(r.ampleAllergies)}"></div>
+        <div class="field"><label>Allergies</label><input type="text" id="s-allergies" value="${esc(r.ampleAllergies)}" placeholder="NKDA, or specify"></div>
         <div class="field"><label>Medications (regular)</label><input type="text" id="s-meds" value="${esc(r.ampleMedications)}"></div>
         <div class="field"><label>Past medical history</label><input type="text" id="s-pmhx" value="${esc(r.amplePmhx)}"></div>
         <div class="field"><label>Last meal</label><input type="text" id="s-lastmeal" value="${esc(r.ampleLastMeal)}"></div>
@@ -517,12 +537,13 @@ function renderSecondary() {
       </div>
     </div>
     <div class="grid-2">
-      <div class="card"><h3>Vitals &amp; blood gas</h3>${renderVitalsSummary()}${renderGasSummary()}<div class="btn-row"><button class="btn secondary" id="sv-add-vitals">+ Vitals</button><button class="btn secondary" id="sv-add-gas">+ Gas</button></div></div>
+      <div class="card"><h3>Vitals &amp; blood gas</h3>${renderVitalsSummary()}${renderGasSummary()}<div class="btn-row"><button class="btn secondary" id="sv-add-gas">+ Gas</button></div></div>
       <div class="card"><h3>Medications / interventions</h3>${renderMedsSummary()}${renderInterventionsSummary()}<div class="btn-row"><button class="btn secondary" id="sv-add-med">+ Medication</button><button class="btn secondary" id="sv-add-int">+ Intervention</button></div></div>
     </div>
     ${quickActionsBar()}`;
 }
 function wireSecondary(root) {
+  wireVitalsFields(root, "svs");
   bindField(root, "secondary", "ampleAllergies", "#s-allergies");
   bindField(root, "secondary", "ampleMedications", "#s-meds");
   bindField(root, "secondary", "amplePmhx", "#s-pmhx");
@@ -532,7 +553,6 @@ function wireSecondary(root) {
   root.querySelector("#complete-secondary").addEventListener("click", () => {
     Store.updateRecord("secondary", { completedAt: Date.now(), completedBy: currentUserName() });
   });
-  root.querySelector("#sv-add-vitals").addEventListener("click", openVitalsModal);
   root.querySelector("#sv-add-gas").addEventListener("click", openGasModal);
   root.querySelector("#sv-add-med").addEventListener("click", openMedicationModal);
   root.querySelector("#sv-add-int").addEventListener("click", openInterventionModal);
@@ -670,7 +690,7 @@ function wireTimeline(root) {
   root.querySelectorAll("[data-tl]").forEach((b) => b.addEventListener("click", () => Store.removeTimelineEvent(b.dataset.tl)));
 }
 function describeEvent(e) {
-  if (e.kind === "vitals") return e.cardiacArrest ? `CARDIAC ARREST — no vitals obtained — ${e.user}` : `HR ${e.hr || "–"} BP ${e.bp || "–"} RR ${e.rr || "–"} SpO2 ${e.spo2 || "–"} GCS ${e.gcs || "–"}${e.intubated ? " ETCO2 " + (e.etco2 || "–") : ""} — ${e.user}`;
+  if (e.kind === "vitals") return e.cardiacArrest ? `CARDIAC ARREST — no vitals obtained — ${e.user}` : `HR ${e.hr || "–"} BP ${e.bpSys || "–"}/${e.bpDia || "–"} RR ${e.rr || "–"} SpO2 ${e.spo2 || "–"} GCS ${e.gcs || "–"}${e.intubated ? " ETCO2 " + (e.etco2 || "–") : ""} — ${e.user}`;
   if (e.kind === "gas") return `pH ${e.ph || "–"} Hb ${e.hb || "–"} Lactate ${e.lactate || "–"} BE ${e.be || "–"} (${e.sampleType}) — ${e.user}`;
   if (e.kind === "medication") return `${e.drug} ${e.dose} ${e.route} — ${e.user}`;
   if (e.kind === "intervention") return `${e.name} — ${e.user}`;
@@ -696,7 +716,7 @@ function renderVitalsSummary() {
   if (latest.cardiacArrest) return `<p class="badge red" style="font-size:.85rem">CARDIAC ARREST logged at ${fmtTime(latest.ts)} — no vitals obtained</p>`;
   return h`<div class="vitals-current">
     <div class="vital-tile"><div class="v">${esc(latest.hr || "–")}</div><div class="l">HR</div></div>
-    <div class="vital-tile"><div class="v">${esc(latest.bp || "–")}</div><div class="l">BP</div></div>
+    <div class="vital-tile"><div class="v">${esc(latest.bpSys || "–")}/${esc(latest.bpDia || "–")}</div><div class="l">BP</div></div>
     <div class="vital-tile"><div class="v">${esc(latest.rr || "–")}</div><div class="l">RR</div></div>
     <div class="vital-tile"><div class="v">${esc(latest.spo2 || "–")}</div><div class="l">SpO2</div></div>
     <div class="vital-tile"><div class="v">${esc(latest.gcs || "–")}</div><div class="l">GCS</div></div>
@@ -751,48 +771,63 @@ function openModal(title, bodyHtml, onMount) {
 }
 function closeModal() { closeNumpad(); byId("modal-root").innerHTML = ""; }
 
-function openVitalsModal() {
+// Shared by the inline strip (Primary/Secondary Survey) and the compact
+// modal fallback (every other stage, via Quick Actions). BP is two separate
+// numeric fields rather than one "110/70" text field -- that was the only
+// vitals field the on-screen keypad couldn't drive (no "/" key), which made
+// it the slowest field in the set.
+function vitalsFieldsHtml(p) {
   const defaultIntubated = Store.state.record.primary.airway === "Secured";
-  openModal("Add vital signs", h`
-    <div class="field"><label><input type="checkbox" id="m-arrest" style="width:1.1rem;height:1.1rem;margin-right:.5rem"> Cardiac arrest — no vitals obtained</label></div>
-    <div id="m-vitals-fields">
-      <div class="grid-3">
-        <div class="field"><label>HR</label><input type="text" id="m-hr" data-numeric="int" min="0"></div>
-        <div class="field"><label>BP (e.g. 110/70)</label><input type="text" id="m-bp"></div>
-        <div class="field"><label>RR</label><input type="text" id="m-rr" data-numeric="int" min="0"></div>
-        <div class="field"><label>SpO2 %</label><input type="text" id="m-spo2" data-numeric="int" min="0"></div>
-        <div class="field"><label>Temp °C</label><input type="text" id="m-temp" data-numeric="true"></div>
-        <div class="field"><label>GCS (3-15)</label><input type="text" id="m-gcs" data-numeric="int" min="3" max="15"></div>
-      </div>
-      <div class="field"><label><input type="checkbox" id="m-intubated" style="width:1.1rem;height:1.1rem;margin-right:.5rem" ${defaultIntubated ? "checked" : ""}> Intubated (shows ETCO2)</label></div>
-      <div class="field" id="m-etco2-field" style="${defaultIntubated ? "" : "display:none"}"><label>ETCO2 (kPa or mmHg)</label><input type="text" id="m-etco2" data-numeric="int"></div>
+  return h`<div data-field-group>
+    <div class="vitals-strip-grid">
+      <div class="field"><label>HR</label><input type="text" id="${p}-hr" data-numeric="int"></div>
+      <div class="field"><label>Sys BP</label><input type="text" id="${p}-sys" data-numeric="int"></div>
+      <div class="field"><label>Dia BP</label><input type="text" id="${p}-dia" data-numeric="int"></div>
+      <div class="field"><label>RR</label><input type="text" id="${p}-rr" data-numeric="int"></div>
+      <div class="field"><label>SpO2 %</label><input type="text" id="${p}-spo2" data-numeric="int"></div>
+      <div class="field"><label>Temp °C</label><input type="text" id="${p}-temp" data-numeric="true"></div>
+      <div class="field"><label>GCS</label><input type="text" id="${p}-gcs" data-numeric="int"></div>
     </div>
-    ${timeFieldHtml("m-time")}
-    <div class="btn-row"><button class="btn big" id="m-save">Save vitals</button></div>`,
+    <div class="toggles">
+      <label><input type="checkbox" id="${p}-arrest"> Cardiac arrest — no vitals obtained</label>
+      <label><input type="checkbox" id="${p}-intubated" ${defaultIntubated ? "checked" : ""}> Intubated</label>
+      <span id="${p}-etco2-wrap" style="${defaultIntubated ? "" : "display:none"}">ETCO2 <input type="text" id="${p}-etco2" data-numeric="int" style="width:5rem;display:inline-block;min-height:2.3rem;margin-left:.3rem"></span>
+    </div>
+    <div class="field" style="max-width:9rem;margin-top:.6rem"><label>Time</label><input type="text" id="${p}-time" value="${nowHM()}" placeholder="HH:MM"></div>
+  </div>`;
+}
+function wireVitalsFields(root, p) {
+  const arrestBox = root.querySelector(`#${p}-arrest`);
+  const grid = root.querySelector(`#${p}-arrest`).closest("[data-field-group]").querySelector(".vitals-strip-grid");
+  arrestBox.addEventListener("change", () => {
+    grid.style.opacity = arrestBox.checked ? ".4" : "1";
+    grid.querySelectorAll("input").forEach((i) => { i.disabled = arrestBox.checked; });
+  });
+  const intubatedBox = root.querySelector(`#${p}-intubated`);
+  const etco2Wrap = root.querySelector(`#${p}-etco2-wrap`);
+  intubatedBox.addEventListener("change", () => { etco2Wrap.style.display = intubatedBox.checked ? "" : "none"; });
+  const recordBtn = root.querySelector(`#${p}-record`);
+  if (recordBtn) recordBtn.addEventListener("click", () => recordVitals(root, p));
+}
+function recordVitals(root, p) {
+  const val = (id) => root.querySelector(`#${p}-${id}`).value;
+  let hr = val("hr"); if (hr !== "" && Number(hr) < 0) hr = "0";
+  let gcs = val("gcs"); if (gcs !== "") gcs = String(Math.min(15, Math.max(3, Number(gcs) || 3)));
+  const arrestBox = root.querySelector(`#${p}-arrest`), intubatedBox = root.querySelector(`#${p}-intubated`);
+  const ts = parseHMToday(val("time"));
+  const ev = Store.addTimelineEvent("vitals", {
+    cardiacArrest: arrestBox.checked,
+    hr, bpSys: val("sys"), bpDia: val("dia"), rr: val("rr"), spo2: val("spo2"), temp: val("temp"), gcs,
+    intubated: intubatedBox.checked, etco2: intubatedBox.checked ? val("etco2") : "",
+  }, currentUserName());
+  ev.ts = ts; Store._persist();
+}
+function openVitalsQuickModal() {
+  openModal("Record vitals", h`${vitalsFieldsHtml("qv")}<div class="btn-row"><button class="btn big" id="qv-record">Record vitals</button></div>`,
     (root) => {
       wireNumpads(root);
-      const arrestBox = root.querySelector("#m-arrest");
-      const fieldsWrap = root.querySelector("#m-vitals-fields");
-      arrestBox.addEventListener("change", () => { fieldsWrap.style.display = arrestBox.checked ? "none" : ""; });
-      const intubatedBox = root.querySelector("#m-intubated");
-      const etco2Field = root.querySelector("#m-etco2-field");
-      intubatedBox.addEventListener("change", () => { etco2Field.style.display = intubatedBox.checked ? "" : "none"; });
-      root.querySelector("#m-save").addEventListener("click", () => {
-        const ts = parseHMToday(root.querySelector("#m-time").value);
-        let hr = root.querySelector("#m-hr").value;
-        if (hr !== "" && Number(hr) < 0) hr = "0";
-        let gcs = root.querySelector("#m-gcs").value;
-        if (gcs !== "") gcs = String(Math.min(15, Math.max(3, Number(gcs) || 3)));
-        const ev = Store.addTimelineEvent("vitals", {
-          cardiacArrest: arrestBox.checked,
-          hr, bp: root.querySelector("#m-bp").value,
-          rr: root.querySelector("#m-rr").value, spo2: root.querySelector("#m-spo2").value,
-          temp: root.querySelector("#m-temp").value, gcs,
-          intubated: intubatedBox.checked, etco2: intubatedBox.checked ? root.querySelector("#m-etco2").value : "",
-        }, currentUserName());
-        ev.ts = ts; Store._persist();
-        closeModal();
-      });
+      wireVitalsFields(root, "qv");
+      root.querySelector("#qv-record").addEventListener("click", () => { recordVitals(root, "qv"); closeModal(); });
     });
 }
 function openGasModal() {
@@ -800,7 +835,7 @@ function openGasModal() {
     <div class="field"><label>Sample type</label>
       <div class="tiles"><button type="button" class="tile selected" data-sample="Arterial">Arterial</button><button type="button" class="tile" data-sample="Venous">Venous</button></div>
     </div>
-    <div class="grid-2">
+    <div class="grid-2" data-field-group>
       <div class="field"><label>pH</label><input type="text" id="g-ph" data-numeric="true"></div>
       <div class="field"><label>Hb</label><input type="text" id="g-hb" data-numeric="true"></div>
       <div class="field"><label>Lactate</label><input type="text" id="g-lactate" data-numeric="true"></div>
