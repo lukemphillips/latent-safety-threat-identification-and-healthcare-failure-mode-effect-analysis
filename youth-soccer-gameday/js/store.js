@@ -21,13 +21,13 @@ function sampleData() {
   const games = seedGames(players, team.squadFormat);
   const trainings = seedTrainings(players);
   const drills = seedDrills();
-  return { team, players, games, trainings, drills };
+  return { team, players, games, trainings, drills, deletedGameIds: [] };
 }
 
 // A genuinely blank slate — what a coach sees the first time they open the
 // app, and what "Clear All Data" resets to.
 function emptyData() {
-  return { team: emptyTeam(), players: [], games: [], trainings: [], drills: [] };
+  return { team: emptyTeam(), players: [], games: [], trainings: [], drills: [], deletedGameIds: [] };
 }
 
 // One-time upgrades for data shapes this app used to save before a later
@@ -83,6 +83,7 @@ function load() {
         // the save.
         if (!Array.isArray(parsed.trainings)) parsed.trainings = [];
         if (!Array.isArray(parsed.drills)) parsed.drills = [];
+        if (!Array.isArray(parsed.deletedGameIds)) parsed.deletedGameIds = [];
         parsed.players = migratePlayers(parsed.players);
         parsed.trainings = migrateTrainings(parsed.trainings);
         return parsed;
@@ -200,6 +201,7 @@ export function restoreFromBackup(data) {
   // them in for a backup taken before they existed, rather than rejecting it.
   if (!Array.isArray(data.trainings)) data.trainings = [];
   if (!Array.isArray(data.drills)) data.drills = [];
+  if (!Array.isArray(data.deletedGameIds)) data.deletedGameIds = [];
   data.players = migratePlayers(data.players);
   data.trainings = migrateTrainings(data.trainings);
   state = data;
@@ -228,6 +230,37 @@ function gameIsNewer(incoming, existing) {
   const c2 = gameCompleteness(existing);
   if (c1 !== c2) return c1 > c2;
   return (incoming.updatedAt || 0) > (existing.updatedAt || 0);
+}
+
+// Deleting a game (the quick delete icon, Edit Game's Delete button, or
+// Season Archiving) only removes it from THIS device's own games array —
+// a device that hasn't synced that deletion yet still has its own full
+// copy, and Cloud Sync's merge deliberately never lets a game vanish just
+// because one side's push didn't mention it (that's what stops a device
+// with stale/incomplete data from wiping out everyone else's newer
+// matches — see mergeGames_ in cloudSync.js). Without an explicit record
+// of "this id was deleted, as of this moment," there's no way to tell
+// that apart from "this device simply never knew about this game," so
+// the very next sync silently brings a deleted game straight back. This
+// tombstone is that explicit record — tiny (just an id and a timestamp),
+// pushed and merged alongside games, and interpreted on both the server
+// and here: a game newer than its own tombstone (someone updated it after
+// the deletion) wins and comes back; otherwise the deletion holds.
+export function recordGameDeletion(state, gameId) {
+  state.deletedGameIds = state.deletedGameIds || [];
+  state.deletedGameIds.push({ id: gameId, deletedAt: Date.now() });
+}
+
+// Union of two tombstone lists, keeping the later deletedAt for any id
+// both sides know about.
+function mergeTombstones(local, incoming) {
+  const byId = new Map((local || []).map((t) => [t.id, t]));
+  (incoming || []).forEach((t) => {
+    if (!t || !t.id) return;
+    const existing = byId.get(t.id);
+    if (!existing || (t.deletedAt || 0) > (existing.deletedAt || 0)) byId.set(t.id, t);
+  });
+  return [...byId.values()];
 }
 
 // Combines another device's backup into what's already here, for two
@@ -273,6 +306,14 @@ export function mergeBackup(data) {
       gamesUpdated += 1;
     }
   });
+
+  // Adopt the other coach's knowledge of what's been deleted, so a game
+  // they already removed on their end doesn't get pushed back to Cloud
+  // Sync by this device later — without ever removing anything from
+  // THIS device's own games, which mergeBackup never does.
+  if (Array.isArray(data.deletedGameIds) && data.deletedGameIds.length) {
+    s.deletedGameIds = mergeTombstones(s.deletedGameIds, data.deletedGameIds);
+  }
 
   const incomingAwards = data.team.weeklyAwards || [];
   if (incomingAwards.length) {
@@ -392,8 +433,21 @@ export function applyCloudSync(cloudData, lastSyncedPlayers) {
   const localOnlyPlayers = s.players.filter((p) => !cloudPlayerIds.has(p.id));
   s.players = [...mergedCloudPlayers, ...localOnlyPlayers];
 
+  // The server itself won't return a game whose tombstone has already
+  // beaten it — but a pull always runs before this device's OWN push
+  // within the same Sync Now (see syncNow in cloudSync.js), so a game
+  // just deleted here hasn't reached the server yet and this pull can
+  // still hand back the pre-deletion copy. Checked per-id below, right
+  // alongside the actual merge decision, rather than filtered out of
+  // cloudData.games up front — the same tombstone also needs to survive
+  // being compared against whatever's incoming (a genuine post-deletion
+  // update should still win).
+  const tombstoneById = new Map(mergeTombstones(s.deletedGameIds, cloudData.deletedGameIds).map((t) => [t.id, t]));
+
   const localGamesById = new Map(s.games.map((g) => [g.id, g]));
   cloudData.games.forEach((incoming) => {
+    const tombstone = tombstoneById.get(incoming.id);
+    if (tombstone && (incoming.updatedAt || 0) <= tombstone.deletedAt) return;
     const existing = localGamesById.get(incoming.id);
     if (!existing) {
       s.games.push(incoming);
@@ -405,7 +459,23 @@ export function applyCloudSync(cloudData, lastSyncedPlayers) {
       localGamesById.set(incoming.id, incoming);
       gamesUpdated += 1;
     }
+    tombstoneById.delete(incoming.id);
   });
+
+  // A tombstone that's still standing after the above means the cloud
+  // either agreed it should stay deleted or never mentioned that id at
+  // all this time (e.g. a different device did the deleting) — either
+  // way, drop it from THIS device's own copy too, unless this device has
+  // somehow touched that exact game more recently than the deletion
+  // (a genuine race, left for the next push/pull to resolve for real).
+  tombstoneById.forEach((t) => {
+    const localGame = localGamesById.get(t.id);
+    if (localGame && (localGame.updatedAt || 0) <= (t.deletedAt || 0)) {
+      s.games = s.games.filter((g) => g.id !== t.id);
+      localGamesById.delete(t.id);
+    }
+  });
+  s.deletedGameIds = [...tombstoneById.values()];
 
   persist();
   listeners.forEach((fn) => fn(state));
@@ -563,6 +633,10 @@ export function removeArchivedData(cutoffDate) {
   const s = getState();
   const gamesBefore = s.games.length;
   const trainingsBefore = s.trainings.length;
+  // Same reasoning as recordGameDeletion: without a tombstone, an archived
+  // match would just reappear on this device next Cloud Sync, pulled back
+  // down from whichever other device hasn't archived it yet.
+  s.games.filter((g) => isArchivableGame(g, cutoffDate)).forEach((g) => recordGameDeletion(s, g.id));
   s.games = s.games.filter((g) => !isArchivableGame(g, cutoffDate));
   s.trainings = s.trainings.filter((t) => !isArchivableTraining(t, cutoffDate));
   const removed = {

@@ -1,4 +1,4 @@
-import { getState, update, findGame } from '../store.js';
+import { getState, update, findGame, recordGameDeletion } from '../store.js';
 import { uid, escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions, gameNumPeriods, gamePeriodMinutes, gameSquadFormat, matchEligiblePlayers } from '../util.js';
 import { formationFor, formationOptionsFor, remapLineupToFormat, formationHasGk } from '../formations.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
@@ -596,6 +596,7 @@ async function deleteGame(game) {
   if (!ok) return false;
   update((state) => {
     state.games = state.games.filter((g) => g.id !== game.id);
+    recordGameDeletion(state, game.id);
   });
   location.hash = '#/schedule';
   return true;

@@ -236,6 +236,38 @@ function mergeGames_(currentGames, postedGames) {
   return result.concat(idless);
 }
 
+// mergeGames_ deliberately never lets a game disappear just because one
+// side's push didn't mention it — that's the whole point of it, and
+// exactly why a deleted game used to come straight back on the next
+// sync: there was no way to tell "deleted" apart from "this device never
+// knew about it". A tombstone ({id, deletedAt}) is that explicit signal.
+// Union two tombstone lists, keeping the later deletedAt for any id both
+// sides know about.
+function mergeDeletedGameIds_(current, posted) {
+  var byId = {};
+  (current || []).concat(posted || []).forEach(function (t) {
+    if (!t || !t.id) return;
+    if (!byId[t.id] || (t.deletedAt || 0) > (byId[t.id].deletedAt || 0)) byId[t.id] = t;
+  });
+  return Object.keys(byId).map(function (id) { return byId[id]; });
+}
+
+// Drops any merged game whose tombstone is at least as new as the game's
+// own updatedAt — same "newer wins" principle as gameIsNewer_, just
+// comparing against a plain deletion timestamp instead of another copy
+// of the game. A game genuinely updated AFTER it was deleted elsewhere
+// (someone resurrected/reused the match) survives; otherwise the
+// deletion holds.
+function applyTombstones_(games, tombstones) {
+  var byId = {};
+  (tombstones || []).forEach(function (t) { if (t && t.id) byId[t.id] = t; });
+  return (games || []).filter(function (g) {
+    var t = g && g.id && byId[g.id];
+    if (!t) return true;
+    return (g.updatedAt || 0) > (t.deletedAt || 0);
+  });
+}
+
 // Every path through doGet/doPost must return valid JSON, never let an
 // exception escape uncaught — an uncaught error makes Apps Script return
 // its own HTML error response instead, which doesn't carry the CORS
@@ -272,13 +304,15 @@ function doPost(e) {
     }
 
     var current = readStored_().data;
+    var mergedTombstones = mergeDeletedGameIds_(current ? current.deletedGameIds : [], posted.deletedGameIds);
     var toStore;
 
     if (role === 'editor') {
       toStore = {
         team: posted.team,
         players: posted.players,
-        games: mergeGames_(current ? current.games : [], posted.games),
+        games: applyTombstones_(mergeGames_(current ? current.games : [], posted.games), mergedTombstones),
+        deletedGameIds: mergedTombstones,
       };
     } else {
       // Matchday: only games change, plus any brand-new players (e.g. a
@@ -293,7 +327,8 @@ function doPost(e) {
       toStore = {
         team: current.team,
         players: (current.players || []).concat(newPlayers),
-        games: mergeGames_(current.games, posted.games),
+        games: applyTombstones_(mergeGames_(current.games, posted.games), mergedTombstones),
+        deletedGameIds: mergedTombstones,
       };
     }
 
@@ -488,10 +523,10 @@ export function pullFromCloud(url) {
 // Training sessions and drills are deliberately never included — see the
 // comment near the top of this file.
 export function pushToCloud(url, coachName) {
-  const { team, players, games } = getState();
+  const { team, players, games, deletedGameIds } = getState();
   return callAppsScriptWithRetries(url, {
     method: 'POST',
-    body: JSON.stringify({ team, players, games, syncedByName: coachName || '' }),
+    body: JSON.stringify({ team, players, games, deletedGameIds: deletedGameIds || [], syncedByName: coachName || '' }),
   });
 }
 
