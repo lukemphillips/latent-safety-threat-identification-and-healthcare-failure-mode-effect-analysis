@@ -243,7 +243,7 @@ export function renderLiveGame(app, gameId) {
       <details class="card" style="margin-top:10px;" data-details-section="match-events" ${matchEventsOpen ? 'open' : ''}>
         <summary style="cursor:pointer; font-weight:700; font-size:13px;">📋 Match Events (${live.subLog.length})</summary>
         <div style="margin-top:10px;">
-          ${live.subLog.slice().reverse().map((entry) => eventRowHtml(entry, numPeriods)).join('')}
+          ${live.subLog.map((entry, i) => ({ entry, i })).reverse().map(({ entry, i }) => eventRowHtml(entry, numPeriods, i)).join('')}
         </div>
       </details>
     ` : ''}
@@ -503,6 +503,31 @@ export function renderLiveGame(app, gameId) {
       });
     });
   }
+
+  // Correcting a goal/save credit (or removing a mistaken entry entirely)
+  // is useful both mid-match and after the final whistle — a coach often
+  // only notices a mislogged scorer once reviewing the match afterward —
+  // so this is wired unconditionally, not gated behind !isCompleted like
+  // the buttons that log brand-new events above.
+  app.querySelectorAll('[data-action="edit-sublog-entry"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const index = Number(btn.dataset.index);
+      const entry = live.subLog[index];
+      if (!entry) return;
+      if (entry.type === 'goal-them') {
+        confirmDialog('Remove this opponent goal? This also adjusts the score.', { okLabel: 'Remove', danger: true }).then((ok) => {
+          if (!ok) return;
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            g.live.scoreThem = Math.max(0, g.live.scoreThem - 1);
+            g.live.subLog.splice(index, 1);
+          });
+        });
+        return;
+      }
+      openEditSubLogEntryModal(gameId, index, entry, active);
+    });
+  });
 
   // Keeps the Playing Time / Match Events <details> open across the
   // once-a-second re-render the live match clock triggers — otherwise
@@ -1085,7 +1110,15 @@ const EVENT_ICONS = {
 // own 🟨 card entry is logged separately right alongside it).
 const SEND_OFF_ICONS = { 'second yellow': '🟥', injury: '🚑', other: '🚪' };
 
-function eventRowHtml(entry, numPeriods) {
+// Only these carry nothing but their own displayed fields and a score
+// counter — no other roster/on-field state depends on them, so correcting
+// or removing one is safe. The rest (subs, cards, send-offs, period
+// boundaries) each have side effects elsewhere (who's on the pitch, who's
+// been sent off) that an edit here wouldn't reverse, so they're left
+// read-only for now.
+const EDITABLE_EVENT_TYPES = ['goal-us', 'goal-them', 'save'];
+
+function eventRowHtml(entry, numPeriods, index) {
   const icon = entry.type === 'card' ? (entry.cardType === 'red' ? '🟥' : '🟨')
     : entry.type === 'send-off' ? (SEND_OFF_ICONS[entry.reason] || '🚪')
     : (EVENT_ICONS[entry.type] || '•');
@@ -1121,7 +1154,7 @@ function eventRowHtml(entry, numPeriods) {
       label = `${periodLabel(numPeriods, entry.period)} started`;
       break;
     case 'gk-change':
-      label = `Goalkeeper: ${escapeHtml(entry.inName)} on${entry.outName ? `, ${escapeHtml(entry.outName)} off` : ''} (${periodLabel(numPeriods, entry.period)})`;
+      label = `Goalkeeper: ${escapeHtml(entry.inName)} on${entry.outName ? `, ${escapeHtml(entry.outName)} ${entry.outToField ? 'to field' : 'off'}` : ''} (${periodLabel(numPeriods, entry.period)})`;
       break;
     case 'position-swap':
       label = `Swapped positions: ${escapeHtml(entry.aName)} ↔ ${escapeHtml(entry.bName)}`;
@@ -1129,12 +1162,128 @@ function eventRowHtml(entry, numPeriods) {
     default:
       label = entry.type;
   }
+  const editable = EDITABLE_EVENT_TYPES.includes(entry.type);
   return `
     <div class="sublog-item">
       <span>${icon} ${label}</span>
-      <span class="muted">${formatClock(entry.atSeconds)}</span>
+      <span class="row" style="gap:8px; align-items:center;">
+        <span class="muted">${formatClock(entry.atSeconds)}</span>
+        ${editable ? `<button type="button" class="icon-btn" data-action="edit-sublog-entry" data-index="${index}" aria-label="Edit">✏️</button>` : ''}
+      </span>
     </div>
   `;
+}
+
+// Corrects (or removes) an already-logged goal or save — unlike the pool
+// passed to openGoalModal/the save button (which only offers whoever's
+// actually on the pitch right now), this uses every match-eligible player,
+// since a correction made later — especially after the match — has no
+// reason to be limited to who happened to be on the field at that exact
+// moment.
+function openEditSubLogEntryModal(gameId, index, entry, pool) {
+  if (entry.type === 'goal-us') {
+    const assistOptions = (excludeId) => `<option value="">— none —</option>` + pool
+      .filter((p) => p.id !== excludeId)
+      .map((p) => `<option value="${p.id}" ${p.id === entry.assistId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('');
+    openModal({
+      title: 'Edit Goal',
+      bodyHtml: `
+        <form id="edit-goal-form" class="stack">
+          <div class="field">
+            <label>Who scored?</label>
+            <select name="scorer" required>
+              ${pool.map((p) => `<option value="${p.id}" ${p.id === entry.scorerId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label>Assist (optional)</label>
+            <select name="assist">${assistOptions(entry.scorerId)}</select>
+          </div>
+          <button type="submit" class="btn block">Save Changes</button>
+          <button type="button" class="btn danger block" data-action="delete-entry">🗑 Delete This Goal</button>
+        </form>
+      `,
+      onMount: (modalEl) => {
+        const form = modalEl.querySelector('#edit-goal-form');
+        const scorerSelect = form.querySelector('[name="scorer"]');
+        const assistSelect = form.querySelector('[name="assist"]');
+        scorerSelect.addEventListener('change', () => {
+          const keepAssist = assistSelect.value;
+          assistSelect.innerHTML = assistOptions(scorerSelect.value);
+          if (keepAssist !== scorerSelect.value) assistSelect.value = keepAssist;
+        });
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const fd = new FormData(form);
+          const scorerId = fd.get('scorer');
+          const assistId = fd.get('assist') || null;
+          if (!scorerId) return;
+          const scorer = pool.find((p) => p.id === scorerId);
+          const assist = assistId ? pool.find((p) => p.id === assistId) : null;
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            const e2 = g.live.subLog[index];
+            e2.scorerId = scorerId;
+            e2.scorerName = scorer?.name || '';
+            e2.assistId = assist?.id || null;
+            e2.assistName = assist?.name || '';
+          });
+          closeModal();
+        });
+        modalEl.querySelector('[data-action="delete-entry"]').addEventListener('click', async () => {
+          if (!(await confirmDialog('Delete this goal? This also adjusts the score.', { okLabel: 'Delete', danger: true }))) return;
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            g.live.scoreUs = Math.max(0, g.live.scoreUs - 1);
+            g.live.subLog.splice(index, 1);
+          });
+          closeModal();
+        });
+      },
+    });
+    return;
+  }
+
+  if (entry.type === 'save') {
+    openModal({
+      title: 'Edit Save',
+      bodyHtml: `
+        <form id="edit-save-form" class="stack">
+          <div class="field">
+            <label>Credited to</label>
+            <select name="player">
+              <option value="">— none —</option>
+              ${pool.map((p) => `<option value="${p.id}" ${p.id === entry.playerId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <button type="submit" class="btn block">Save Changes</button>
+          <button type="button" class="btn danger block" data-action="delete-entry">🗑 Delete This Save</button>
+        </form>
+      `,
+      onMount: (modalEl) => {
+        modalEl.querySelector('#edit-save-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const playerId = new FormData(e.target).get('player') || null;
+          const player = playerId ? pool.find((p) => p.id === playerId) : null;
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            const e2 = g.live.subLog[index];
+            e2.playerId = player?.id || null;
+            e2.name = player?.name || '';
+          });
+          closeModal();
+        });
+        modalEl.querySelector('[data-action="delete-entry"]').addEventListener('click', async () => {
+          if (!(await confirmDialog('Delete this save?', { okLabel: 'Delete', danger: true }))) return;
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            g.live.subLog.splice(index, 1);
+          });
+          closeModal();
+        });
+      },
+    });
+  }
 }
 
 function openGoalModal(gameId, pool) {
@@ -1402,19 +1551,45 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
             ${eligible.map((p) => `<option value="${p.id}" ${p.id === currentGkId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
           </select>
         </div>
+        <div class="field" id="prev-gk-destination-field" hidden>
+          <label id="prev-gk-destination-label"></label>
+          <select name="prevGkDestination">
+            <option value="bench">Bench</option>
+            <option value="field">Field — takes over their old spot</option>
+          </select>
+        </div>
         <button type="submit" class="btn block">${advancePeriod ? 'Confirm & Continue' : 'Save'}</button>
       </form>
     `,
     onMount: (modalEl) => {
+      const gkSelect = modalEl.querySelector('[name="gk"]');
+      const destField = modalEl.querySelector('#prev-gk-destination-field');
+      const destLabel = modalEl.querySelector('#prev-gk-destination-label');
+      const prevGkId = game.live.gkByPeriod[game.live.currentPeriod] || null;
+      const prevGk = prevGkId ? active.find((p) => p.id === prevGkId) : null;
+
+      // Only worth asking when the incoming keeper is actually vacating an
+      // outfield spot — that's the only case where "the field" means
+      // something concrete (swap into that exact spot) rather than an
+      // open-ended "pick anywhere," which would need a much bigger picker.
+      function updateDestinationVisibility() {
+        const newGkId = gkSelect.value;
+        const newKeeperWasOnField = newGkId && newGkId !== prevGkId && game.live.onField.includes(newGkId);
+        destField.hidden = !(prevGk && newKeeperWasOnField);
+        if (!destField.hidden) destLabel.textContent = `Where should ${prevGk.name} go?`;
+      }
+      gkSelect.addEventListener('change', updateDestinationVisibility);
+      updateDestinationVisibility();
+
       modalEl.querySelector('#gk-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
         const newGkId = fd.get('gk');
         if (!newGkId) return;
         const newGk = active.find((p) => p.id === newGkId);
+        const sendPrevGkToField = !destField.hidden && fd.get('prevGkDestination') === 'field';
 
         if (!advancePeriod) {
-          const prevGkId = game.live.gkByPeriod[game.live.currentPeriod] || null;
           if (prevGkId && prevGkId !== newGkId) {
             const minStintSeconds = (getState().team.minStintMinutes ?? 4) * 60;
             const prevStint = stintSeconds(game.live, prevGkId);
@@ -1443,12 +1618,18 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
           }
           if (newGkId !== prevGkId) {
             g.live.onField = g.live.onField.filter((id) => id !== newGkId);
+            if (sendPrevGkToField && prevGkId) {
+              g.live.onField.push(prevGkId);
+              g.live.stintStart = g.live.stintStart || {};
+              g.live.stintStart[prevGkId] = g.live.elapsedSeconds;
+            }
             g.live.gkByPeriod[targetPeriod] = newGkId;
             g.live.stintStart = g.live.stintStart || {};
             g.live.stintStart[newGkId] = g.live.elapsedSeconds;
             g.live.subLog.push({
               atSeconds: g.live.elapsedSeconds, type: 'gk-change', period: targetPeriod,
               inId: newGkId, inName: newGk?.name || '', outId: prevGkId, outName: prevGk?.name || '',
+              outToField: sendPrevGkToField,
             });
           } else {
             g.live.gkByPeriod[targetPeriod] = newGkId;
@@ -1460,12 +1641,14 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
           // drift from it.
           if (g.lineup?.slots) {
             // The new keeper may still be holding an outfield slot from
-            // before (e.g. they were playing defense) — clear it, otherwise
-            // the pitch renders them twice: once in goal, once in their old
-            // outfield spot, looking like a duplicate player with the same
-            // name.
+            // before (e.g. they were playing defense) — clear it (or, if
+            // the coach chose to send the outgoing keeper to the field,
+            // hand that exact spot to them instead), otherwise the pitch
+            // renders the new keeper twice: once in goal, once in their
+            // old outfield spot.
             Object.keys(g.lineup.slots).forEach((sid) => {
-              if (sid !== 'gk' && g.lineup.slots[sid] === newGkId) g.lineup.slots[sid] = null;
+              if (sid === 'gk' || g.lineup.slots[sid] !== newGkId) return;
+              g.lineup.slots[sid] = sendPrevGkToField && prevGkId ? prevGkId : null;
             });
             g.lineup.slots.gk = g.live.gkByPeriod[g.live.currentPeriod] || null;
           }
