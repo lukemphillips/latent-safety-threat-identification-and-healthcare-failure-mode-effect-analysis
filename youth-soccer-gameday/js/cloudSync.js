@@ -13,17 +13,25 @@ import { getState, applyCloudSync } from './store.js';
 // Two roles, enforced by the Apps Script itself (see buildAppsScript
 // below), not just by what this app's UI shows:
 //   - "editor" (Full Edit): can push anything — team settings, roster,
-//     matches.
+//     matches, training sessions.
 //   - "matchday": can push match data and add brand-new players (e.g. a
 //     late arrival), but the script silently ignores anything else a
 //     Matchday-token request sends, no matter what this app posts. The
 //     UI additionally hides those controls on a Matchday device (see
 //     isMatchdayOnly, used by roster.js/settings.js) so an edit never
 //     looks like it saved when it didn't.
-// Training sessions and the Drill Library are NOT part of Cloud Sync at
-// all — each coach's plans and drills stay entirely on their own device;
-// pushToCloud never even sends them, so there's nothing for the shared
-// Sheet to store or for another device to pick up.
+// Training sessions sync the same way as the roster — adopted from the
+// cloud unless this device has touched that exact session more recently
+// than its own last sync (see store.js's applyCloudSync). Only the Full
+// Edit token's pushes actually update them server-side, same as team
+// settings; a Matchday push leaves whatever's already stored untouched.
+// The Drill Library is NOT part of Cloud Sync at all — each coach's drills
+// (which can carry large photo/PDF attachments — exactly the kind of data
+// that hit Google Sheets' 50,000-char cell limit) stay entirely on their
+// own device; pushToCloud never sends them, so there's nothing for the
+// shared Sheet to store or for another device to pick up. Drills already
+// have their own ZIP export/import for moving a library between devices
+// by hand.
 //
 // This device's own connection (which URL, which role, when it last
 // synced) lives in its own localStorage key — deliberately separate from
@@ -313,11 +321,16 @@ function doPost(e) {
         players: posted.players,
         games: applyTombstones_(mergeGames_(current ? current.games : [], posted.games), mergedTombstones),
         deletedGameIds: mergedTombstones,
+        // Trusted wholesale, same as players/team — no union-merge
+        // protection, so deleting a session (just omitting it from the
+        // posted list, same as a player) actually sticks.
+        trainings: posted.trainings || [],
       };
     } else {
       // Matchday: only games change, plus any brand-new players (e.g. a
-      // late arrival). Team settings and edits/deletes to existing players
-      // are never accepted from this token, no matter what was posted.
+      // late arrival). Team settings, training sessions, and edits/deletes
+      // to existing players are never accepted from this token, no matter
+      // what was posted.
       if (!current) {
         return jsonResponse_({ error: 'No shared team data yet — ask the Full Edit coach to sync first.' });
       }
@@ -329,6 +342,7 @@ function doPost(e) {
         players: (current.players || []).concat(newPlayers),
         games: applyTombstones_(mergeGames_(current.games, posted.games), mergedTombstones),
         deletedGameIds: mergedTombstones,
+        trainings: current.trainings || [],
       };
     }
 
@@ -516,30 +530,30 @@ export function pullFromCloud(url) {
   return callAppsScriptWithRetries(bustedUrl, { method: 'GET' });
 }
 
-// POST always sends this device's team/roster/matches; the Apps Script
-// itself decides how much of that actually gets written, based on which
-// token the URL carries (see buildAppsScript above) — this file doesn't
-// need to duplicate that logic, only trust the server to enforce it.
-// Training sessions and drills are deliberately never included — see the
-// comment near the top of this file.
+// POST always sends this device's team/roster/matches/training sessions;
+// the Apps Script itself decides how much of that actually gets written,
+// based on which token the URL carries (see buildAppsScript above) — this
+// file doesn't need to duplicate that logic, only trust the server to
+// enforce it. Drills are deliberately never included — see the comment
+// near the top of this file.
 export function pushToCloud(url, coachName) {
-  const { team, players, games, deletedGameIds } = getState();
+  const { team, players, games, trainings, deletedGameIds } = getState();
   return callAppsScriptWithRetries(url, {
     method: 'POST',
-    body: JSON.stringify({ team, players, games, deletedGameIds: deletedGameIds || [], syncedByName: coachName || '' }),
+    body: JSON.stringify({ team, players, games, trainings, deletedGameIds: deletedGameIds || [], syncedByName: coachName || '' }),
   });
 }
 
-// Snapshots this device's current player list alongside the sync
-// timestamp — applyCloudSync (store.js) compares a future pull against
-// this to tell a genuinely unsynced local edit apart from a player it's
-// already in step with, so pulling in the middle of a sync can't silently
-// overwrite an edit that hasn't reached the cloud yet.
+// Snapshots this device's current player list and training sessions
+// alongside the sync timestamp — applyCloudSync (store.js) compares a
+// future pull against this to tell a genuinely unsynced local edit apart
+// from one it's already in step with, so pulling in the middle of a sync
+// can't silently overwrite an edit that hasn't reached the cloud yet.
 function markSynced() {
   const cfg = loadConfig();
   if (!cfg) return;
-  const { players } = getState();
-  saveConfig({ ...cfg, lastSyncedAt: new Date().toISOString(), lastSyncedPlayers: players });
+  const { players, trainings } = getState();
+  saveConfig({ ...cfg, lastSyncedAt: new Date().toISOString(), lastSyncedPlayers: players, lastSyncedTrainings: trainings });
 }
 
 // Generated once, up front, by the Settings modal — before the coach has
@@ -598,7 +612,7 @@ export async function syncNow() {
   if (!cfg) throw new Error('Cloud Sync isn\'t set up on this device yet.');
 
   const pulled = await pullFromCloud(cfg.url);
-  const mergeResult = pulled.data ? applyCloudSync(pulled.data, cfg.lastSyncedPlayers) : null;
+  const mergeResult = pulled.data ? applyCloudSync(pulled.data, cfg.lastSyncedPlayers, cfg.lastSyncedTrainings) : null;
   // Captured from the PULL, before this device's own push below overwrites
   // it on the server — so it reflects whoever synced most recently before
   // this device, which is the useful "who else is syncing with me" signal
