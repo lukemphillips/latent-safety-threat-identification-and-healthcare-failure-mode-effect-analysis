@@ -547,8 +547,10 @@ function openApplySquadModal(sourceGame, candidateGames) {
         <div class="stack" style="gap:6px;">
           ${sorted.map((g) => `
             <label class="checkbox-row">
-              <input type="checkbox" name="targetGameId" value="${g.id}" ${siblingIds.has(g.id) ? 'checked' : ''} />
-              ${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)} — ${formatDate(g.date)}${siblingIds.has(g.id) ? ' <span class="muted small">(same day)</span>' : ''}
+              <input type="checkbox" name="targetGameId" value="${g.id}" checked />
+              <span>
+                ${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)} — ${formatDate(g.date)} · ${formatTime(g.time)}${g.location ? ` · ${escapeHtml(g.location)}` : ''}${siblingIds.has(g.id) ? ' <span class="muted small">(same day)</span>' : ''}
+              </span>
             </label>
           `).join('')}
         </div>

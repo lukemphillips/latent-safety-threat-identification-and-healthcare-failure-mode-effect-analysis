@@ -56,6 +56,8 @@ function assert(cond, msg) {
   await page.click('[data-action="add-game"]');
   await page.waitForSelector('#game-form');
   await page.fill('#game-form [name="opponent"]', 'Squad Push B');
+  await page.fill('#game-form [name="time"]', '14:30');
+  await page.fill('#game-form [name="location"]', 'North Pitch 2');
   await page.click('#game-form button[type="submit"]');
   await page.waitForTimeout(200);
 
@@ -98,14 +100,26 @@ function assert(cond, msg) {
   assert(modalText.includes('Squad Push B'), 'Modal offers Game B as a target');
   assert(!modalText.includes('Squad Push A'), 'Modal never offers the source game itself as a target');
   assert(!modalText.includes(seeded.completedOpponent), `Modal never offers the already-completed game as a target, got text containing it: ${modalText.includes(seeded.completedOpponent)}`);
+  assert(modalText.includes('North Pitch 2'), `Modal shows each candidate's pitch/location, got: ${modalText}`);
+  assert(modalText.includes('2:30'), `Modal shows each candidate's kickoff time, got: ${modalText}`);
 
   // Sample data already seeds one other scheduled game of its own, so the
-  // modal legitimately offers more than just Game B here — check only
-  // Game B's own checkbox, by value, rather than assuming it's the only
-  // option.
+  // modal legitimately offers more than just Game B here.
+  const allCheckboxes = page.locator('#apply-squad-form input[name="targetGameId"]');
+  const checkboxCount = await allCheckboxes.count();
+  assert(checkboxCount >= 2, `At least Game B and the seeded scheduled game are offered, got ${checkboxCount}`);
+  for (let i = 0; i < checkboxCount; i++) {
+    assert(await allCheckboxes.nth(i).isChecked(), `Every target starts pre-checked (apply-to-all by default), checkbox ${i} was not`);
+  }
+
+  // Scope this test to just Game B: uncheck everything else so the
+  // assertions below aren't also reasoning about the seeded game.
   const targetCheckbox = page.locator(`#apply-squad-form input[name="targetGameId"][value="${gameB.id}"]`);
   assert((await targetCheckbox.count()) === 1, `Game B's own checkbox is offered exactly once, got ${await targetCheckbox.count()}`);
-  await targetCheckbox.check();
+  for (let i = 0; i < checkboxCount; i++) {
+    const cb = allCheckboxes.nth(i);
+    if ((await cb.getAttribute('value')) !== gameB.id) await cb.uncheck();
+  }
   await page.click('#apply-squad-form button[type="submit"]');
   await page.waitForSelector('[data-alert-ok]');
   await page.click('[data-alert-ok]');
