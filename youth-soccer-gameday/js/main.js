@@ -20,6 +20,32 @@ initErrorLogging();
 
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
+
+// `position: fixed` anchors to the LAYOUT viewport, not what's actually on
+// screen — pinch-zooming on iOS Safari pans/scales a VISUAL viewport that's
+// smaller than (and offset from) the layout viewport, so a plain fixed
+// bottom nav drifts away from the bottom edge, or off-screen entirely,
+// while zoomed. The fix is to track window.visualViewport ourselves and
+// nudge the nav back into place with a transform whenever it changes
+// (pinch zoom, or the on-screen keyboard resizing it) — browsers without
+// visualViewport (old Safari/WebKit aside) simply keep the CSS-only fixed
+// behavior, which is already correct for them.
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const pinNav = () => {
+    // Keeps the nav's own on-screen size constant (never scales with pinch
+    // zoom — it should stay just as readable zoomed in as not) while
+    // translating it back to the visual viewport's actual bottom-left
+    // corner, which is all a fixed element needs here since the nav is
+    // already full-width.
+    const scale = vv.scale || 1;
+    navEl.style.transform = `translate(${vv.offsetLeft}px, ${vv.offsetTop + vv.height - window.innerHeight}px) scale(${1 / scale})`;
+    navEl.style.transformOrigin = 'bottom left';
+  };
+  vv.addEventListener('resize', pinNav);
+  vv.addEventListener('scroll', pinNav);
+  pinNav();
+}
 const brandNameEl = document.getElementById('brand-team-name');
 const brandBadgeEl = document.getElementById('brand-badge');
 const defaultBadgeHtml = brandBadgeEl.innerHTML;

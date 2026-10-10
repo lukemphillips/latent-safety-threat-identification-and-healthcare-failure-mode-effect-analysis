@@ -278,6 +278,14 @@ function renderSquadTab(container, game) {
   const assignedIds = new Set(Object.values(slots).filter(Boolean));
   const bench = present.filter((p) => !assignedIds.has(p.id));
   const filledCount = Object.values(slots).filter(Boolean).length;
+  // Other fixtures this exact squad decision (who's here + the lineup) could
+  // usefully be copied onto — a tournament day with several matches, or
+  // just the next few league games, being the main cases a coach would
+  // otherwise re-enter attendance and a lineup for one by one. Live/
+  // completed games are excluded: this tab doesn't even render for them,
+  // and overwriting an in-progress or finished match's own record would be
+  // destructive rather than a time-saver.
+  const otherScheduledGames = getState().games.filter((g) => g.id !== game.id && g.status === 'scheduled');
 
   const byId = Object.fromEntries(active.map((p) => [p.id, p]));
 
@@ -312,6 +320,9 @@ function renderSquadTab(container, game) {
         <button class="btn ghost sm" data-action="clear-lineup">Clear Lineup</button>
       </div>
     </div>
+    ${otherScheduledGames.length ? `
+      <button class="btn ghost sm" data-action="apply-squad-to-others" ${present.length ? '' : 'disabled'} style="margin:0 0 10px;">📋 Apply Squad to Other Matches</button>
+    ` : ''}
     <div class="banner info">Tap an open spot on the pitch, then tap a player to place them — or use "Auto-Fill" to place everyone present by their preferred position, then adjust from there.${formationHasGk(formation) ? ` The GK spot sets your ${periodLabel(gameNumPeriods(game, team), 1)} keeper.` : ' This format has no dedicated goalkeeper spot — everyone here is an outfield player.'}</div>
     <div class="pitch-wrap">
       <div class="pitch">
@@ -387,6 +398,11 @@ function renderSquadTab(container, game) {
       Object.keys(g.lineup.slots).forEach((sid) => { g.lineup.slots[sid] = null; });
     });
   });
+
+  const applySquadBtn = container.querySelector('[data-action="apply-squad-to-others"]');
+  if (applySquadBtn) {
+    applySquadBtn.addEventListener('click', () => openApplySquadModal(game, otherScheduledGames));
+  }
 
   const autoFillBtn = container.querySelector('[data-action="auto-fill-lineup"]');
   if (autoFillBtn) {
@@ -502,6 +518,68 @@ function renderSquadTab(container, game) {
       </button>
     `;
   }
+}
+
+// Copies this match's attendance + lineup onto one or more other scheduled
+// fixtures in one go — the tournament-day case (several matches, same
+// squad) and "set next week up the same way" case this was asked for.
+// Deliberately only copies what makes up "the squad decision": presentIds,
+// formationId, and the lineup itself (remapped per target the same way
+// formation-select's own onChange does, so a target with a different squad
+// format/shape still gets something sane rather than slots that don't
+// exist there). RSVPs, opponent/date/time/location, and anything
+// match-specific like the sub plan are left untouched on every target —
+// those are about that match, not the squad playing it.
+function openApplySquadModal(sourceGame, candidateGames) {
+  const siblingIds = new Set(matchDaySiblings(sourceGame).map((g) => g.id));
+  const sorted = [...candidateGames].sort((a, b) => {
+    const aSibling = siblingIds.has(a.id) ? 0 : 1;
+    const bSibling = siblingIds.has(b.id) ? 0 : 1;
+    if (aSibling !== bSibling) return aSibling - bSibling;
+    return (a.date + a.time).localeCompare(b.date + b.time);
+  });
+
+  openModal({
+    title: 'Apply Squad to Other Matches',
+    bodyHtml: `
+      <p class="muted small" style="margin-top:0;">Copies who's here and the lineup from this match onto whichever fixtures you pick below — handy for a tournament day with several matches, or setting the next few up the same way. Each match's own opponent, date/time, and RSVPs are untouched.</p>
+      <form id="apply-squad-form" class="stack">
+        <div class="stack" style="gap:6px;">
+          ${sorted.map((g) => `
+            <label class="checkbox-row">
+              <input type="checkbox" name="targetGameId" value="${g.id}" ${siblingIds.has(g.id) ? 'checked' : ''} />
+              ${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)} — ${formatDate(g.date)}${siblingIds.has(g.id) ? ' <span class="muted small">(same day)</span>' : ''}
+            </label>
+          `).join('')}
+        </div>
+        <button type="submit" class="btn block">Apply Squad</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      const form = modalEl.querySelector('#apply-squad-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const targetIds = fd.getAll('targetGameId');
+        if (!targetIds.length) return;
+        update((state) => {
+          const { team } = state;
+          const source = state.games.find((g) => g.id === sourceGame.id);
+          if (!source) return;
+          targetIds.forEach((targetId) => {
+            const target = touchGame(state, targetId);
+            if (!target || target.status !== 'scheduled') return;
+            target.presentIds = [...(source.presentIds || [])];
+            const targetFormation = formationFor(gameSquadFormat(target, team), source.formationId, team.customFormations || []);
+            target.formationId = targetFormation.id;
+            target.lineup.slots = remapLineupToFormat(source.lineup.slots, targetFormation);
+          });
+        });
+        closeModal();
+        await alertDialog(`Squad applied to ${targetIds.length} match${targetIds.length === 1 ? '' : 'es'}.`);
+      });
+    },
+  });
 }
 
 function renderLiveSquadTab(container, game, active, present, absent) {
