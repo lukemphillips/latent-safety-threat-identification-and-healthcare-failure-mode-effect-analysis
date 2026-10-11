@@ -23,8 +23,10 @@ export function renderSchedule(app) {
     ${upcoming.length ? matchDayGroups(upcoming) : '<div class="card empty">No upcoming games.</div>'}
 
     ${past.length ? `
-      <div class="section-title">Past</div>
-      ${matchDayGroups(past, true)}
+      <details class="card" style="margin-top:16px;">
+        <summary style="cursor:pointer; font-weight:700;">Past (${past.length})</summary>
+        <div style="margin-top:10px;">${matchDayGroups(past, true)}</div>
+      </details>
     ` : ''}
   `;
 

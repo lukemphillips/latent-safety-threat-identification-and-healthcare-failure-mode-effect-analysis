@@ -221,27 +221,32 @@ function goalkeeperStatsHtml() {
   }
   const periodNumbers = Array.from({ length: maxPeriods }, (_, i) => i + 1);
   return `
-    <div class="section-title">🧤 Goalkeeper Appearances</div>
-    <div class="card" style="overflow-x:auto;">
-      <table style="width:100%; border-collapse:collapse; font-size:13px;">
-        <thead>
-          <tr>
-            <th style="text-align:left; padding:6px 8px;">Player</th>
-            ${periodNumbers.map((n) => `<th style="text-align:right; padding:6px 8px; white-space:nowrap;">${escapeHtml(periodLabel(team.numPeriods, n))}</th>`).join('')}
-            <th style="text-align:right; padding:6px 8px;">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map((r) => `
-            <tr style="border-top:1px solid var(--line);">
-              <td style="padding:6px 8px; font-weight:600;">${escapeHtml(r.player.name)}</td>
-              ${periodNumbers.map((n) => `<td style="text-align:right; padding:6px 8px;">${r.byPeriod[n] || 0}</td>`).join('')}
-              <td style="text-align:right; padding:6px 8px; font-weight:700;">${r.total}</td>
+    <details class="card">
+      <summary style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:700;">
+        <span>🧤 Goalkeeper Appearances</span>
+        <span class="small muted">${rows.length} player${rows.length === 1 ? '' : 's'}</span>
+      </summary>
+      <div style="overflow-x:auto; margin-top:10px;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr>
+              <th style="text-align:left; padding:6px 8px;">Player</th>
+              ${periodNumbers.map((n) => `<th style="text-align:right; padding:6px 8px; white-space:nowrap;">${escapeHtml(periodLabel(team.numPeriods, n))}</th>`).join('')}
+              <th style="text-align:right; padding:6px 8px;">Total</th>
             </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            ${rows.map((r) => `
+              <tr style="border-top:1px solid var(--line);">
+                <td style="padding:6px 8px; font-weight:600;">${escapeHtml(r.player.name)}</td>
+                ${periodNumbers.map((n) => `<td style="text-align:right; padding:6px 8px;">${r.byPeriod[n] || 0}</td>`).join('')}
+                <td style="text-align:right; padding:6px 8px; font-weight:700;">${r.total}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </details>
   `;
 }
 

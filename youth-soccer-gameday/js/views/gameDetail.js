@@ -7,6 +7,17 @@ import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../s
 
 let selectingSlotId = null;
 
+// Open/closed state for the Squad tab's collapsible sections — tracked
+// here (like selectingSlotId above) rather than derived fresh from game
+// data on every render, since this tab re-renders itself after nearly
+// every tap (attendance, auto-fill, placing a player...). Deriving "open"
+// from data would make a section the coach just opened snap shut again
+// the moment they tap something unrelated. Attendance starts open (it's
+// the first thing a coach needs); the sub plan starts closed (optional,
+// and the biggest single contributor to how long this tab used to run).
+let squadAttendanceOpen = true;
+let squadSubPlanOpen = false;
+
 // Every pre-match mutation below goes through this rather than a plain
 // state.games.find, so every edit (RSVPs, attendance, lineup, the game's
 // own scheduled details) stamps updatedAt. gameCompleteness (store.js)
@@ -50,15 +61,17 @@ function matchDaySiblingsHtml(game) {
   const siblings = matchDaySiblings(game);
   if (!siblings.length) return '';
   return `
-    <div class="card">
-      <div class="muted small" style="margin-bottom:6px;">Also on this date:</div>
-      ${siblings.map((g) => `
-        <div class="card-row" style="margin-bottom:4px;">
-          <span class="small">${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)} — <span class="badge ${g.status}">${g.status === 'live' ? 'LIVE' : g.status}</span></span>
-          <a class="btn ghost sm" href="#/game/${g.id}${g.status === 'live' ? '/live' : ''}">Open</a>
-        </div>
-      `).join('')}
-    </div>
+    <details class="card">
+      <summary style="cursor:pointer; font-weight:600;" class="small">Also on this date (${siblings.length})</summary>
+      <div style="margin-top:8px;">
+        ${siblings.map((g) => `
+          <div class="card-row" style="margin-bottom:4px;">
+            <span class="small">${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)} — <span class="badge ${g.status}">${g.status === 'live' ? 'LIVE' : g.status}</span></span>
+            <a class="btn ghost sm" href="#/game/${g.id}${g.status === 'live' ? '/live' : ''}">Open</a>
+          </div>
+        `).join('')}
+      </div>
+    </details>
   `;
 }
 
@@ -290,40 +303,47 @@ function renderSquadTab(container, game) {
   const byId = Object.fromEntries(active.map((p) => [p.id, p]));
 
   container.innerHTML = `
-    <div class="section-title" style="margin-top:0;">Who's here today?</div>
-    <div class="card">
-      <div class="spread" style="margin-bottom:10px;">
-        <span class="muted small">${present.length}/${active.length} present${rsvpYes.length ? ` · ${rsvpYes.length} RSVP'd In` : ''}</span>
-        <div class="row" style="gap:8px;">
-          <button class="btn secondary sm" data-action="use-rsvp-list" ${rsvpYes.length ? '' : 'disabled'}>✅ Use RSVP List</button>
-          <button class="btn ghost sm" data-action="mark-all-present">Mark All Present</button>
+    <details class="card" id="attendance-details" style="margin-top:0;" ${squadAttendanceOpen ? 'open' : ''}>
+      <summary style="cursor:pointer; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+        <span>Who's here today?</span>
+        <span class="small muted">${present.length}/${active.length} present</span>
+      </summary>
+      <div style="margin-top:10px;">
+        <div class="spread" style="margin-bottom:10px;">
+          <span class="muted small">${rsvpYes.length ? `${rsvpYes.length} RSVP'd In` : ' '}</span>
+          <div class="row" style="gap:8px;">
+            <button class="btn secondary sm" data-action="use-rsvp-list" ${rsvpYes.length ? '' : 'disabled'}>✅ Use RSVP List</button>
+            <button class="btn ghost sm" data-action="mark-all-present">Mark All Present</button>
+          </div>
+        </div>
+        <div class="chip-list">
+          ${active.length ? active.map((p) => attendanceChipHtml(p, presentIds.has(p.id), game.rsvps?.[p.id])).join('') : '<span class="muted small">No active players on the roster.</span>'}
         </div>
       </div>
-      <div class="chip-list">
-        ${active.length ? active.map((p) => attendanceChipHtml(p, presentIds.has(p.id), game.rsvps?.[p.id])).join('') : '<span class="muted small">No active players on the roster.</span>'}
-      </div>
-    </div>
+    </details>
     ${present.length ? `<a class="btn ghost sm" href="#/balance/${game.id}" style="margin:10px 0; display:inline-flex;">🎲 Balance Teams from today's squad</a>` : ''}
 
-    <div class="field" style="margin:16px 0 0;">
-      <label>Formation</label>
-      <select id="formation-select">
-        ${formationOptions.map((f) => `<option value="${f.id}" ${formation.id === f.id ? 'selected' : ''}>${escapeHtml(f.label)}${f.custom ? ' (yours)' : ''}</option>`).join('')}
-      </select>
-    </div>
-    <div class="muted small" style="margin:4px 0 10px;">Want a different shape? <a href="#/settings">Create your own in Settings</a> — it'll show up here for every ${squadFormat}-a-side game.</div>
-
-    <div class="spread" style="margin:0 0 10px;">
-      <span class="muted small">${formation.label} · ${filledCount}/${formation.slots.length} filled</span>
-      <div class="row" style="gap:8px;">
+    <div class="card" style="margin-top:16px;">
+      <div class="spread" style="gap:10px; flex-wrap:wrap;">
+        <div class="field" style="margin:0; flex:1 1 180px;">
+          <label class="small muted" style="margin-bottom:2px;">Formation</label>
+          <select id="formation-select">
+            ${formationOptions.map((f) => `<option value="${f.id}" ${formation.id === f.id ? 'selected' : ''}>${escapeHtml(f.label)}${f.custom ? ' (yours)' : ''}</option>`).join('')}
+          </select>
+        </div>
+        <span class="small muted" style="white-space:nowrap;">${filledCount}/${formation.slots.length} filled</span>
+      </div>
+      <div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap;">
         <button class="btn secondary sm" data-action="auto-fill-lineup" ${present.length && filledCount < formation.slots.length ? '' : 'disabled'}>⚡ Auto-Fill</button>
         <button class="btn ghost sm" data-action="clear-lineup">Clear Lineup</button>
+        ${otherScheduledGames.length ? `<button class="btn ghost sm" data-action="apply-squad-to-others" ${present.length ? '' : 'disabled'}>📋 Apply to Other Matches</button>` : ''}
       </div>
     </div>
-    ${otherScheduledGames.length ? `
-      <button class="btn ghost sm" data-action="apply-squad-to-others" ${present.length ? '' : 'disabled'} style="margin:0 0 10px;">📋 Apply Squad to Other Matches</button>
-    ` : ''}
-    <div class="banner info">Tap an open spot on the pitch, then tap a player to place them — or use "Auto-Fill" to place everyone present by their preferred position, then adjust from there.${formationHasGk(formation) ? ` The GK spot sets your ${periodLabel(gameNumPeriods(game, team), 1)} keeper.` : ' This format has no dedicated goalkeeper spot — everyone here is an outfield player.'}</div>
+    ${filledCount === 0 ? `
+      <div class="banner info" style="margin-top:10px;">Tap an open spot, then tap a player to place them — or use "Auto-Fill" to place everyone present by their preferred position.${formationHasGk(formation) ? ` The GK spot sets your ${periodLabel(gameNumPeriods(game, team), 1)} keeper.` : ' This format has no dedicated goalkeeper spot — everyone here is an outfield player.'}</div>
+    ` : `
+      <div class="muted small" style="margin-top:10px;">Tap a player on the pitch, then tap another spot or the bench to move or swap them.</div>
+    `}
     <div class="pitch-wrap">
       <div class="pitch">
         ${formation.slots.map((slot) => pitchSlotHtml(slot, slots[slot.id] ? byId[slots[slot.id]] : null)).join('')}
@@ -334,13 +354,21 @@ function renderSquadTab(container, game) {
       ${bench.length ? bench.map((p) => benchChipHtml(p)).join('') : `<span class="muted small">${present.length ? 'Everyone present is on the pitch.' : 'Mark players present above to build your squad.'}</span>`}
     </div>
 
-    ${present.length ? subPlanSectionHtml(game.subPlan || [], byId, { elapsedMinutes: null, showExecute: false }) : ''}
+    ${present.length ? subPlanSectionHtml(game.subPlan || [], byId, { elapsedMinutes: null, showExecute: false, collapsible: true, open: squadSubPlanOpen }) : ''}
 
     ${absent.length ? `
-      <div class="section-title">Not here (${absent.length})</div>
-      <div class="muted small">${absent.map((p) => escapeHtml(p.name)).join(', ')}</div>
+      <details class="card" style="margin-top:16px;">
+        <summary style="cursor:pointer; font-weight:600;" class="small">Not here (${absent.length})</summary>
+        <div class="muted small" style="margin-top:8px;">${absent.map((p) => escapeHtml(p.name)).join(', ')}</div>
+      </details>
     ` : ''}
   `;
+
+  const attendanceDetails = container.querySelector('#attendance-details');
+  if (attendanceDetails) attendanceDetails.addEventListener('toggle', () => { squadAttendanceOpen = attendanceDetails.open; });
+
+  const subPlanDetails = container.querySelector('[data-sub-plan-details]');
+  if (subPlanDetails) subPlanDetails.addEventListener('toggle', () => { squadSubPlanOpen = subPlanDetails.open; });
 
   container.querySelector('[data-action="mark-all-present"]').addEventListener('click', () => {
     update((state) => {
@@ -416,19 +444,48 @@ function renderSquadTab(container, game) {
     });
   }
 
+  // Tapping any pitch slot (filled or empty) selects it; what happens
+  // next depends on the second tap:
+  //   - the SAME slot again        -> deselect, or clear it if it had a
+  //                                    player (one tap to "nevermind", a
+  //                                    second to actually take them off)
+  //   - a DIFFERENT pitch slot     -> swap the two slots' occupants
+  //                                    (either side can be empty, which
+  //                                    makes this a plain move)
+  //   - a bench player             -> that player takes the selected
+  //                                    slot; whoever was already there
+  //                                    (if anyone) goes to the bench
+  // This replaces the old behavior where tapping a filled slot instantly
+  // cleared it and swapping two on-pitch players took three separate
+  // taps (clear one, place the other, re-place the first).
   container.querySelectorAll('[data-pitch-slot]').forEach((el) => {
     el.addEventListener('click', () => {
       const slotId = el.dataset.pitchSlot;
-      const occupantId = slots[slotId];
-      if (occupantId) {
+      if (selectingSlotId === slotId) {
+        selectingSlotId = null;
+        if (slots[slotId]) {
+          update((state) => {
+            const g = touchGame(state, game.id);
+            g.lineup.slots[slotId] = null;
+          });
+        } else {
+          renderSquadTab(container, findGame(game.id));
+        }
+        return;
+      }
+      if (selectingSlotId) {
+        const fromSlotId = selectingSlotId;
         selectingSlotId = null;
         update((state) => {
           const g = touchGame(state, game.id);
-          g.lineup.slots[slotId] = null;
+          const fromOccupant = g.lineup.slots[fromSlotId];
+          const toOccupant = g.lineup.slots[slotId];
+          g.lineup.slots[slotId] = fromOccupant;
+          g.lineup.slots[fromSlotId] = toOccupant;
         });
         return;
       }
-      selectingSlotId = selectingSlotId === slotId ? null : slotId;
+      selectingSlotId = slotId;
       renderSquadTab(container, findGame(game.id));
     });
   });
