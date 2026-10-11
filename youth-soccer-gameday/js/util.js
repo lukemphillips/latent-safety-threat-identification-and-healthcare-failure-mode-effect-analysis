@@ -261,8 +261,20 @@ export function formatPositions(p) {
 // Lineup, Live Game, the squad-rule editor, Balance Teams, or Stats, since
 // they're never actually part of this team's real matches. Everywhere
 // training-related keeps using a plain `p.active` filter instead.
+// Alphabetical by first name (names are stored as one string, so comparing
+// the whole thing sorts by first name first and surname as a tiebreaker) —
+// the consistent order every squad/roster listing across the app uses, so
+// a coach finds the same player in the same spot on every screen instead
+// of whatever order they happened to be added in.
+export function sortPlayersByName(players) {
+  return [...players].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+}
+
+// Sorted by name: every screen that lists a game-day squad (RSVP, Squad
+// tab, honoree pickers, live-game sub/goal/card pickers, Balance Teams)
+// reads alphabetically instead of in whatever order players were added.
 export function matchEligiblePlayers(players) {
-  return players.filter((p) => p.active && !p.isGuest);
+  return sortPlayersByName(players.filter((p) => p.active && !p.isGuest));
 }
 
 // Same "is a substitution worth suggesting right now" rule the live view's

@@ -627,4 +627,15 @@ dialog.modal::backdrop { background: rgba(9, 20, 14, 0.5); }
 .mt-0 { margin-top: 0; }
 .text-center { text-align: center; }
 .chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
+/* A grid of equal-width player chips — attendance pickers, bench/group
+   assignment — as opposed to the free-wrap .chip-list used for filter
+   pills. Player names vary a lot in length, so a plain flex-wrap left
+   ragged, uneven rows; a grid keeps every chip the same width and
+   aligned in neat columns. */
+.player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.player-grid .bench-chip { width: 100%; }
 .small { font-size: 13.5px; }

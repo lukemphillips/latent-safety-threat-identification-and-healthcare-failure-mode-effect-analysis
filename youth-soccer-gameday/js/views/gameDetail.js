@@ -349,7 +349,7 @@ function renderSquadTab(container, game) {
       </div>
     </div>
     <div class="section-title">Bench (${bench.length})</div>
-    <div class="bench-list">
+    <div class="player-grid">
       ${bench.length ? bench.map((p) => benchChipHtml(p)).join('') : `<span class="muted small">${present.length ? 'Everyone present is on the pitch.' : 'Mark players present above to build your squad.'}</span>`}
     </div>
 
@@ -611,7 +611,7 @@ function openAttendanceModal(gameRef) {
           <button class="btn ghost sm" data-action="mark-all-present">Mark All Present</button>
         </div>
       </div>
-      <div class="chip-list">
+      <div class="player-grid">
         ${active.length ? active.map((p) => attendanceChipHtml(p, presentIds.has(p.id), game.rsvps?.[p.id])).join('') : '<span class="muted small">No active players on the roster.</span>'}
       </div>
     `;
@@ -726,7 +726,7 @@ function renderLiveSquadTab(container, game, active, present, absent) {
     <div class="banner info">Game is live. Mark a late arrival present and they'll show up on the bench in the live view right away — <a href="#/game/${game.id}/live">go to Live Game</a>.</div>
     <div class="section-title" style="margin-top:0;">On the squad (${present.length})</div>
     <div class="card">
-      <div class="chip-list">
+      <div class="player-grid">
         ${present.length ? present.map((p) => `
           <span class="bench-chip picking">
             <span class="jersey">${p.jerseyNumber ?? '-'}</span>
@@ -739,7 +739,7 @@ function renderLiveSquadTab(container, game, active, present, absent) {
     ${absent.length ? `
       <div class="section-title">Not here yet (${absent.length})</div>
       <div class="card">
-        <div class="chip-list">
+        <div class="player-grid">
           ${absent.map((p) => `
             <button type="button" class="bench-chip" data-attendance-add="${p.id}">
               <span class="jersey">${p.jerseyNumber ?? '-'}</span>
@@ -766,7 +766,7 @@ function renderCompletedSquadTab(container, present, absent) {
   container.innerHTML = `
     <div class="section-title" style="margin-top:0;">Squad (${present.length})</div>
     <div class="card">
-      <div class="chip-list">
+      <div class="player-grid">
         ${present.length ? present.map((p) => `
           <span class="bench-chip picking">
             <span class="jersey">${p.jerseyNumber ?? '-'}</span>
