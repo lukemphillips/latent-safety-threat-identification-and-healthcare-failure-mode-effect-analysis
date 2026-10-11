@@ -1,6 +1,6 @@
 import { getState, update, resetToSample, clearAllData, restoreFromBackup, mergeBackup, findPlayer, getAutoBackups, restoreAutoBackupById, archivableCounts, buildArchivePayload, removeArchivedData } from '../store.js';
 import { PRESET_FORMATIONS, formationOptionsFor, buildCustomFormation, remapLineupToFormat } from '../formations.js';
-import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers, todayIso } from '../util.js';
+import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers, todayIso, tryDownloadFile } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
 import { APP_VERSION } from '../version.js';
@@ -152,7 +152,7 @@ export function renderSettings(app) {
       <summary style="cursor:pointer; font-weight:700;">${hasSeasonActivity ? 'Backups & data management' : 'Backups & data management — nothing to back up yet'}</summary>
       <div class="stack" style="margin-top:12px;">
       <div class="card stack">
-        <p class="muted small mt-0">Everything here is stored only in this browser — no account, no server. That also means a private/incognito window, a device clearing site data, or opening this on a different browser or device starts from empty, sometimes with no warning. Back up your team from time to time, and definitely before a big change.</p>
+        <p class="muted small mt-0">Everything here is stored only in this browser — no account, no server. That also means a private/incognito window, a device clearing site data, or opening this on a different browser or device starts from empty, sometimes with no warning. Back up your team from time to time, and definitely before a big change. Saves a backup file (and copies the same thing to your clipboard as a fallback) — keep it somewhere safe, or bring it back in later with "Restore from Backup" or "Merge in Another Coach's Backup".</p>
         <button class="btn secondary block" data-action="backup-data">💾 Backup Team Data</button>
         <textarea id="backup-fallback" readonly hidden style="width:100%; min-height:100px; font-family:monospace; font-size:11px; padding:8px; border:1px solid var(--line); border-radius:8px;"></textarea>
         <button class="btn ghost block" data-action="restore-data">📥 Restore from Backup</button>
@@ -283,8 +283,17 @@ export function renderSettings(app) {
   const backupBtn = app.querySelector('[data-action="backup-data"]');
   const backupFallback = app.querySelector('#backup-fallback');
   backupBtn.addEventListener('click', async () => {
+    const { team } = getState();
     const json = JSON.stringify(getState(), null, 2);
     backupFallback.value = json;
+    const nameSlug = (team.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const filename = `bootroom-backup-${nameSlug || 'team'}-${todayIso()}.json`;
+    // Downloading is the main point (a file "Restore"/"Merge" can pick
+    // straight back up with "Choose Backup File"), but it silently no-ops
+    // in a sandboxed context like the Claude Artifact preview — so this
+    // always copies to the clipboard too, same as before, rather than
+    // claiming a download happened when it may not have.
+    tryDownloadFile(filename, json);
     await copyToClipboard(json, {
       onSuccess: () => { backupBtn.textContent = '✅ Copied! Paste it somewhere safe.'; },
       onFallback: () => {
