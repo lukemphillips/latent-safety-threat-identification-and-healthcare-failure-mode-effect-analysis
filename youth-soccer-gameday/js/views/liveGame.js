@@ -1050,10 +1050,10 @@ function fieldCardHtml(p, live, isCompleted, isOnField, team, positionRole) {
   return `
     <div class="field-card ${clickable ? 'subbing' : ''}" style="position:relative;" ${clickable ? `data-onfield-player="${p.id}"` : ''}>
       <div class="row spread" style="padding-right:20px;">
-        <span class="jersey" style="width:26px;height:26px;font-size:12px;">${p.jerseyNumber ?? '-'}</span>
+        <span class="jersey">${p.jerseyNumber ?? '-'}</span>
         <span class="small muted">${positionRole ? escapeHtml(positionRole) : (isOnField ? 'On field' : 'Bench')}</span>
       </div>
-      <div style="font-weight:700; font-size:13.5px; margin-top:4px;">${escapeHtml(p.name)}</div>
+      <div class="field-card-name">${escapeHtml(p.name)}</div>
       <div class="pt">⏱ ${formatClock(seconds)}</div>
       ${stintLine}
       ${!isCompleted ? cardAction : ''}
@@ -1067,10 +1067,10 @@ function benchCardHtml(p, live, subPlan) {
   return `
     <button type="button" class="field-card ${selected ? 'selected-in' : ''}" data-bench-player="${p.id}" style="text-align:left; cursor:pointer;">
       <div class="row spread">
-        <span class="jersey" style="width:26px;height:26px;font-size:12px;">${p.jerseyNumber ?? '-'}</span>
+        <span class="jersey">${p.jerseyNumber ?? '-'}</span>
         <span class="small muted">Bench</span>
       </div>
-      <div style="font-weight:700; font-size:13.5px; margin-top:4px;">${escapeHtml(p.name)}</div>
+      <div class="field-card-name">${escapeHtml(p.name)}</div>
       <div class="pt">⏱ ${formatClock(seconds)}</div>
       ${benchDueLineHtml(p.id, subPlan, live.elapsedSeconds / 60)}
     </button>
