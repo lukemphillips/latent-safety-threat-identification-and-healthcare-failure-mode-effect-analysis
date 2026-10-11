@@ -446,7 +446,7 @@ function leaderRowHtml(row, columns, team) {
     <tr style="border-top:1px solid var(--line);">
       <td style="padding:6px 8px;">
         <div style="font-weight:600;">${escapeHtml(row.player.name)}</div>
-        <div class="muted" style="font-size:11px;">${formatPositions(row.player)}</div>
+        <div class="muted" style="font-size:12px;">${formatPositions(row.player)}</div>
       </td>
       ${columns.map((c) => `<td style="text-align:right; padding:6px 8px;">${cellFor[c.key]}</td>`).join('')}
     </tr>

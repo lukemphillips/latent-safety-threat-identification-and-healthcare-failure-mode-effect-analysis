@@ -110,13 +110,14 @@ button { font: inherit; }
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 8px 4px 10px;
+  padding: 10px 4px 12px;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
+  min-height: 44px;
 }
 .nav-item.active { color: var(--green-600); }
-.nav-icon { font-size: 19px; }
+.nav-icon { font-size: 21px; }
 
 /* Layout helpers */
 .page-title {
@@ -128,9 +129,9 @@ button { font: inherit; }
   margin: 4px 0 16px;
 }
 .page-title h1 { font-size: 21px; margin: 0; }
-.page-title .sub { color: var(--ink-soft); font-size: 13px; margin-top: 2px; }
+.page-title .sub { color: var(--ink-soft); font-size: 14px; margin-top: 2px; }
 .section-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -163,6 +164,9 @@ button { font: inherit; }
 }
 
 /* Buttons */
+/* Every button (bar the deliberately compact .sm) keeps at least a 44px
+   tap target — the standard minimum for a thumb on a touchscreen — since
+   this app is used one-handed, standing, often mid-match. */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -172,11 +176,12 @@ button { font: inherit; }
   border-radius: 10px;
   padding: 10px 16px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
   background: var(--green-600);
   color: #fff;
   white-space: nowrap;
+  min-height: 44px;
 }
 .btn:active { transform: translateY(1px); }
 .btn.secondary {
@@ -195,19 +200,27 @@ button { font: inherit; }
   border-color: var(--red);
 }
 .btn.block { width: 100%; }
-.btn.sm { padding: 6px 10px; font-size: 12.5px; border-radius: 8px; }
-.btn.big { padding: 14px 18px; font-size: 16px; }
+/* Still deliberately compact for rows of minor, infrequent actions (Cancel,
+   Change, Recover) — but bumped up from the original 12.5px/29px-tall
+   version, which was too small to reliably hit by touch. */
+.btn.sm { padding: 9px 13px; font-size: 13.5px; border-radius: 8px; min-height: 38px; }
+.btn.big { padding: 14px 18px; font-size: 17px; min-height: 52px; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .icon-btn {
   border: none;
   background: transparent;
   color: var(--ink-soft);
-  font-size: 16px;
+  font-size: 18px;
   cursor: pointer;
-  padding: 6px;
+  padding: 8px;
   line-height: 1;
   border-radius: 8px;
+  min-width: 38px;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .icon-btn:hover { background: var(--green-100); }
 
@@ -220,7 +233,7 @@ button { font: inherit; }
 .field { margin-bottom: 14px; }
 .field label {
   display: block;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--ink-soft);
   margin-bottom: 5px;
@@ -251,16 +264,32 @@ button { font: inherit; }
 }
 .field-row { display: flex; gap: 10px; }
 .field-row .field { flex: 1; }
-.checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  padding: 6px 0;
+  min-height: 44px;
+}
+/* Native checkboxes/radios default to ~13px, too small to reliably tap —
+   every checkbox-row list (RSVP picks, player-of-the-week, settings
+   toggles) gets a real touch target. */
+.checkbox-row input[type="checkbox"],
+.checkbox-row input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
 
 /* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 700;
 }
 .badge.yes { background: var(--green-100); color: var(--green-700); }
@@ -303,8 +332,8 @@ button { font: inherit; }
   flex-shrink: 0;
 }
 .player-meta { flex: 1; min-width: 0; }
-.player-name { font-weight: 600; font-size: 14.5px; }
-.player-sub { color: var(--ink-soft); font-size: 12.5px; }
+.player-name { font-weight: 600; font-size: 15.5px; }
+.player-sub { color: var(--ink-soft); font-size: 13.5px; }
 .player-name.inactive { color: var(--ink-soft); text-decoration: line-through; }
 
 /* Tabs */
@@ -319,11 +348,15 @@ button { font: inherit; }
 .tab {
   flex: 1;
   text-align: center;
-  padding: 8px 6px;
+  padding: 11px 6px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink-soft);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .tab.active { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
 
@@ -332,16 +365,17 @@ button { font: inherit; }
 .rsvp-btn {
   border: 1px solid var(--line);
   background: #fff;
-  padding: 6px 10px;
+  padding: 9px 13px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
+  min-height: 38px;
 }
 .rsvp-btn.yes.active { background: var(--green-600); color: #fff; border-color: var(--green-600); }
 .rsvp-btn.no.active { background: var(--red); color: #fff; border-color: var(--red); }
 .rsvp-btn.maybe.active { background: var(--amber); color: #fff; border-color: var(--amber); }
-.rsvp-summary { display: flex; gap: 14px; font-size: 13px; color: var(--ink-soft); }
+.rsvp-summary { display: flex; gap: 14px; font-size: 14px; color: var(--ink-soft); }
 
 /* Pitch */
 .pitch-wrap { margin-bottom: 14px; }
@@ -409,7 +443,7 @@ button { font: inherit; }
 .pitch-slot.selecting .chip { outline: 3px solid #fff; outline-offset: 2px; }
 .pitch-slot .chip.subbable, .pitch-slot .chip.fillable { cursor: pointer; }
 .pitch-slot .slot-label {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 700;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0,0,0,0.4);
@@ -424,16 +458,17 @@ button { font: inherit; }
 .bench-chip {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 999px;
-  padding: 6px 12px 6px 6px;
-  font-size: 13px;
+  padding: 8px 16px 8px 8px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  min-height: 40px;
 }
-.bench-chip .jersey { width: 24px; height: 24px; font-size: 11px; }
+.bench-chip .jersey { width: 26px; height: 26px; font-size: 12px; }
 .bench-chip.disabled { opacity: 0.4; cursor: not-allowed; }
 .bench-chip.picking { outline: 2px solid var(--green-600); }
 
@@ -461,7 +496,7 @@ button { font: inherit; }
 }
 .live-mini-score {
   flex: 1;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-soft);
   font-weight: 600;
   overflow: hidden;
@@ -472,11 +507,15 @@ button { font: inherit; }
   display: flex;
   gap: 6px;
 }
+/* Still a compact "mini" bar — it's pinned at the top while the rest of
+   the page scrolls — but bumped from a ~24px-tall tap target to a real
+   one, since this is one of the two places a coach taps to log a goal. */
 .live-mini-actions .btn {
   flex: 1;
-  padding: 6px 4px;
-  font-size: 11.5px;
+  padding: 10px 4px;
+  font-size: 13px;
   white-space: nowrap;
+  min-height: 40px;
 }
 .timer-card {
   text-align: center;
@@ -500,7 +539,7 @@ button { font: inherit; }
 .score-team .label { font-size: 12px; color: var(--ink-soft); font-weight: 700; text-transform: uppercase; }
 .score-team .value { font-size: 34px; font-weight: 800; }
 .score-controls { display: flex; gap: 6px; justify-content: center; margin-top: 6px; }
-.timer-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.timer-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; }
 
 .onfield-grid {
   display: grid;
@@ -529,8 +568,8 @@ button { font: inherit; }
 .sublog-item {
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
-  padding: 6px 0;
+  font-size: 14px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--line);
 }
 .sublog-item:last-child { border-bottom: none; }
@@ -588,4 +627,4 @@ dialog.modal::backdrop { background: rgba(9, 20, 14, 0.5); }
 .mt-0 { margin-top: 0; }
 .text-center { text-align: center; }
 .chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.small { font-size: 12.5px; }
+.small { font-size: 13.5px; }

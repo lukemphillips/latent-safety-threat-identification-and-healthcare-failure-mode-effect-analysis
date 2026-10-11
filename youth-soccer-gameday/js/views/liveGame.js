@@ -134,13 +134,13 @@ export function renderLiveGame(app, gameId) {
         <div class="score-team">
           <div class="label">Us</div>
           <div class="value">${live.scoreUs}</div>
-          ${isCompleted ? '' : `<div class="score-controls"><button class="btn sm secondary" data-action="log-goal-us">⚽ Log Goal</button></div>`}
+          ${isCompleted ? '' : `<div class="score-controls"><button class="btn secondary" data-action="log-goal-us">⚽ Log Goal</button></div>`}
         </div>
         <div style="font-size:20px; font-weight:700; color:var(--ink-soft);">–</div>
         <div class="score-team">
           <div class="label">${escapeHtml(game.opponent)}</div>
           <div class="value">${live.scoreThem}</div>
-          ${isCompleted ? '' : `<div class="score-controls"><button class="btn sm ghost" data-action="log-goal-them">+1</button></div>`}
+          ${isCompleted ? '' : `<div class="score-controls"><button class="btn ghost" data-action="log-goal-them">+1</button></div>`}
         </div>
       </div>
 
@@ -149,10 +149,10 @@ export function renderLiveGame(app, gameId) {
           <button class="btn big ${live.running ? 'secondary' : ''}" data-action="toggle-run">${live.running ? '⏸ Pause' : '▶ Start'} Clock</button>
         </div>
         <div class="timer-actions">
-          ${hasGk ? `<button class="btn ghost sm" data-action="log-save">🧤 GK Save</button>` : ''}
-          <button class="btn ghost sm" data-action="open-card-picker">${team.enableCards ? '🟨 Card' : '🚑 Remove'}</button>
+          ${hasGk ? `<button class="btn ghost" data-action="log-save">🧤 GK Save</button>` : ''}
+          <button class="btn ghost" data-action="open-card-picker">${team.enableCards ? '🟨 Card' : '🚑 Remove'}</button>
           ${live.currentPeriod < numPeriods
-            ? `<button class="btn secondary sm" data-action="next-period">Next: ${periodLabel(numPeriods, live.currentPeriod + 1)}</button>`
+            ? `<button class="btn secondary" data-action="next-period">Next: ${periodLabel(numPeriods, live.currentPeriod + 1)}</button>`
             : ''}
         </div>
         <div class="timer-actions">
