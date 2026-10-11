@@ -36,6 +36,24 @@ function sortColumns(team) {
 let sortKey = 'goals';
 let sortDir = 'desc';
 
+// Sorting the Leaders table re-renders the whole Stats page, which would
+// otherwise snap every open <details> (Earlier Weeks, Goalkeeper
+// Appearances, History months, Head-to-Head) back closed. Keyed open/closed
+// state survives that re-render; a key only appears here once the coach has
+// actually toggled it, so sections keep whatever default they're given below
+// until then.
+const detailsOpenState = {};
+function isDetailsOpen(key, defaultOpen) {
+  return key in detailsOpenState ? detailsOpenState[key] : defaultOpen;
+}
+function trackDetailsToggle(app) {
+  app.querySelectorAll('details[data-details-key]').forEach((el) => {
+    el.addEventListener('toggle', () => {
+      detailsOpenState[el.dataset.detailsKey] = el.open;
+    });
+  });
+}
+
 function computeLeaderRows() {
   const { players, games, trainings, team } = getState();
   const active = matchEligiblePlayers(players);
@@ -221,7 +239,7 @@ function goalkeeperStatsHtml() {
   }
   const periodNumbers = Array.from({ length: maxPeriods }, (_, i) => i + 1);
   return `
-    <details class="card">
+    <details class="card" data-details-key="goalkeeper" ${isDetailsOpen('goalkeeper', false) ? 'open' : ''}>
       <summary style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:700;">
         <span>🧤 Goalkeeper Appearances</span>
         <span class="small muted">${rows.length} player${rows.length === 1 ? '' : 's'}</span>
@@ -278,7 +296,7 @@ export function renderStats(app) {
       <div class="section-title">🏅 Player of the Week</div>
       <div id="recent-weeks">${recentWeeks.map(weekRowHtml).join('')}</div>
       ${earlierWeeks.length ? `
-        <details class="card" id="earlier-weeks">
+        <details class="card" id="earlier-weeks" data-details-key="earlier-weeks" ${isDetailsOpen('earlier-weeks', false) ? 'open' : ''}>
           <summary style="cursor:pointer; font-weight:700;">${earlierWeeks.length} earlier week${earlierWeeks.length === 1 ? '' : 's'}</summary>
           <div class="stack" style="margin-top:10px;">${earlierWeeks.map(weekRowHtml).join('')}</div>
         </details>
@@ -317,6 +335,8 @@ export function renderStats(app) {
       ${h2h.map(h2hRowHtml).join('')}
     ` : ''}
   `;
+
+  trackDetailsToggle(app);
 
   app.querySelectorAll('[data-sort-col]').forEach((th) => {
     th.addEventListener('click', () => {
@@ -436,10 +456,11 @@ function leaderRowHtml(row, columns, team) {
 // One drop-down per calendar month — the most recent starts open, every
 // earlier one starts collapsed, so History reads as a handful of tappable
 // headers instead of a scroll through every match the team's ever played.
-function historyMonthHtml(month, isOpen) {
+function historyMonthHtml(month, isOpenByDefault) {
   const record = (month.w || month.d || month.l) ? ` — ${month.w}W ${month.d}D ${month.l}L` : '';
+  const key = `month:${month.key}`;
   return `
-    <details class="card" data-month="${month.key}" ${isOpen ? 'open' : ''}>
+    <details class="card" data-month="${month.key}" data-details-key="${key}" ${isDetailsOpen(key, isOpenByDefault) ? 'open' : ''}>
       <summary style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:700;">
         <span>${escapeHtml(monthLabel(month.key))}</span>
         <span class="small muted" style="font-weight:400;">${month.games.length} match${month.games.length === 1 ? '' : 'es'}${record}</span>
@@ -480,8 +501,9 @@ function resultBadge(us, them) {
 }
 
 function h2hRowHtml(entry) {
+  const key = `h2h:${entry.opponent}`;
   return `
-    <details class="card">
+    <details class="card" data-details-key="${key}" ${isDetailsOpen(key, false) ? 'open' : ''}>
       <summary style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">${escapeHtml(entry.opponent)}</span>
         <span class="small muted">${entry.w}W ${entry.d}D ${entry.l}L</span>
