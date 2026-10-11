@@ -240,6 +240,14 @@ button { font: inherit; }
   color: var(--ink);
 }
 .field textarea { resize: vertical; min-height: 64px; }
+/* Bigger, bolder text for dropdowns (and the options list a browser
+   renders with it) so a sub/scorer/GK pick is easy to read on a bright
+   sideline when selecting mid-match. */
+.field select {
+  padding: 12px 14px;
+  font-size: 17px;
+  font-weight: 600;
+}
 .field-row { display: flex; gap: 10px; }
 .field-row .field { flex: 1; }
 .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
