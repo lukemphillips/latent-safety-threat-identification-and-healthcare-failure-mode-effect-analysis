@@ -6,9 +6,11 @@
 // reworked interaction: tapping any slot (filled or empty) selects it;
 // a second tap on another slot swaps/moves, a second tap on a bench
 // player substitutes them in, and tapping the SAME slot again clears it.
-// Also covers the Squad tab's new collapsible sections (attendance starts
-// open, the Substitution Plan starts closed) added in the same pass to
-// cut down how much is on screen at once.
+// Also covers Attendance and the Substitution Plan now living in their
+// own modals rather than an inline collapsible section — a collapsed
+// <details> there had to survive the Squad tab's own frequent full
+// re-renders (every lineup action re-renders the whole tab) and would
+// sometimes pop back open; a modal's DOM isn't touched by that at all.
 const { launch, BASE_URL } = require('./support/launch');
 
 const BASE = BASE_URL;
@@ -42,17 +44,50 @@ function assert(cond, msg) {
   await page.goto(`${BASE}/index.html#/game/${game.id}/lineup`);
   await page.waitForTimeout(200);
 
-  // ============ Collapsible sections: attendance open, sub plan closed, by default ============
-  const attendanceOpen = await page.$eval('#attendance-details', (el) => el.open);
-  assert(attendanceOpen, 'Attendance section starts open (nothing marked present yet)');
+  // ============ Mark All Present is a direct, one-tap action on the main tab ============
+  const presentBefore = await page.$eval('[data-action="open-attendance"]', (btn) => btn.closest('.card').querySelector('.small.muted').textContent);
+  assert(presentBefore.includes('0/12 present'), `Squad tab shows a compact attendance summary before opening it, got "${presentBefore}"`);
 
   await page.click('[data-action="mark-all-present"]');
   await page.waitForTimeout(150);
+  const summaryAfterMarkAll = await page.$eval('[data-action="open-attendance"]', (btn) => btn.closest('.card').querySelector('.small.muted').textContent);
+  assert(summaryAfterMarkAll.includes('12/12 present'), `Mark All Present works directly on the tab, no modal needed, got "${summaryAfterMarkAll}"`);
+
+  // ============ "Edit" opens a modal for fine-grained per-player attendance ============
+  await page.click('[data-action="open-attendance"]');
+  await page.waitForSelector('[data-attendance-toggle]');
+  const firstChip = page.locator('[data-attendance-toggle]').first();
+  const firstChipId = await firstChip.getAttribute('data-attendance-toggle');
+  await firstChip.click();
+  await page.waitForTimeout(150);
+  const presentInModal = await page.$eval('#attendance-modal-body .muted.small', (el) => el.textContent);
+  assert(presentInModal.includes('11/12 present'), `Toggling one player off inside the modal updates the modal in place, got "${presentInModal}"`);
+  await page.click('[data-close-modal]');
+  await page.waitForTimeout(150);
+  const summaryAfterClose = await page.$eval('[data-action="open-attendance"]', (btn) => btn.closest('.card').querySelector('.small.muted').textContent);
+  assert(summaryAfterClose.includes('11/12 present'), `Closing the modal leaves the Squad tab's own summary updated too, got "${summaryAfterClose}"`);
+
+  // Put that player back present so Auto-Fill below has the full 12 to work with.
+  await page.evaluate(async ({ gameId, playerId }) => {
+    const mod = await import('/js/store.js');
+    mod.update((state) => {
+      const g = state.games.find((x) => x.id === gameId);
+      g.presentIds = [...new Set([...(g.presentIds || []), playerId])];
+    });
+  }, { gameId: game.id, playerId: firstChipId });
+  await page.waitForTimeout(150);
+
   await page.click('[data-action="auto-fill-lineup"]');
   await page.waitForTimeout(150);
 
-  const subPlanOpenByDefault = await page.$eval('[data-sub-plan-details]', (el) => el.open);
-  assert(!subPlanOpenByDefault, 'Substitution Plan section starts collapsed');
+  // ============ Substitution Plan lives in its own modal ============
+  await page.waitForSelector('[data-action="open-sub-plan"]');
+  const subPlanBtnText = await page.$eval('[data-action="open-sub-plan"]', (el) => el.textContent);
+  assert(subPlanBtnText.includes('Add Planned Sub'), `Squad tab's sub plan button reflects there's nothing planned yet, got "${subPlanBtnText}"`);
+  await page.click('[data-action="open-sub-plan"]');
+  await page.waitForSelector('text=No subs planned yet.');
+  await page.click('[data-close-modal]');
+  await page.waitForTimeout(150);
 
   // ============ Swap two already-placed players in one tap each ============
   const before = await page.evaluate(async (id) => {

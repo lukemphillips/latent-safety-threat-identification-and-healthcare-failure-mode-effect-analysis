@@ -1,9 +1,15 @@
-// Three sections that used to always render fully expanded, now tucked
+// Two sections that used to always render fully expanded are now tucked
 // behind a <details>/<summary> disclosure (same convention already used
 // by Stats' "earlier weeks" and head-to-head cards): the Schedule page's
-// "Past" matches, the game detail header's "Also on this date" card
-// (shown when two+ fixtures share a date), and Stats' Goalkeeper
-// Appearances table.
+// "Past" matches and Stats' Goalkeeper Appearances table. Both pages are
+// stable here — nothing on them re-renders the page in place from an
+// unrelated click — so a plain <details> is safe. The game detail
+// header's "Also on this date" card (shown when two+ fixtures share a
+// date) started out collapsible too, but that header re-renders on
+// every Squad tab action (any lineup edit re-renders the whole game
+// detail page, not just the tab), which risked the same "pops back
+// open" problem the Squad tab's own sections had — it's a plain,
+// always-visible card instead now, covered below for completeness.
 const { launch, BASE_URL } = require('./support/launch');
 
 const BASE = BASE_URL;
@@ -46,7 +52,7 @@ function assert(cond, msg) {
   assert(await pastDetails.evaluate((el) => el.open), 'Clicking the summary opens the Past section');
   assert((await pastDetails.locator('a.card').count()) >= completedCount, 'Opening it reveals the past game cards');
 
-  // ============ Game detail: "Also on this date" is collapsible ============
+  // ============ Game detail: "Also on this date" is a plain always-visible card ============
   await page.goto(BASE + '/index.html#/schedule');
   await page.waitForTimeout(150);
   await page.click('[data-action="add-game"]');
@@ -70,12 +76,8 @@ function assert(cond, msg) {
 
   await page.goto(`${BASE}/index.html#/game/${firstGame.id}`);
   await page.waitForTimeout(200);
-  const siblingDetails = page.locator('details:has-text("Also on this date")');
-  assert((await siblingDetails.count()) === 1, 'Game detail shows the "Also on this date" disclosure once a sibling fixture exists');
-  assert(!(await siblingDetails.evaluate((el) => el.open)), 'It starts collapsed');
-  await siblingDetails.locator('summary').click();
-  await page.waitForTimeout(100);
-  assert((await siblingDetails.locator('text=Sibling Match FC').count()) > 0, 'Opening it reveals the sibling match');
+  assert((await page.locator('text=Also on this date:').count()) === 1, 'Game detail shows the "Also on this date" card once a sibling fixture exists');
+  assert((await page.locator('text=Sibling Match FC').count()) > 0, 'It\'s visible immediately, no disclosure to open (this header re-renders on every Squad tab action, so it is not collapsible)');
 
   // ============ Stats page: Goalkeeper Appearances is collapsible ============
   await page.goto(BASE + '/index.html#/stats');

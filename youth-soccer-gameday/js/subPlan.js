@@ -81,7 +81,10 @@ export function openSubPlanEntryForm({ existing, outgoingOptions, incomingOption
   });
 }
 
-function subPlanRowHtml(entry, byId, { elapsedMinutes, showExecute }) {
+// Exported so the Squad tab's own modal-based plan list (gameDetail.js)
+// can render the same rows without duplicating this markup — see
+// openSubPlanListModal there.
+export function subPlanRowHtml(entry, byId, { elapsedMinutes, showExecute }) {
   const outName = escapeHtml(byId[entry.outId]?.name || '?');
   const inName = escapeHtml(byId[entry.inId]?.name || '?');
   let statusHtml = `<span class="badge pending">at ${entry.atMinute}′</span>`;
@@ -108,31 +111,21 @@ function subPlanRowHtml(entry, byId, { elapsedMinutes, showExecute }) {
 // elapsedMinutes: pass null pre-match (no clock yet — just shows the
 // planned minute), or the live match's current elapsed minutes to show a
 // due-now/countdown badge instead. showExecute only makes sense live.
-// collapsible/open: the pre-match Squad tab wraps this in a <details> (it
-// was the single biggest contributor to how long that tab ran) with its
-// own open state tracked by the caller, passed back in via `open`, since
-// re-deriving it from data on every render would make it snap shut again
-// the moment the coach taps something unrelated. The live match tracker
-// never passes these, so it keeps the plain always-visible layout it's
-// always had.
-export function subPlanSectionHtml(subPlan, byId, { elapsedMinutes = null, showExecute = false, collapsible = false, open = true } = {}) {
+// Used as-is by the live match tracker; the pre-match Squad tab instead
+// shows a one-line summary and manages the plan in its own modal (see
+// openSubPlanListModal in gameDetail.js) — easier to follow, and avoids
+// an inline collapsed section having to survive the Squad tab's own
+// frequent full re-renders (every lineup action re-renders the whole
+// tab), which is what made it occasionally pop back open.
+export function subPlanSectionHtml(subPlan, byId, { elapsedMinutes = null, showExecute = false } = {}) {
   const sorted = sortSubPlan(subPlan);
-  const bodyHtml = `
-    <p class="muted small" style="margin:0 0 8px;">Your own rotation schedule — advisory only, nothing here subs a player on its own. ${showExecute ? 'Tap "Sub Now" when you\'re ready to actually make the swap.' : "Build it now, then work through it once the match is live."}</p>
-    ${sorted.length ? sorted.map((entry) => subPlanRowHtml(entry, byId, { elapsedMinutes, showExecute })).join('') : '<p class="muted small" style="margin:0;">No subs planned yet.</p>'}
-    <button type="button" class="btn ghost sm block" data-action="add-plan-entry" style="margin-top:${sorted.length ? '10px' : '0'};">+ Add Planned Sub</button>
-  `;
-  if (collapsible) {
-    return `
-      <details class="card" data-sub-plan-details style="margin-top:16px;" ${open ? 'open' : ''}>
-        <summary style="cursor:pointer; font-weight:700;">📋 Substitution Plan${sorted.length ? ` (${sorted.length})` : ''}</summary>
-        <div style="margin-top:10px;">${bodyHtml}</div>
-      </details>
-    `;
-  }
   return `
     <div class="section-title">📋 Substitution Plan</div>
-    <div class="card">${bodyHtml}</div>
+    <div class="card">
+      <p class="muted small" style="margin:0 0 8px;">Your own rotation schedule — advisory only, nothing here subs a player on its own. ${showExecute ? 'Tap "Sub Now" when you\'re ready to actually make the swap.' : "Build it now, then work through it once the match is live."}</p>
+      ${sorted.length ? sorted.map((entry) => subPlanRowHtml(entry, byId, { elapsedMinutes, showExecute })).join('') : '<p class="muted small" style="margin:0;">No subs planned yet.</p>'}
+      <button type="button" class="btn ghost sm block" data-action="add-plan-entry" style="margin-top:${sorted.length ? '10px' : '0'};">+ Add Planned Sub</button>
+    </div>
   `;
 }
 
