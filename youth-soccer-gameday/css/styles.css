@@ -374,8 +374,8 @@ button { font: inherit; }
   width: 66px;
 }
 .pitch-slot .chip {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: #fff;
   border: 3px solid var(--green-100);
@@ -383,15 +383,19 @@ button { font: inherit; }
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--green-700);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 .pitch-slot.empty .chip {
-  background: rgba(255,255,255,0.18);
-  border: 2px dashed rgba(255,255,255,0.7);
+  /* A faint translucent dot used to all but disappear against the green
+     pitch, especially in bright sunlight on a phone — a real sideline
+     condition, not just a display setting. A solid, visibly bordered
+     circle reads clearly even glancing at it quickly mid-match. */
+  background: rgba(255,255,255,0.38);
+  border: 3px dashed #fff;
   color: #fff;
-  font-size: 11px;
+  font-size: 13px;
 }
 .pitch-slot.selecting .chip { outline: 3px solid #fff; outline-offset: 2px; }
 .pitch-slot .chip.subbable, .pitch-slot .chip.fillable { cursor: pointer; }
