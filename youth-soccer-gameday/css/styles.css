@@ -10,6 +10,7 @@
   --card: #ffffff;
   --bg: #f4f7f5;
   --amber: #b8860b;
+  --amber-dark: #8a5a00;
   --amber-bg: #fdf3d9;
   --red: #c0392b;
   --red-bg: #fbe6e3;
@@ -536,12 +537,19 @@ button { font: inherit; }
 
 .banner {
   border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 13.5px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
   margin-bottom: 12px;
 }
 .banner.info { background: #eaf1ff; color: var(--blue); }
-.banner.warn { background: var(--amber-bg); color: var(--amber); }
+/* Darker amber text + a left border give the fair-play/suggested-sub
+   banner real contrast in bright sideline light — the plain amber-on-tint
+   pairing read as a faint smear at a glance. */
+.banner.warn { background: var(--amber-bg); color: var(--amber-dark); border-left: 4px solid var(--amber); }
+.banner.warn strong { color: var(--ink); }
+.banner.warn .btn { font-size: 14px; font-weight: 700; }
 
 /* Modal */
 dialog.modal {
