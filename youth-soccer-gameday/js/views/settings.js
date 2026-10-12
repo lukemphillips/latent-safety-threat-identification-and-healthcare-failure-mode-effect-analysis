@@ -80,6 +80,8 @@ export function renderSettings(app) {
           </select>
         </div>
       </div>
+      <button type="button" class="btn secondary block" data-action="save-team-top">Save Team Settings</button>
+      <p class="muted small mt-0" style="text-align:center;">↓ More match-rule settings below — this button saves everything on the page, so it's safe to tap now or after.</p>
       <div class="field-row">
         <div class="field">
           <label>Default minutes per period</label>
@@ -216,7 +218,16 @@ export function renderSettings(app) {
     });
   }
 
-  app.querySelector('#team-form').addEventListener('submit', (e) => {
+  const teamForm = app.querySelector('#team-form');
+  const saveTeamTopBtn = app.querySelector('[data-action="save-team-top"]');
+  // A second Save button right under the identity fields (name/age
+  // group/format), since the real submit button sits below several more
+  // fields a coach may never scroll to — without this, typing a team name
+  // and tapping straight to another tab silently discarded it. Triggers
+  // the exact same submit handler below rather than duplicating it.
+  if (saveTeamTopBtn) saveTeamTopBtn.addEventListener('click', () => teamForm.requestSubmit());
+
+  teamForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const newFormat = Number(fd.get('squadFormat'));
