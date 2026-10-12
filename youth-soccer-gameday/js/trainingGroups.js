@@ -17,11 +17,14 @@ const STREAM_LABEL = { A: 'A', B: 'B', C: 'C', D: 'D', null: 'Unclassified' };
 // still be broken into coachable sub-groups.
 //
 // `balance`, when true, runs a final pass that evens out group sizes —
-// repeatedly moving one player from the current largest group into
-// whichever group tied for smallest sits closest to it (in stream order),
-// until no group has more than one extra player over any other. This can
-// mix a player into a neighbouring stream, trading a little of the
-// same-ability clustering for fairer numbers.
+// repeatedly moving one player from the current largest group into the
+// smallest group that's genuinely adjacent to it in skill level (one step
+// away in A/B/C/D order), until no group has more than one extra player
+// over any other, or there's no adjacent-enough group left to move into.
+// This can mix a player into a neighbouring stream, trading a little of
+// the same-ability clustering for fairer numbers — but never further than
+// one stream away, so it'll never pair up, say, A with D just because
+// those happen to be the only two streams anyone's in.
 export function buildGroupsByStream(players, targetCount = null, balance = false) {
   let buckets = STREAM_ORDER
     .map((stream) => ({ streams: [stream], players: players.filter((p) => (p.skillStream || null) === stream) }))
@@ -72,20 +75,46 @@ export function buildGroupsByStream(players, targetCount = null, balance = false
   });
 }
 
+// How many skill-stream steps apart two buckets are, at their closest —
+// e.g. a plain "B" bucket and a merged "C+D" bucket are 1 step apart (B to
+// C), not 2. Buckets are filtered to streams actually present before this
+// runs, so their position in the `buckets` array alone says nothing about
+// real skill distance once a stream in between has nobody in it.
+function bucketDistance(a, b) {
+  let min = Infinity;
+  a.streams.forEach((sa) => {
+    b.streams.forEach((sb) => {
+      const d = Math.abs(STREAM_ORDER.indexOf(sa) - STREAM_ORDER.indexOf(sb));
+      if (d < min) min = d;
+    });
+  });
+  return min;
+}
+
 function balanceBucketSizes(buckets) {
   const work = buckets.map((b) => ({ ...b, players: [...b.players] }));
   for (let guard = 0; guard < 1000; guard++) {
-    let maxIdx = 0;
-    work.forEach((b, i) => { if (b.players.length > work[maxIdx].players.length) maxIdx = i; });
-    const minSize = Math.min(...work.map((b) => b.players.length));
-    if (work[maxIdx].players.length - minSize <= 1) break;
-
-    let minIdx = -1;
-    work.forEach((b, i) => {
-      if (b.players.length !== minSize) return;
-      if (minIdx === -1 || Math.abs(i - maxIdx) < Math.abs(minIdx - maxIdx)) minIdx = i;
-    });
-    work[minIdx].players.push(work[maxIdx].players.pop());
+    // Try the largest bucket first; if it has no adjacent-enough group to
+    // give a player to, try the next-largest, and so on — a size gap that
+    // can only be closed by crossing more than one stream is left alone
+    // rather than forced.
+    const byDescSize = work.map((_, i) => i).sort((x, y) => work[y].players.length - work[x].players.length);
+    let moved = false;
+    for (const maxIdx of byDescSize) {
+      if (work[maxIdx].players.length < 2) break; // nothing left big enough to be worth balancing further
+      let minIdx = -1;
+      work.forEach((b, i) => {
+        if (i === maxIdx) return;
+        if (b.players.length >= work[maxIdx].players.length - 1) return; // wouldn't actually even things up
+        if (bucketDistance(work[maxIdx], b) > 1) return; // too far apart in skill level
+        if (minIdx === -1 || b.players.length < work[minIdx].players.length) minIdx = i;
+      });
+      if (minIdx === -1) continue;
+      work[minIdx].players.push(work[maxIdx].players.pop());
+      moved = true;
+      break;
+    }
+    if (!moved) break;
   }
   return work;
 }
