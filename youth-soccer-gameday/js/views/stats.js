@@ -372,6 +372,12 @@ export function renderStats(app) {
     ${team.minPlayingTimePercent != null ? `
       <p class="muted small" style="margin:0 0 8px;">⚠️ = below this team's ${team.minPlayingTimePercent}% playing-time standard (<a href="#/settings">Settings</a>).</p>
     ` : ''}
+    <div class="row" style="gap:8px; margin-bottom:10px;">
+      <select id="leader-deep-sort-select" style="flex:1;">
+        <option value=""${activeDeepColumn ? '' : ' selected'}>More stats to sort by…</option>
+        ${deepColumns.map((c) => `<option value="${c.key}"${sortKey === c.key ? ' selected' : ''}>${escapeHtml(STAT_FULL_LABELS[c.key] || c.label)}</option>`).join('')}
+      </select>
+    </div>
     <div class="card" style="overflow-x:auto; padding:0;">
       <table style="width:100%; border-collapse:collapse; font-size:13.5px;">
         <thead>
@@ -390,12 +396,6 @@ export function renderStats(app) {
           ${rows.length ? rows.map((r) => leaderRowHtml(r, columns, team)).join('') : `<tr><td colspan="${columns.length + 1}" class="empty">No players yet.</td></tr>`}
         </tbody>
       </table>
-    </div>
-    <div class="row" style="gap:8px; margin:8px 0 0;">
-      <select id="leader-deep-sort-select" style="flex:1;">
-        <option value=""${activeDeepColumn ? '' : ' selected'}>More stats to sort by…</option>
-        ${deepColumns.map((c) => `<option value="${c.key}"${sortKey === c.key ? ' selected' : ''}>${escapeHtml(STAT_FULL_LABELS[c.key] || c.label)}</option>`).join('')}
-      </select>
     </div>
 
     ${goalkeeperStatsHtml()}
