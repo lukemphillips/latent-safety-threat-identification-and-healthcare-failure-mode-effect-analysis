@@ -15,6 +15,7 @@ function sortColumns(team) {
   const cols = [
     { key: 'apps', label: 'Apps' },
     { key: 'minutes', label: 'Min' },
+    { key: 'avgMinutes', label: 'Avg Min' },
     { key: 'goals', label: 'G' },
     { key: 'assists', label: 'A' },
     { key: 'saves', label: 'Sv' },
@@ -66,6 +67,7 @@ function deepStatColumns(team) {
 const STAT_FULL_LABELS = {
   apps: 'Appearances',
   minutes: 'Minutes Played',
+  avgMinutes: 'Avg Playing Time per Match',
   goals: 'Goals',
   assists: 'Assists',
   saves: 'Saves',
@@ -83,6 +85,7 @@ const STAT_FULL_LABELS = {
 // modal's full stat list, so the two never disagree on formatting.
 function statDisplayValue(row, key, team) {
   if (key === 'minutes') return formatMinutes(row.minutes);
+  if (key === 'avgMinutes') return row.avgMinutes == null ? '—' : formatMinutes(row.avgMinutes);
   if (key === 'attendance') return row.attendance == null ? '—' : formatPercent(row.attendance);
   if (key === 'trainingAttendance') return row.trainingAttendance == null ? '—' : formatPercent(row.trainingAttendance);
   if (key === 'playingTimePercent') {
@@ -157,16 +160,17 @@ function computeLeaderRows() {
       });
     });
     const playingTimePercent = possibleSeconds > 0 ? minutes / possibleSeconds : null;
+    const avgMinutes = apps > 0 ? minutes / apps : null;
     const presentCount = trackedForAttendance.filter((g) => (g.presentIds || []).includes(p.id)).length;
     const attendance = trackedForAttendance.length ? presentCount / trackedForAttendance.length : null;
     const trainingPresentCount = trackedTrainings.filter((t) => (t.presentIds || []).includes(p.id)).length;
     const trainingAttendance = trackedTrainings.length ? trainingPresentCount / trackedTrainings.length : null;
     const weeklyAwardCount = weeklyAwards.filter((a) => awardPlayerIds(a).includes(p.id)).length;
-    return { player: p, apps, minutes, goals, assists, saves, yellows, reds, potm, captaincies, weeklyAwards: weeklyAwardCount, attendance, trainingAttendance, playingTimePercent };
+    return { player: p, apps, minutes, avgMinutes, goals, assists, saves, yellows, reds, potm, captaincies, weeklyAwards: weeklyAwardCount, attendance, trainingAttendance, playingTimePercent };
   });
 }
 
-const NULLABLE_SORT_KEYS = ['attendance', 'trainingAttendance', 'playingTimePercent'];
+const NULLABLE_SORT_KEYS = ['attendance', 'trainingAttendance', 'playingTimePercent', 'avgMinutes'];
 
 function sortRows(rows) {
   const dir = sortDir === 'asc' ? 1 : -1;
