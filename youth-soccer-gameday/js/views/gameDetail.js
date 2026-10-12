@@ -313,7 +313,7 @@ function renderSquadTab(container, game) {
           <div style="font-weight:700;">Who's here today?</div>
           <div class="small muted" style="margin-top:2px;">${present.length}/${active.length} present${rsvpYes.length ? ` · ${rsvpYes.length} RSVP'd In` : ''}</div>
         </div>
-        <button class="btn ghost sm" data-action="open-attendance">Edit</button>
+        <button class="btn ghost sm" data-action="open-attendance">✏️ Edit Individually</button>
       </div>
       <div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap;">
         <button class="btn secondary sm" data-action="mark-all-present">Mark All Present</button>
