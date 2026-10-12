@@ -48,10 +48,23 @@ function assert(cond, msg) {
         ],
       },
     };
+    // A second, unrelated fixture that only Ava and Liam were marked
+    // present for — gives Match Attendance a real spread (Ava/Liam 100%,
+    // Noah 50%) to sort by via the "more stats" dropdown below.
+    const game2 = {
+      id: 'g2',
+      opponent: 'Eastside United',
+      date: '2026-09-08',
+      time: '10:00',
+      isHome: true,
+      status: 'scheduled',
+      presentIds: ['p1', 'p2'],
+      rsvps: {},
+    };
     const data = {
       team: { name: 'Table Test FC', squadFormat: 7, periodMinutes: 25, numPeriods: 2, rules: [], weeklyAwards: [] },
       players,
-      games: [game],
+      games: [game, game2],
       trainings: [],
       drills: [],
     };
@@ -82,6 +95,30 @@ function assert(cond, msg) {
   await page.waitForTimeout(150);
   const firstRowAscMinutes = await page.locator('tr[data-action="open-player-stats"]').first().getAttribute('data-player-id');
   assert(firstRowAscMinutes === 'p3', `Tapping Min again flips to ascending (Noah Patel has the fewest), got player id "${firstRowAscMinutes}"`);
+
+  // ============ The Player column header sorts alphabetically ============
+  assert((await page.locator('th[data-sort-col="name"]').count()) === 1, 'Player column header is itself sortable');
+  await page.click('th[data-sort-col="name"]');
+  await page.waitForTimeout(150);
+  const namesInOrder = await page.locator('tr[data-action="open-player-stats"] td:first-child').allInnerTexts();
+  assert(namesInOrder[0].startsWith('Ava Martinez'), `Tapping Player sorts A→Z (first tap), got order: ${namesInOrder.map((t) => t.split('\n')[0]).join(', ')}`);
+  assert(namesInOrder[2].startsWith('Noah Patel'), `Noah Patel sorts last A→Z, got order: ${namesInOrder.map((t) => t.split('\n')[0]).join(', ')}`);
+
+  // ============ "More stats" dropdown sorts by a stat not shown as a column, and adds it as one while active ============
+  assert((await page.locator('#leader-deep-sort-select').count()) === 1, 'A "more stats" dropdown exists for stats not shown as table columns');
+  assert((await page.locator('th[data-sort-col="attendance"]').count()) === 0, 'Match Attendance is not a column until actively sorted by');
+  await page.selectOption('#leader-deep-sort-select', 'attendance');
+  await page.waitForTimeout(150);
+  assert((await page.locator('th[data-sort-col="attendance"]').count()) === 1, 'Selecting Match Attendance from the dropdown adds it as a table column');
+  const firstRowByAttendance = await page.locator('tr[data-action="open-player-stats"]').first().getAttribute('data-player-id');
+  assert(firstRowByAttendance === 'p1', `Sorting by Match Attendance (desc) puts a 100%-attendance player first (tied Ava/Liam, alphabetical breaks the tie), got player id "${firstRowByAttendance}"`);
+  const lastRowByAttendance = await page.locator('tr[data-action="open-player-stats"]').last().getAttribute('data-player-id');
+  assert(lastRowByAttendance === 'p3', `Noah Patel (50% attendance) sorts last, got player id "${lastRowByAttendance}"`);
+
+  // Switching back to a key-stat column removes the deep column again.
+  await page.click('th[data-sort-col="goals"]');
+  await page.waitForTimeout(150);
+  assert((await page.locator('th[data-sort-col="attendance"]').count()) === 0, 'Tapping a key-stat column header drops the deep-stat column again');
 
   // ============ Tapping a row opens the full stat breakdown ============
   await page.locator('tr[data-action="open-player-stats"][data-player-id="p1"]').click();
