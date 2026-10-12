@@ -33,9 +33,26 @@ function sortColumns(team) {
   return cols;
 }
 
-// Full-word labels for the sort-by dropdown and the player detail modal —
-// the short single-letter/icon labels above are only meant for a dense
-// table header, which Leaders no longer has.
+// The compact Leaders table's own columns — just the handful of stats a
+// coach actually scans at a glance. sortColumns(team) above (the full
+// set, including PT%/POTM/captaincies/awards/attendance) is still used
+// for the per-player detail modal, just not as table columns anymore.
+function keyStatColumns(team) {
+  const cols = [
+    { key: 'apps', label: 'Apps' },
+    { key: 'minutes', label: 'Min' },
+    { key: 'goals', label: 'G' },
+    { key: 'assists', label: 'A' },
+    { key: 'saves', label: 'Sv' },
+  ];
+  if (team.enableCards) {
+    cols.push({ key: 'yellows', label: 'Y' }, { key: 'reds', label: 'R' });
+  }
+  return cols;
+}
+
+// Full-word labels for the player detail modal — the short single-letter/
+// icon labels above are only meant for a dense table header.
 const STAT_FULL_LABELS = {
   apps: 'Appearances',
   minutes: 'Minutes Played',
@@ -309,7 +326,7 @@ export function renderStats(app) {
   const history = sortByDateTime(games).reverse();
   const months = historyByMonth(history);
   const h2h = headToHead();
-  const columns = sortColumns(team);
+  const columns = keyStatColumns(team);
   const weeks = weeksWithGames();
   // Only the most recent couple of weeks need to be visible right away —
   // older ones are still one tap away, just tucked behind a drop-down
@@ -337,17 +354,24 @@ export function renderStats(app) {
     ` : ''}
 
     <div class="section-title">Leaders</div>
-    ${team.minPlayingTimePercent != null ? `
-      <p class="muted small" style="margin:-4px 0 8px;">PT% is each player's share of the total minutes available across matches they were present for. ⚠️ flags anyone below this team's ${team.minPlayingTimePercent}% minimum playing time standard (set in <a href="#/settings">Settings</a>).</p>
-    ` : ''}
-    <div class="row" style="gap:8px; margin-bottom:10px;">
-      <select id="leader-sort-select" style="flex:1;">
-        ${columns.map((c) => `<option value="${c.key}" ${sortKey === c.key ? 'selected' : ''}>${escapeHtml(STAT_FULL_LABELS[c.key] || c.label)}</option>`).join('')}
-      </select>
-      <button type="button" class="btn ghost sm" data-action="toggle-sort-dir" aria-label="Toggle sort direction">${sortDir === 'desc' ? '⬇ High first' : '⬆ Low first'}</button>
+    <p class="muted small" style="margin:-4px 0 8px;">Tap a column to sort, tap a player for their full stat breakdown.</p>
+    <div class="card" style="overflow-x:auto; padding:0;">
+      <table style="width:100%; border-collapse:collapse; font-size:13.5px;">
+        <thead>
+          <tr>
+            <th style="text-align:left; padding:8px 10px;">Player</th>
+            ${columns.map((c) => `
+              <th data-sort-col="${c.key}" style="text-align:right; padding:8px 8px; cursor:pointer; white-space:nowrap;">
+                ${c.label}${sortKey === c.key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''}
+              </th>
+            `).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.length ? rows.map((r) => leaderRowHtml(r, columns, team)).join('') : `<tr><td colspan="${columns.length + 1}" class="empty">No players yet.</td></tr>`}
+        </tbody>
+      </table>
     </div>
-    ${rows.length ? `<div class="stack">${rows.map((r) => leaderCardHtml(r, team)).join('')}</div>` : '<div class="card empty">No players yet.</div>'}
-    <p class="muted small" style="text-align:center; margin:8px 0 0;">Tap a player for their full stat breakdown.</p>
 
     ${goalkeeperStatsHtml()}
 
@@ -362,24 +386,18 @@ export function renderStats(app) {
 
   trackDetailsToggle(app);
 
-  const sortSelect = app.querySelector('#leader-sort-select');
-  if (sortSelect) {
-    sortSelect.addEventListener('change', () => {
-      sortKey = sortSelect.value;
+  app.querySelectorAll('[data-sort-col]').forEach((th) => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sortCol;
+      if (sortKey === key) sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+      else { sortKey = key; sortDir = 'desc'; }
       renderStats(app);
     });
-  }
-  const toggleSortDirBtn = app.querySelector('[data-action="toggle-sort-dir"]');
-  if (toggleSortDirBtn) {
-    toggleSortDirBtn.addEventListener('click', () => {
-      sortDir = sortDir === 'desc' ? 'asc' : 'desc';
-      renderStats(app);
-    });
-  }
-  app.querySelectorAll('[data-action="open-player-stats"]').forEach((card) => {
-    card.addEventListener('click', () => {
-      const row = rows.find((r) => r.player.id === card.dataset.playerId);
-      if (row) openPlayerStatsModal(row, team);
+  });
+  app.querySelectorAll('[data-action="open-player-stats"]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const r = rows.find((x) => x.player.id === row.dataset.playerId);
+      if (r) openPlayerStatsModal(r, team);
     });
   });
 
@@ -458,33 +476,21 @@ function openWeekAwardModal(week, onSaved) {
   });
 }
 
-// Replaces what used to be a single wide table (13 columns on a full
-// roster, needing horizontal scroll to even see most of them) — one card
-// per player showing just the stat currently being sorted by, tap through
-// for everything else. Keeps the list itself skimmable on a phone while
-// nothing is actually hidden, just one tap further in.
-function leaderCardHtml(row, team) {
+// Compact table row — just the key-stat columns (keyStatColumns above),
+// with the whole row tappable to open the full breakdown (every other
+// stat sortColumns(team) tracks) in a modal instead of needing more
+// columns than fit a phone screen.
+function leaderRowHtml(row, columns, team) {
   const belowStandard = team.minPlayingTimePercent != null && row.playingTimePercent != null
     && Math.round(row.playingTimePercent * 100) < team.minPlayingTimePercent;
   return `
-    <div class="card" data-action="open-player-stats" data-player-id="${row.player.id}" style="cursor:pointer; padding:12px 14px;">
-      <div class="card-row">
-        <div class="row" style="gap:10px; min-width:0;">
-          <span class="jersey">${row.player.jerseyNumber ?? '-'}</span>
-          <div style="min-width:0;">
-            <div style="font-weight:700; font-size:15.5px;">${escapeHtml(row.player.name)}${belowStandard ? ' ⚠️' : ''}</div>
-            <div class="muted small">${formatPositions(row.player)}</div>
-          </div>
-        </div>
-        <div class="row" style="gap:6px; flex-shrink:0;">
-          <div style="text-align:right;">
-            <div style="font-size:20px; font-weight:800; color:var(--green-700); line-height:1.1;">${statDisplayValue(row, sortKey, team)}</div>
-            <div class="muted" style="font-size:11px; text-transform:uppercase; letter-spacing:0.03em; white-space:nowrap;">${escapeHtml(STAT_FULL_LABELS[sortKey] || sortKey)}</div>
-          </div>
-          <span class="muted" style="font-size:18px;">›</span>
-        </div>
-      </div>
-    </div>
+    <tr data-action="open-player-stats" data-player-id="${row.player.id}" style="border-top:1px solid var(--line); cursor:pointer;">
+      <td style="padding:8px 10px;">
+        <div style="font-weight:600;">${escapeHtml(row.player.name)}${belowStandard ? ` <span title="Below this team's ${team.minPlayingTimePercent}% minimum playing time standard (set in Settings)">⚠️</span>` : ''}</div>
+        <div class="muted" style="font-size:12px;">${formatPositions(row.player)}</div>
+      </td>
+      ${columns.map((c) => `<td style="text-align:right; padding:8px 8px; font-weight:600;">${statDisplayValue(row, c.key, team)}</td>`).join('')}
+    </tr>
   `;
 }
 

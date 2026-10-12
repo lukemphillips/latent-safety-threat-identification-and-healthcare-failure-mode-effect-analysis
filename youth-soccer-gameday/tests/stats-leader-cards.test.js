@@ -1,7 +1,8 @@
 // Requested improvement: the Leaders table had grown to 13 columns and
 // needed horizontal scrolling to read on a phone. This covers its
-// replacement — a sortable list of player cards (headline stat + tap
-// through for the full breakdown) instead of one wide table.
+// replacement — a compact table of just the key stats, sortable by
+// tapping a column header (as before), with each row now also tappable
+// to open a modal with that player's full stat breakdown.
 const { launch, BASE_URL } = require('./support/launch');
 
 const BASE = BASE_URL;
@@ -48,7 +49,7 @@ function assert(cond, msg) {
       },
     };
     const data = {
-      team: { name: 'Card Test FC', squadFormat: 7, periodMinutes: 25, numPeriods: 2, rules: [], weeklyAwards: [] },
+      team: { name: 'Table Test FC', squadFormat: 7, periodMinutes: 25, numPeriods: 2, rules: [], weeklyAwards: [] },
       players,
       games: [game],
       trainings: [],
@@ -60,30 +61,30 @@ function assert(cond, msg) {
   await page.goto(BASE + '/index.html#/stats');
   await page.waitForTimeout(200);
 
-  // ============ No more wide table — a sort control and player cards ============
-  assert((await page.locator('#leader-sort-select').count()) === 1, 'Leaders has a sort-by dropdown instead of clickable table headers');
-  assert((await page.locator('[data-action="open-player-stats"]').count()) === 3, 'One tappable card per player, got ' + (await page.locator('[data-action="open-player-stats"]').count()));
+  // ============ A compact table with sortable headers and tappable rows ============
+  assert((await page.locator('th[data-sort-col]').count()) > 0, 'Leaders table has sortable column headers');
+  assert((await page.locator('th[data-sort-col="potm"]').count()) === 0, 'Deep stats (POTM, captaincies, awards, attendance, PT%) are not table columns — only the key-stat set is');
+  assert((await page.locator('tr[data-action="open-player-stats"]').count()) === 3, 'One tappable row per player, got ' + (await page.locator('tr[data-action="open-player-stats"]').count()));
+  assert((await page.locator('text=Tap a column to sort').count()) === 1, 'The tap hint sits above the table, not after scrolling past it');
 
-  // ============ Default sort (goals, desc) shows Ava Martinez first with "2" ============
-  const firstCardText = await page.locator('[data-action="open-player-stats"]').first().innerText();
-  assert(firstCardText.includes('Ava Martinez'), `Default sort (goals) puts the top scorer first, got: ${firstCardText}`);
-  assert(firstCardText.includes('2') && firstCardText.toLowerCase().includes('goals'), `Card shows the headline stat and its label, got: ${firstCardText}`);
+  // ============ Default sort (goals, desc) puts the top scorer first ============
+  const firstRowBefore = await page.locator('tr[data-action="open-player-stats"]').first().getAttribute('data-player-id');
+  assert(firstRowBefore === 'p1', `Default sort (goals) puts the top scorer (Ava Martinez) first, got player id "${firstRowBefore}"`);
 
-  // ============ Changing the sort-by dropdown re-sorts and updates the headline stat ============
-  await page.selectOption('#leader-sort-select', 'minutes');
+  // ============ Tapping a column header re-sorts by that stat ============
+  await page.click('th[data-sort-col="minutes"]');
   await page.waitForTimeout(150);
-  const firstCardAfterMinutesSort = await page.locator('[data-action="open-player-stats"]').first().innerText();
-  assert(firstCardAfterMinutesSort.includes('Liam Chen'), `Sorting by Minutes Played puts the player with the most minutes first, got: ${firstCardAfterMinutesSort}`);
-  assert(firstCardAfterMinutesSort.toLowerCase().includes('minutes played'), `Headline label switches to Minutes Played, got: ${firstCardAfterMinutesSort}`);
+  const firstRowAfterMinutesSort = await page.locator('tr[data-action="open-player-stats"]').first().getAttribute('data-player-id');
+  assert(firstRowAfterMinutesSort === 'p2', `Tapping the Min header sorts by minutes played (Liam Chen has the most), got player id "${firstRowAfterMinutesSort}"`);
 
-  // ============ Toggling sort direction flips the order ============
-  await page.click('[data-action="toggle-sort-dir"]');
+  // ============ Tapping the same header again flips the direction ============
+  await page.click('th[data-sort-col="minutes"]');
   await page.waitForTimeout(150);
-  const firstCardAscMinutes = await page.locator('[data-action="open-player-stats"]').first().innerText();
-  assert(firstCardAscMinutes.includes('Noah Patel'), `Flipping to ascending puts the lowest-minutes player first, got: ${firstCardAscMinutes}`);
+  const firstRowAscMinutes = await page.locator('tr[data-action="open-player-stats"]').first().getAttribute('data-player-id');
+  assert(firstRowAscMinutes === 'p3', `Tapping Min again flips to ascending (Noah Patel has the fewest), got player id "${firstRowAscMinutes}"`);
 
-  // ============ Tapping a card opens the full stat breakdown ============
-  await page.locator('[data-action="open-player-stats"][data-player-id="p1"]').click();
+  // ============ Tapping a row opens the full stat breakdown ============
+  await page.locator('tr[data-action="open-player-stats"][data-player-id="p1"]').click();
   await page.waitForTimeout(200);
   const modalText = await page.locator('.modal-body').innerText();
   const modalTitle = await page.locator('.modal-header h3').innerText();
@@ -91,7 +92,7 @@ function assert(cond, msg) {
   assert(modalText.includes('Appearances'), 'Modal lists Appearances');
   assert(modalText.includes('Minutes Played'), 'Modal lists Minutes Played');
   assert(modalText.includes('Assists'), 'Modal lists Assists');
-  assert(modalText.includes('Match Attendance'), 'Modal lists Match Attendance');
+  assert(modalText.includes('Match Attendance'), 'Modal lists deep stats not shown in the table, like Match Attendance');
 
   const goalsRow = await page.locator('.sublog-item', { hasText: 'Goals' }).innerText();
   assert(goalsRow.includes('2'), `Goals row in the modal shows 2 for Ava Martinez, got: ${goalsRow}`);
