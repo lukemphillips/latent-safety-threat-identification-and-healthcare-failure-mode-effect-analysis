@@ -8,6 +8,13 @@ import { addMinutesToTime, resolveStations, resolveRotationCount, blockEffective
 
 let selectingPlayerId = null;
 let selectingSourceGroupId = null;
+// Off by default — "Same stream" grouping exists specifically to keep
+// players of similar ability together, and silently moving someone out
+// of their actual stream to even up group sizes undercuts that unless a
+// coach explicitly opts in. Tracked here (not just read off the checkbox
+// at click time) so the choice survives a re-render instead of resetting
+// to checked every time Auto-Build Groups runs.
+let balanceGroupNumbers = false;
 
 export function renderTraining(app) {
   const { trainings } = getState();
@@ -312,12 +319,12 @@ function renderGroupsTab(container, training) {
       </div>
       ${mode === 'stream' ? `
         <label class="checkbox-row" style="margin-top:8px;">
-          <input type="checkbox" id="group-balance-numbers" checked />
-          ⚖️ Balance numbers across groups
+          <input type="checkbox" id="group-balance-numbers" ${balanceGroupNumbers ? 'checked' : ''} />
+          ⚖️ Balance numbers across groups (may mix in a player from a neighbouring stream)
         </label>
       ` : ''}
       <div class="muted small" style="margin-top:6px;">${mode === 'stream'
-        ? 'Groups cluster players of similar ability together. Leave "Number of groups" blank for one group per skill stream present, or set a number to merge or split streams to fit. With balancing on, sizes are then evened out (moving a player to a neighbouring group where needed) so no group ends up much bigger than another.'
+        ? 'Groups cluster players of similar ability together. Leave "Number of groups" blank for one group per skill stream present, or set a number to merge or split streams to fit. Balancing is off by default so every player stays in their actual stream — turn it on only if evening up the numbers matters more than that, since it can land a player in a neighbouring group to do it.'
         : 'Each skill stream is spread evenly across every group, rather than kept together — useful for mixed-ability stations, or just to vary things up. Set how many groups you want (numbers are balanced automatically).'}</div>
     </div>
 
@@ -338,12 +345,19 @@ function renderGroupsTab(container, training) {
     });
   });
 
+  const balanceCheckbox = container.querySelector('#group-balance-numbers');
+  if (balanceCheckbox) {
+    balanceCheckbox.addEventListener('change', () => {
+      balanceGroupNumbers = balanceCheckbox.checked;
+    });
+  }
+
   container.querySelector('[data-action="auto-build-groups"]').addEventListener('click', () => {
     const raw = container.querySelector('#group-target-count').value;
     const currentMode = training.groupMode || 'stream';
     const newGroups = currentMode === 'mixed'
       ? buildMixedGroups(present, Math.max(1, Math.min(maxGroups, Number(raw) || groups.length || 2)))
-      : buildGroupsByStream(present, raw ? Number(raw) : null, container.querySelector('#group-balance-numbers').checked);
+      : buildGroupsByStream(present, raw ? Number(raw) : null, balanceGroupNumbers);
     selectingPlayerId = null;
     selectingSourceGroupId = null;
     update((state) => {
