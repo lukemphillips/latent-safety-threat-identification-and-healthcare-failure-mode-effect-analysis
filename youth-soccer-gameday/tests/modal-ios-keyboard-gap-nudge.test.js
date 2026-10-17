@@ -1,14 +1,19 @@
-// Reported: filling in the Add Game form on iOS left a blank gap at the
-// bottom of the screen (the on-screen keyboard's reserved space, stuck
-// even though the keyboard itself was gone) that wouldn't clear until a
-// second text field was focused and explicitly dismissed. modal.js now
-// nudges window.scrollTo() whenever a text/number/textarea field inside
-// any modal loses focus, which is the standard workaround for this class
-// of iOS Safari bug. The actual rendering glitch can only be seen on a
-// real iOS device, so this just proves the nudge itself is correctly
-// wired to fire at the right moment (a text field losing focus within a
-// modal) — not something that would be safe to claim fixes the bug
-// outright without a device to confirm it against.
+// Reported (twice): filling in the Add Game form on iOS left a blank gap
+// at the bottom of the screen (the on-screen keyboard's/native picker's
+// reserved space, stuck even though it was gone) that wouldn't clear until
+// another field was focused and explicitly dismissed. The first fix only
+// nudged window.scrollTo() on a text/number/textarea field losing focus —
+// too narrow, since it missed the Time field's own native wheel picker,
+// which reserves the exact same kind of space and left the gap (and the
+// form's submit button) hidden below a blank screen. modal.js now nudges
+// on ANY field (input/select/textarea) inside a modal losing focus, per
+// the comment there — a genuine no-op when there's no gap to begin with,
+// so no need to enumerate which input types can trigger it. The actual
+// rendering glitch can only be seen on a real iOS device, so this just
+// proves the nudge itself is correctly wired to fire at the right moment
+// for every field type the Add Game form actually uses — not something
+// that would be safe to claim fixes the bug outright without a device to
+// confirm it against.
 const { launch, BASE_URL } = require('./support/launch');
 
 const BASE = BASE_URL;
@@ -54,14 +59,24 @@ function assert(cond, msg) {
   const callsAfterTextBlur = await page.evaluate(() => window.__scrollToCalls);
   assert(callsAfterTextBlur > 0, `A text field losing focus inside a modal triggers the keyboard-gap nudge, got ${callsAfterTextBlur} scrollTo call(s)`);
 
-  // ============ Focusing out of a non-text control (the date field itself) does NOT also nudge ============
-  // (only a genuine software-keyboard field should trigger this — nudging
-  // on every focus change in the app would be needless extra work.)
-  await page.evaluate(() => { window.__scrollToCalls = 0; });
+  // ============ The Time field itself losing focus also nudges — this is the exact field from the bug report ============
+  // (previously missed: the fix only matched text/number/textarea, so the
+  // Time field's own native wheel picker left the gap — and everything
+  // below it, including the submit button — stuck.)
+  await page.focus('#game-form [name="time"]');
+  await page.evaluate(() => { window.__scrollToCalls = 0; }); // reset AFTER landing on time, so only its own blur below counts
   await page.focus('#game-form [name="location"]');
   await page.waitForTimeout(100);
-  const callsAfterDateBlur = await page.evaluate(() => window.__scrollToCalls);
-  assert(callsAfterDateBlur === 0, `A non-text field (date) losing focus does not itself trigger the nudge, got ${callsAfterDateBlur} scrollTo call(s)`);
+  const callsAfterTimeBlur = await page.evaluate(() => window.__scrollToCalls);
+  assert(callsAfterTimeBlur > 0, `The Time field losing focus inside a modal triggers the keyboard-gap nudge, got ${callsAfterTimeBlur} scrollTo call(s)`);
+
+  // ============ A select field losing focus also nudges — same broadened fix covers it ============
+  await page.focus('#game-form [name="squadFormat"]');
+  await page.evaluate(() => { window.__scrollToCalls = 0; }); // reset AFTER landing on the select, so only its own blur below counts
+  await page.focus('#game-form [name="location"]');
+  await page.waitForTimeout(100);
+  const callsAfterSelectBlur = await page.evaluate(() => window.__scrollToCalls);
+  assert(callsAfterSelectBlur > 0, `A select field losing focus inside a modal triggers the keyboard-gap nudge, got ${callsAfterSelectBlur} scrollTo call(s)`);
 
   assert(errors.length === 0, 'No console/page errors: ' + errors.join(', '));
 

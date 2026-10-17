@@ -18,19 +18,22 @@ export function openModal({ title, bodyHtml, onMount }) {
     if (e.target === dlg || e.target.closest('[data-close-modal]')) dlg.close();
   });
   dlg.addEventListener('close', () => dlg.remove());
-  // iOS Safari sometimes leaves the on-screen keyboard's space reserved —
-  // a blank gap at the bottom of the screen — even after focus has moved
-  // off a text field onto something else in the same modal (a native
-  // date/time picker, a checkbox, a select). It isn't that the keyboard
-  // is still shown; the page just never gets nudged to recalculate the
-  // visible area once it's gone, and stays stuck until some OTHER text
-  // field is focused and explicitly dismissed. Nudging a scroll position
-  // after every text field loses focus is the standard workaround — a
-  // genuine no-op when there's no gap to begin with, so this is safe to
-  // run on every modal rather than needing to guess which ones mix native
-  // pickers with text fields.
+  // iOS Safari sometimes leaves the on-screen keyboard's (or a native
+  // date/time wheel picker's) space reserved — a blank gap at the bottom
+  // of the screen that can swallow everything below it, including a
+  // submit button — even after focus has moved off that field onto
+  // something else in the same modal (another field, a checkbox, a
+  // select). It isn't that the keyboard/picker is still shown; the page
+  // just never gets nudged to recalculate the visible area once it's
+  // gone, and stays stuck until some OTHER field is focused and
+  // explicitly dismissed. Nudging a scroll position after any field loses
+  // focus is the standard workaround — a genuine no-op when there's no gap
+  // to begin with, so this is safe to run for every field in every modal
+  // rather than needing to enumerate which input types can trigger it
+  // (text/number originally covered this; date/time pickers hit the exact
+  // same gap and were previously missed).
   dlg.addEventListener('focusout', (e) => {
-    if (!e.target.matches('input[type="text"], input[type="number"], textarea')) return;
+    if (!e.target.matches('input, select, textarea')) return;
     setTimeout(() => window.scrollTo(0, window.scrollY), 50);
   });
   dlg.showModal();
