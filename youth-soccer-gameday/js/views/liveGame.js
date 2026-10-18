@@ -235,6 +235,9 @@ export function renderLiveGame(app, gameId) {
     <details class="card" style="margin-top:12px;" data-details-section="playing-time" ${playingTimeOpen ? 'open' : ''}>
       <summary style="cursor:pointer; font-weight:700; font-size:13px;">⏱ Playing Time</summary>
       <div style="margin-top:10px;">
+        ${!live.running && periodElapsedSeconds > 0 ? `
+          <button type="button" class="btn ghost sm" data-action="correct-clock" style="margin-bottom:10px;">✂️ Correct clock — forgot to pause or end on time?</button>
+        ` : ''}
         ${playingTimeRows(active, live, presentIds)}
       </div>
     </details>
@@ -439,6 +442,12 @@ export function renderLiveGame(app, gameId) {
         }
         const inPlayer = byId[inId];
         const inName = inPlayer?.name || '';
+        // Cleared BEFORE update() rather than after: update() re-renders
+        // synchronously as part of notifying its listeners, so a reset placed
+        // after it is already too late for that render — it'd still read the
+        // old, about-to-be-stale value and show the "Bringing on" banner for
+        // one more (sometimes indefinitely stuck) render.
+        selectingInboundId = null;
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
           g.live.onField.push(inId);
@@ -454,7 +463,6 @@ export function renderLiveGame(app, gameId) {
           const chosenSlotId = preferredSlotId || emptySlotIds[0];
           if (chosenSlotId) g.lineup.slots[chosenSlotId] = inId;
         });
-        selectingInboundId = null;
       });
     }
 
@@ -528,6 +536,19 @@ export function renderLiveGame(app, gameId) {
       openEditSubLogEntryModal(gameId, index, entry, active);
     });
   });
+
+  // Correcting the clock is useful both paused mid-match and after the
+  // final whistle (forgetting to end the match bakes the overrun straight
+  // into playing time the moment End Game is finally tapped — see
+  // openClockCorrectionModal's own comment) — wired unconditionally, same
+  // reasoning as edit-sublog-entry above. Only rendered at all when the
+  // clock isn't currently running (see the button's own condition).
+  const correctClockBtn = app.querySelector('[data-action="correct-clock"]');
+  if (correctClockBtn) {
+    correctClockBtn.addEventListener('click', () => {
+      openClockCorrectionModal(gameId, live, periodElapsedSeconds, numPeriods);
+    });
+  }
 
   // Keeps the Playing Time / Match Events <details> open across the
   // once-a-second re-render the live match clock triggers — otherwise
@@ -620,6 +641,7 @@ function autoFillLiveField(gameId, formation) {
     return;
   }
 
+  selectingInboundId = null; // see the comment in swapPitchPositions above
   update((state) => {
     const g = state.games.find((x) => x.id === gameId);
     g.lineup = g.lineup || { slots: {} };
@@ -739,6 +761,17 @@ function openPitchSubModal(gameId, outId, byId, team, benchPlayers, onFieldTeamm
 function swapPitchPositions(gameId, playerAId, playerBId, byId) {
   const aName = byId[playerAId]?.name || '';
   const bName = byId[playerBId]?.name || '';
+  // A bench pick armed from the OTHER sub flow (tap bench card, then tap an
+  // on-field player to swap) is now stale — the coach resolved things a
+  // different way via this pitch-chip modal instead. Left set, the "Bringing
+  // on: X" banner would keep showing afterward, and the next tap on any
+  // on-field card would silently run that now-unrelated swap. Cleared BEFORE
+  // update() rather than after: update() re-renders synchronously as part of
+  // notifying its listeners, so a reset placed after it is already too late
+  // for that render. Every other action below that can only be reached by a
+  // path other than the armed bench flow clears it the same way, for the
+  // same reason, in the same order.
+  selectingInboundId = null;
   update((state) => {
     const g = state.games.find((x) => x.id === gameId);
     if (!g.lineup?.slots) return;
@@ -797,6 +830,7 @@ function addPlayerToSlot(gameId, inId, slotId, byId) {
     return;
   }
   const inName = byId[inId]?.name || '';
+  selectingInboundId = null; // see the comment in swapPitchPositions above
   update((state) => {
     const g = state.games.find((x) => x.id === gameId);
     g.live.onField.push(inId);
@@ -872,6 +906,9 @@ async function applySub(gameId, inId, outId, byId, team) {
 
   const inName = byId[inId]?.name || '';
   const outName = byId[outId]?.name || '';
+  // Cleared BEFORE update(), same as every other reset in this file — see
+  // the comment in swapPitchPositions above for why the ordering matters.
+  selectingInboundId = null;
   update((state) => {
     const g = state.games.find((x) => x.id === gameId);
     g.live.onField = g.live.onField.filter((id) => id !== outId);
@@ -885,7 +922,6 @@ async function applySub(gameId, inId, outId, byId, team) {
     const slotId = Object.keys(g.lineup?.slots || {}).find((sid) => g.lineup.slots[sid] === outId);
     if (slotId) g.lineup.slots[slotId] = inId;
   });
-  selectingInboundId = null;
 }
 
 function goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted) {
@@ -1102,7 +1138,7 @@ function playingTimeRows(active, live, presentIds) {
 const EVENT_ICONS = {
   'goal-us': '⚽', 'goal-them': '🥅', save: '🧤', sub: '🔄', add: '⬆️',
   'period-start': '⏱', 'gk-change': '🧤', recovered: '↩️',
-  'position-swap': '🔃',
+  'position-swap': '🔃', 'clock-correction': '✂️',
 };
 
 // A 'send-off' entry's own reason decides its icon — an injury isn't a
@@ -1159,6 +1195,9 @@ function eventRowHtml(entry, numPeriods, index) {
     case 'position-swap':
       label = `Swapped positions: ${escapeHtml(entry.aName)} ↔ ${escapeHtml(entry.bName)}`;
       break;
+    case 'clock-correction':
+      label = `Clock corrected: removed ${formatClock(entry.secondsRemoved)}`;
+      break;
     default:
       label = entry.type;
   }
@@ -1172,6 +1211,70 @@ function eventRowHtml(entry, numPeriods, index) {
       </span>
     </div>
   `;
+}
+
+// Reported bug: forgetting to pause or end a match lets the clock (which
+// runs off real wall-clock time — see syncRunningClocks in store.js, which
+// is what lets it catch up correctly after the screen locks or the tab
+// backgrounds) keep counting for however long it took to notice, wrongly
+// crediting that whole stretch to the match total AND to whoever was on
+// the pitch at the time. If the coach has already tapped End Game by the
+// time they notice, that one last update() call (every update() syncs the
+// running clock before applying its own change) has already baked the
+// overrun straight into playing time — which is why this is reachable on
+// a completed match too, not just a paused live one (same reasoning as
+// openEditSubLogEntryModal below).
+//
+// Scoped to the CURRENT period/half only (matching what a coach is
+// actually trying to undo — "I forgot to end this half", not the whole
+// match), and assumes no one was subbed during the overrun itself (the
+// coach simply forgot to stop the clock — nothing else happened), so the
+// time comes straight off whoever is currently on the pitch/in goal.
+function openClockCorrectionModal(gameId, live, periodElapsedSeconds, numPeriods) {
+  const maxMinutes = Math.floor(periodElapsedSeconds / 60);
+  if (maxMinutes < 1) {
+    alertDialog('Less than a minute has elapsed this half — nothing to remove yet.');
+    return;
+  }
+  openModal({
+    title: 'Correct the Clock',
+    bodyHtml: `
+      <p class="muted small mt-0">Removes time from ${periodLabel(numPeriods, live.currentPeriod)}'s clock, and from the playing time of whoever is currently on the pitch or in goal (assuming no one was subbed during the overrun itself). This can't be undone from here, so double-check the amount.</p>
+      <form id="clock-correction-form" class="stack">
+        <div class="field">
+          <label>Minutes to remove (currently ${formatClock(periodElapsedSeconds)} elapsed this half)</label>
+          <input type="number" name="minutes" min="1" max="${maxMinutes}" required />
+        </div>
+        <button type="submit" class="btn block danger">Remove Minutes</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#clock-correction-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const minutes = Number(new FormData(e.target).get('minutes'));
+        if (!Number.isFinite(minutes) || minutes < 1) return;
+        const secondsToRemove = Math.min(minutes * 60, periodElapsedSeconds);
+        update((state) => {
+          const g = state.games.find((x) => x.id === gameId);
+          g.live.elapsedSeconds = Math.max(0, g.live.elapsedSeconds - secondsToRemove);
+          const currentGkId = g.live.gkByPeriod[g.live.currentPeriod] || null;
+          const affected = [...new Set([...(g.live.onField || []), currentGkId].filter(Boolean))];
+          g.live.playingTime = g.live.playingTime || {};
+          g.live.stintStart = g.live.stintStart || {};
+          affected.forEach((pid) => {
+            g.live.playingTime[pid] = Math.max(0, (g.live.playingTime[pid] || 0) - secondsToRemove);
+            // Defensive clamp, not expected to matter in the common case
+            // (no one subbed during the overrun) — just guards against a
+            // stint start ending up later than the now-rewound clock,
+            // which would otherwise show as a negative stint.
+            if (g.live.stintStart[pid] != null) g.live.stintStart[pid] = Math.min(g.live.stintStart[pid], g.live.elapsedSeconds);
+          });
+          g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'clock-correction', secondsRemoved: secondsToRemove });
+        });
+        closeModal();
+      });
+    },
+  });
 }
 
 // Corrects (or removes) an already-logged goal or save — unlike the pool
@@ -1600,6 +1703,7 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
           }
         }
 
+        selectingInboundId = null; // see the comment in swapPitchPositions above
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
           const prevGkId = g.live.gkByPeriod[g.live.currentPeriod] || null;
