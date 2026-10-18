@@ -8,7 +8,6 @@ import { autoFillLineup } from './gameDetail.js';
 import { isCloudSyncConnected, syncSilently } from '../cloudSync.js';
 import { remapLiveFormation, stintSeconds, computeMatchSummary, findRemovalReason } from '../liveGameLogic.js';
 
-let selectingInboundId = null;
 let lastGameId = null;
 // Whether the Playing Time / Match Events <details> are expanded — tracked
 // here rather than left to the browser's own `open` attribute, because the
@@ -20,7 +19,6 @@ let matchEventsOpen = false;
 
 export function renderLiveGame(app, gameId) {
   if (lastGameId !== gameId) {
-    selectingInboundId = null;
     playingTimeOpen = false;
     matchEventsOpen = false;
     lastGameId = gameId;
@@ -181,21 +179,13 @@ export function renderLiveGame(app, gameId) {
     ${!isCompleted ? fairPlaySuggestionHtml(team, live, bench, onFieldOutfield, byId) : ''}
     ${!isCompleted ? upcomingSubsHtml(team, live, bench, onFieldOutfield) : ''}
 
-    ${!isCompleted && selectingInboundId ? `
-      <div class="banner info spread">
-        <span>🔵 Bringing on: <strong>${escapeHtml(byId[selectingInboundId]?.name || '')}</strong> — tap an on-field player to swap${onFieldOutfield.length < targetOutfield ? ', or add to an open spot' : ''}.</span>
-        <button class="btn sm ghost" data-action="cancel-sub">Cancel</button>
-      </div>
-      ${onFieldOutfield.length < targetOutfield ? `<button class="btn secondary block" data-action="add-to-pitch" style="margin-bottom:10px;">⬆ Add to Pitch (no swap)</button>` : ''}
-    ` : ''}
-
     ${!isCompleted ? `
       <div class="section-title" style="margin-top:0;">Formation</div>
       <div class="timer-actions" style="margin:0 0 10px;">
         <button type="button" class="btn ghost sm" data-action="change-formation">${escapeHtml(formation.label)}${formation.custom ? ' (yours)' : ''} — change</button>
         <button type="button" class="btn secondary sm" data-action="auto-fill-field" ${canAutoFillField ? '' : 'disabled'}>⚡ Auto-Fill Field</button>
       </div>
-      <div class="muted small" style="margin:0 0 8px;">Tap a pitch player to substitute.</div>
+      <div class="muted small" style="margin:0 0 8px;">Tap any player — on the pitch or the bench — to substitute, swap, or add them.</div>
       <div class="pitch-wrap">
         <div class="pitch" id="live-pitch">
           ${formation.slots.map((slot) => livePitchSlotHtml(slot, slot.role === 'GK' ? currentGk : byId[game.lineup?.slots?.[slot.id]])).join('')}
@@ -408,7 +398,6 @@ export function renderLiveGame(app, gameId) {
         e.stopPropagation();
         const playerId = btn.dataset.playerId;
         openRemovalModal(gameId, byId[playerId], team.enableCards);
-        if (selectingInboundId === playerId) selectingInboundId = null;
       });
     });
 
@@ -418,58 +407,15 @@ export function renderLiveGame(app, gameId) {
       });
     });
 
+    // Tapping a bench player opens the same kind of picker as tapping an
+    // on-field one does below — "bring on/swap/add" all live in one modal
+    // per player now, rather than this being a two-step "arm a pick, then
+    // tap elsewhere to complete it" flow. See the comment on
+    // openBenchSubModal for why that split flow was replaced.
     app.querySelectorAll('[data-bench-player]').forEach((el) => {
       el.addEventListener('click', () => {
         const playerId = el.dataset.benchPlayer;
-        selectingInboundId = selectingInboundId === playerId ? null : playerId;
-        renderLiveGame(app, gameId);
-      });
-    });
-
-    const cancelBtn = app.querySelector('[data-action="cancel-sub"]');
-    if (cancelBtn) cancelBtn.addEventListener('click', () => { selectingInboundId = null; renderLiveGame(app, gameId); });
-
-    const addBtn = app.querySelector('[data-action="add-to-pitch"]');
-    if (addBtn) {
-      addBtn.addEventListener('click', () => {
-        const inId = selectingInboundId;
-        const ineligible = ineligibleToBringOnReason(game, inId);
-        if (ineligible) {
-          selectingInboundId = null;
-          alertDialog(ineligible);
-          renderLiveGame(app, gameId);
-          return;
-        }
-        const inPlayer = byId[inId];
-        const inName = inPlayer?.name || '';
-        // Cleared BEFORE update() rather than after: update() re-renders
-        // synchronously as part of notifying its listeners, so a reset placed
-        // after it is already too late for that render — it'd still read the
-        // old, about-to-be-stale value and show the "Bringing on" banner for
-        // one more (sometimes indefinitely stuck) render.
-        selectingInboundId = null;
-        update((state) => {
-          const g = state.games.find((x) => x.id === gameId);
-          g.live.onField.push(inId);
-          g.live.stintStart = g.live.stintStart || {};
-          g.live.stintStart[inId] = g.live.elapsedSeconds;
-          g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'add', inId, inName });
-          // Filling an open spot rather than swapping — give them whichever
-          // empty formation slot matches their preferred position, falling
-          // back to any other empty non-GK slot so the pitch still shows
-          // where they are even without a role match.
-          const emptySlotIds = Object.keys(g.lineup?.slots || {}).filter((sid) => !g.lineup.slots[sid] && sid !== 'gk');
-          const preferredSlotId = emptySlotIds.find((sid) => playerPositions(inPlayer).includes(formation.slots.find((s) => s.id === sid)?.role));
-          const chosenSlotId = preferredSlotId || emptySlotIds[0];
-          if (chosenSlotId) g.lineup.slots[chosenSlotId] = inId;
-        });
-      });
-    }
-
-    app.querySelectorAll('[data-onfield-player]').forEach((el) => {
-      el.addEventListener('click', () => {
-        if (!selectingInboundId) return;
-        applySub(gameId, selectingInboundId, el.dataset.onfieldPlayer, byId, team);
+        openBenchSubModal(gameId, playerId, byId, team, onFieldOutfield, onFieldOutfield.length < targetOutfield);
       });
     });
 
@@ -483,7 +429,12 @@ export function renderLiveGame(app, gameId) {
       autoFillFieldBtn.addEventListener('click', () => autoFillLiveField(gameId, formation));
     }
 
-    app.querySelectorAll('[data-live-pitch-slot] [data-open-sub]').forEach((chip) => {
+    // Matches both the pitch-diagram chip AND the "On Field" grid card for
+    // the same player (fieldCardHtml gives both the same data-open-sub
+    // attribute) — one listener wires up two visual representations of the
+    // identical action, so whichever one a coach taps, the result is the
+    // same picker.
+    app.querySelectorAll('[data-open-sub]').forEach((chip) => {
       chip.addEventListener('click', () => {
         const outId = chip.dataset.openSub;
         const teammates = onFieldOutfield.filter((p) => p.id !== outId);
@@ -641,7 +592,6 @@ function autoFillLiveField(gameId, formation) {
     return;
   }
 
-  selectingInboundId = null; // see the comment in swapPitchPositions above
   update((state) => {
     const g = state.games.find((x) => x.id === gameId);
     g.lineup = g.lineup || { slots: {} };
@@ -761,17 +711,6 @@ function openPitchSubModal(gameId, outId, byId, team, benchPlayers, onFieldTeamm
 function swapPitchPositions(gameId, playerAId, playerBId, byId) {
   const aName = byId[playerAId]?.name || '';
   const bName = byId[playerBId]?.name || '';
-  // A bench pick armed from the OTHER sub flow (tap bench card, then tap an
-  // on-field player to swap) is now stale — the coach resolved things a
-  // different way via this pitch-chip modal instead. Left set, the "Bringing
-  // on: X" banner would keep showing afterward, and the next tap on any
-  // on-field card would silently run that now-unrelated swap. Cleared BEFORE
-  // update() rather than after: update() re-renders synchronously as part of
-  // notifying its listeners, so a reset placed after it is already too late
-  // for that render. Every other action below that can only be reached by a
-  // path other than the armed bench flow clears it the same way, for the
-  // same reason, in the same order.
-  selectingInboundId = null;
   update((state) => {
     const g = state.games.find((x) => x.id === gameId);
     if (!g.lineup?.slots) return;
@@ -781,6 +720,94 @@ function swapPitchPositions(gameId, playerAId, playerBId, byId) {
     g.lineup.slots[slotIdA] = playerBId;
     g.lineup.slots[slotIdB] = playerAId;
     g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'position-swap', aId: playerAId, aName, bId: playerBId, bName });
+  });
+}
+
+// Tapping a bench player — the mirror image of openPitchSubModal above:
+// that one starts from an on-field player and offers bench options (bring
+// on) or teammate options (swap position); this one starts from a bench
+// player and offers on-field options (sub them off) or an open spot (add,
+// no one comes off). Having both directions open the same KIND of picker,
+// rather than this side instead arming a pending pick that some other tap
+// elsewhere on screen would complete, used to let a pick armed here go
+// stale if the coach resolved things a different way (the pitch-chip
+// modal, a GK change, Auto-Fill Field) — the stale pick stayed silently
+// "live," and the next tap on any on-field card would fire it unasked.
+// Routing every substitution-starting tap through a self-contained modal
+// like this one removes that whole class of bug structurally, rather than
+// needing to remember to clear a pending pick on every other path that
+// might resolve it instead.
+function openBenchSubModal(gameId, inId, byId, team, onFieldOutfield, hasOpenSpot) {
+  const inPlayer = byId[inId];
+  if (!inPlayer) return;
+  if (!onFieldOutfield.length && !hasOpenSpot) {
+    alertDialog(`No one on the pitch to swap with, and no open spot, for ${inPlayer.name}.`);
+    return;
+  }
+  openModal({
+    title: `${escapeHtml(inPlayer.name)}`,
+    bodyHtml: `
+      <form id="bench-sub-form" class="stack">
+        <div class="field">
+          <label>${hasOpenSpot ? 'Add to an open spot, or bring on for (coming off)' : 'Bring on for (coming off)'}</label>
+          <select name="targetId" required>
+            <option value="" disabled selected>Select</option>
+            ${hasOpenSpot ? `<option value="__add__">⬆ Add to Pitch (open spot, no one comes off)</option>` : ''}
+            ${onFieldOutfield.length ? `
+              <optgroup label="Bring on for (coming off)">
+                ${onFieldOutfield.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+              </optgroup>
+            ` : ''}
+          </select>
+        </div>
+        <button type="submit" class="btn block">Confirm</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#bench-sub-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const targetId = new FormData(e.target).get('targetId');
+        if (!targetId) return;
+        closeModal();
+        if (targetId === '__add__') {
+          addPlayerToBestOpenSlot(gameId, inId, byId);
+        } else {
+          applySub(gameId, inId, targetId, byId, team);
+        }
+      });
+    },
+  });
+}
+
+// Shared by openBenchSubModal's "Add to Pitch" option — the old inline
+// "⬆ Add to Pitch (no swap)" button's own logic, extracted so it works the
+// same way from inside a modal: no outgoing player, so none of applySub's
+// swap bookkeeping (min-stint check, squad-rule check, freeing an outgoing
+// slot) applies. Picks whichever empty formation slot matches their
+// preferred position, falling back to any other empty non-GK slot so the
+// pitch still shows where they are even without a role match.
+function addPlayerToBestOpenSlot(gameId, inId, byId) {
+  const game = findGame(gameId);
+  const ineligible = ineligibleToBringOnReason(game, inId);
+  if (ineligible) {
+    alertDialog(ineligible);
+    return;
+  }
+  const { team } = getState();
+  const squadFormat = gameSquadFormat(game, team);
+  const formation = formationFor(squadFormat, game.formationId, team.customFormations || []);
+  const inPlayer = byId[inId];
+  const inName = inPlayer?.name || '';
+  update((state) => {
+    const g = state.games.find((x) => x.id === gameId);
+    g.live.onField.push(inId);
+    g.live.stintStart = g.live.stintStart || {};
+    g.live.stintStart[inId] = g.live.elapsedSeconds;
+    g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'add', inId, inName });
+    const emptySlotIds = Object.keys(g.lineup?.slots || {}).filter((sid) => !g.lineup.slots[sid] && sid !== 'gk');
+    const preferredSlotId = emptySlotIds.find((sid) => playerPositions(inPlayer).includes(formation.slots.find((s) => s.id === sid)?.role));
+    const chosenSlotId = preferredSlotId || emptySlotIds[0];
+    if (chosenSlotId) g.lineup.slots[chosenSlotId] = inId;
   });
 }
 
@@ -830,7 +857,6 @@ function addPlayerToSlot(gameId, inId, slotId, byId) {
     return;
   }
   const inName = byId[inId]?.name || '';
-  selectingInboundId = null; // see the comment in swapPitchPositions above
   update((state) => {
     const g = state.games.find((x) => x.id === gameId);
     g.live.onField.push(inId);
@@ -906,9 +932,6 @@ async function applySub(gameId, inId, outId, byId, team) {
 
   const inName = byId[inId]?.name || '';
   const outName = byId[outId]?.name || '';
-  // Cleared BEFORE update(), same as every other reset in this file — see
-  // the comment in swapPitchPositions above for why the ordering matters.
-  selectingInboundId = null;
   update((state) => {
     const g = state.games.find((x) => x.id === gameId);
     g.live.onField = g.live.onField.filter((id) => id !== outId);
@@ -1072,7 +1095,11 @@ function upcomingSubsHtml(team, live, bench, onFieldOutfield) {
 
 function fieldCardHtml(p, live, isCompleted, isOnField, team, positionRole) {
   const seconds = live.playingTime[p.id] || 0;
-  const clickable = !isCompleted && selectingInboundId;
+  // Tappable any time the match isn't over — opens the same picker as the
+  // pitch-diagram chip for this same player (see the shared [data-open-sub]
+  // wiring in renderLiveGame), so there's exactly one way this card behaves
+  // regardless of which of the two places on screen a coach taps it.
+  const clickable = !isCompleted;
   const stint = isOnField ? stintSeconds(live, p.id) : null;
   const minStintSeconds = (team?.minStintMinutes ?? 4) * 60;
   const stintLine = isOnField
@@ -1084,7 +1111,7 @@ function fieldCardHtml(p, live, isCompleted, isOnField, team, positionRole) {
   // substitution could easily catch it by mistake.
   const cardAction = `<button type="button" class="icon-btn" style="position:absolute; top:2px; right:2px; font-size:13px; padding:4px 6px;" data-action="log-card" data-player-id="${p.id}" aria-label="${team?.enableCards ? 'Card / remove' : 'Remove from match'} ${escapeHtml(p.name)}" title="${team?.enableCards ? 'Card / Remove' : 'Remove from Match'}">⋯</button>`;
   return `
-    <div class="field-card ${clickable ? 'subbing' : ''}" style="position:relative;" ${clickable ? `data-onfield-player="${p.id}"` : ''}>
+    <div class="field-card" style="position:relative;" ${clickable ? `data-open-sub="${p.id}"` : ''}>
       <div class="row spread" style="padding-right:20px;">
         <span class="jersey">${p.jerseyNumber ?? '-'}</span>
         <span class="small muted">${positionRole ? escapeHtml(positionRole) : (isOnField ? 'On field' : 'Bench')}</span>
@@ -1099,9 +1126,8 @@ function fieldCardHtml(p, live, isCompleted, isOnField, team, positionRole) {
 
 function benchCardHtml(p, live, subPlan) {
   const seconds = live.playingTime[p.id] || 0;
-  const selected = selectingInboundId === p.id;
   return `
-    <button type="button" class="field-card ${selected ? 'selected-in' : ''}" data-bench-player="${p.id}" style="text-align:left; cursor:pointer;">
+    <button type="button" class="field-card" data-bench-player="${p.id}" style="text-align:left; cursor:pointer;">
       <div class="row spread">
         <span class="jersey">${p.jerseyNumber ?? '-'}</span>
         <span class="small muted">Bench</span>
@@ -1703,7 +1729,6 @@ function openGkModal(gameId, active, presentIds, sentOffIds, targetPeriod, advan
           }
         }
 
-        selectingInboundId = null; // see the comment in swapPitchPositions above
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
           const prevGkId = g.live.gkByPeriod[g.live.currentPeriod] || null;

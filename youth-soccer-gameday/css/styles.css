@@ -561,8 +561,6 @@ button { font: inherit; }
 .field-card .jersey { width: 34px; height: 34px; font-size: 14px; }
 .field-card-name { font-size: 16px; font-weight: 700; margin-top: 6px; }
 .field-card .small.muted { font-size: 13px; }
-.field-card.subbing { outline: 3px solid var(--blue); background: rgba(37, 99, 235, 0.08); }
-.field-card.selected-in { outline: 3px solid var(--green-600); background: rgba(28, 138, 83, 0.08); }
 .field-card .pt { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; }
 
 .sublog-item {
