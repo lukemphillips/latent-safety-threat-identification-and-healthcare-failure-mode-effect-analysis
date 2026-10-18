@@ -5,6 +5,7 @@ import { violatedRules } from '../rules.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { subPlanSectionHtml, openSubPlanEntryForm, benchDueLineHtml } from '../subPlan.js';
 import { autoFillLineup } from './gameDetail.js';
+import { squadFormatOptionsHtml } from './schedule.js';
 import { isCloudSyncConnected, syncSilently } from '../cloudSync.js';
 import { remapLiveFormation, stintSeconds, computeMatchSummary, findRemovalReason } from '../liveGameLogic.js';
 
@@ -38,7 +39,6 @@ export function renderLiveGame(app, gameId) {
   const squadFormat = gameSquadFormat(game, team);
   const targetOutfield = outfieldTargetCount(squadFormat);
   const formation = formationFor(squadFormat, game.formationId, team.customFormations || []);
-  const formationOptions = formationOptionsFor(squadFormat, team.customFormations || []);
   const hasGk = formationHasGk(formation);
   const slotByPlayerId = Object.fromEntries(
     Object.entries(game.lineup?.slots || {}).filter(([, pid]) => pid).map(([slotId, pid]) => [pid, slotId])
@@ -421,7 +421,7 @@ export function renderLiveGame(app, gameId) {
 
     const changeFormationBtn = app.querySelector('[data-action="change-formation"]');
     if (changeFormationBtn) {
-      changeFormationBtn.addEventListener('click', () => openFormationModal(gameId, formationOptions, formation.id));
+      changeFormationBtn.addEventListener('click', () => openFormationModal(gameId, squadFormat, formation.id, team));
     }
 
     const autoFillFieldBtn = app.querySelector('[data-action="auto-fill-field"]');
@@ -533,27 +533,63 @@ export function renderLiveGame(app, gameId) {
 // out from under an open native dropdown, snapping it shut before a tap
 // could land. A modal lives outside #app (see modal.js), so it isn't
 // touched by that re-render at all.
-function openFormationModal(gameId, formationOptions, currentFormationId) {
+//
+// Covers the squad SIZE as well as the tactical shape — a grassroots
+// match doesn't always stay the format it was scheduled as (a team shows
+// up short and the game's played 6-a-side instead of 7, or a league's
+// informal fair-play rule lets the losing side bring on an extra player
+// mid-match). Changing size here picks a fresh formation for that size
+// (defaulting to its first suggestion) and remaps the live lineup the
+// same way a same-size shape change already does — see remapLiveFormation
+// — so nobody currently on the pitch is silently dropped. Growing the
+// squad just opens up new empty slot(s) to fill via the usual Auto-Fill
+// Field button or tapping the open spot; shrinking it can leave one
+// player without a mapped pitch position if the pitch is already over
+// the new target (remapLiveFormation's documented fallback) — they stay
+// on and counted, just without a drawn spot, until the coach subs or
+// benches someone to make room.
+function openFormationModal(gameId, currentSquadFormat, currentFormationId, team) {
+  const customFormations = team.customFormations || [];
   openModal({
     title: 'Change Formation',
     bodyHtml: `
       <form id="formation-form" class="stack">
         <div class="field">
+          <label>Squad size</label>
+          <select name="squadFormat">${squadFormatOptionsHtml(currentSquadFormat)}</select>
+          <p class="muted small" style="margin:4px 0 0;">Only for this match — your team's usual format (${team.squadFormat}-a-side) is unaffected. Handy when a grassroots game ends up a different size than planned, or you're adding an extra player under a fair-play rule.</p>
+        </div>
+        <div class="field">
           <label>Formation</label>
-          <select name="formationId">
-            ${formationOptions.map((f) => `<option value="${f.id}" ${f.id === currentFormationId ? 'selected' : ''}>${escapeHtml(f.label)}${f.custom ? ' (yours)' : ''}</option>`).join('')}
+          <select name="formationId" id="formation-select">
+            ${formationOptionsFor(currentSquadFormat, customFormations).map((f) => `<option value="${f.id}" ${f.id === currentFormationId ? 'selected' : ''}>${escapeHtml(f.label)}${f.custom ? ' (yours)' : ''}</option>`).join('')}
           </select>
         </div>
         <button type="submit" class="btn block">Apply</button>
       </form>
     `,
     onMount: (modalEl) => {
+      const sizeSelect = modalEl.querySelector('[name="squadFormat"]');
+      const formationSelect = modalEl.querySelector('#formation-select');
+      sizeSelect.addEventListener('change', () => {
+        const size = Number(sizeSelect.value);
+        formationSelect.innerHTML = formationOptionsFor(size, customFormations)
+          .map((f) => `<option value="${f.id}">${escapeHtml(f.label)}${f.custom ? ' (yours)' : ''}</option>`).join('');
+      });
       modalEl.querySelector('#formation-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        const newFormationId = new FormData(e.target).get('formationId');
+        const fd = new FormData(e.target);
+        const newSquadFormat = Number(fd.get('squadFormat')) || currentSquadFormat;
+        const newFormationId = fd.get('formationId');
         update((state) => {
           const g = state.games.find((x) => x.id === gameId);
-          const newFormation = formationFor(gameSquadFormat(g, state.team), newFormationId, state.team.customFormations || []);
+          const newFormation = formationFor(newSquadFormat, newFormationId, state.team.customFormations || []);
+          // Same inherit-vs-override convention as the Schedule form's own
+          // Format field: only stored on the game when it actually differs
+          // from the team's current default, so this match keeps tracking
+          // whatever was deliberately chosen here even if the team default
+          // changes later in Settings.
+          g.squadFormat = newSquadFormat !== state.team.squadFormat ? newSquadFormat : null;
           g.formationId = newFormationId;
           g.lineup.slots = remapLiveFormation(g.lineup.slots, g.live.onField, g.live.gkByPeriod[g.live.currentPeriod], newFormation);
         });
