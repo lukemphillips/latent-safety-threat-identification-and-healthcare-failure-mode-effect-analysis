@@ -95,7 +95,8 @@ function roleForToken(token) {
 
   await pageB.goto(BASE + '/index.html#/balance');
   await pageB.waitForTimeout(200);
-  await pageB.selectOption('#target-game', gameId);
+  const targetCheckboxB = pageB.locator(`[data-target-game="${gameId}"]`);
+  if (!(await targetCheckboxB.isChecked())) await targetCheckboxB.check();
   await pageB.waitForTimeout(100);
   await pageB.click('[data-action="import-squad"]');
   await pageB.waitForTimeout(150);

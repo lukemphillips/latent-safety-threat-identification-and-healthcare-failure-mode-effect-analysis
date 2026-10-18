@@ -1,5 +1,5 @@
 import { getState, update, findGame } from '../store.js';
-import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate, sortByDateTime, matchEligiblePlayers, STREAM_ORDER, comparePlayersBy, shuffleArray, usedTeamAllocationsInOrder, gameSquadFormat } from '../util.js';
+import { escapeHtml, streamBadgeHtml, formatPositions, copyToClipboard, formatDate, formatTime, sortByDateTime, matchEligiblePlayers, STREAM_ORDER, comparePlayersBy, shuffleArray, usedTeamAllocationsInOrder, gameSquadFormat } from '../util.js';
 import { isJuniorAgeGroup } from '../ageFormats.js';
 import { buildGroupsByStream } from '../trainingGroups.js';
 import { formationFor, emptyLineupSlots } from '../formations.js';
@@ -15,7 +15,7 @@ let teamCount = 2;
 let splitMode = 'mixed';
 let split = null;
 let lastGameId = null;
-let targetGameId = null;
+let targetGameIds = null;
 let importedSquad = null;
 let importedTeams = {};
 let squadSortKey = 'name';
@@ -152,9 +152,17 @@ function sendSquadToMatch(playerIds, gameId) {
   });
 }
 
-function confirmOverwrite(targetGame) {
-  if (!(targetGame.presentIds || []).length) return Promise.resolve(true);
-  return confirmDialog(`vs ${targetGame.opponent} already has ${targetGame.presentIds.length} player(s) marked present. Replace with this squad and auto-fill a fresh lineup?`, { okLabel: 'Replace' });
+// Confirms once for however many of the selected matches already have a
+// squad marked present, rather than nagging the coach with one popup per
+// match — a tournament day might have 3-4 matches selected at once.
+function confirmOverwrite(targetGames) {
+  const withSquads = targetGames.filter((g) => (g.presentIds || []).length);
+  if (!withSquads.length) return Promise.resolve(true);
+  const list = withSquads.map((g) => `vs ${g.opponent} (${g.presentIds.length})`).join(', ');
+  const msg = withSquads.length === 1
+    ? `vs ${withSquads[0].opponent} already has ${withSquads[0].presentIds.length} player(s) marked present. Replace with this squad and auto-fill a fresh lineup?`
+    : `${withSquads.length} of the selected matches already have a squad marked present — ${list}. Replace them all with this squad and auto-fill fresh lineups?`;
+  return confirmDialog(msg, { okLabel: 'Replace' });
 }
 
 export function renderBalanceTeams(app, gameId) {
@@ -173,8 +181,11 @@ export function renderBalanceTeams(app, gameId) {
   // Drop anyone no longer active/present in the roster.
   includedIds = new Set([...includedIds].filter((id) => active.some((p) => p.id === id)));
 
-  if (!targetGameId || !upcoming.some((g) => g.id === targetGameId)) {
-    targetGameId = (game && game.status === 'scheduled') ? game.id : (upcoming[0]?.id || null);
+  if (!targetGameIds) {
+    targetGameIds = new Set((game && game.status === 'scheduled') ? [game.id] : (upcoming[0] ? [upcoming[0].id] : []));
+  } else {
+    // Drop anything that's no longer scheduled (started, cancelled, etc.)
+    targetGameIds = new Set([...targetGameIds].filter((id) => upcoming.some((g) => g.id === id)));
   }
 
   const teamAllocValues = usedTeamAllocationsInOrder(active);
@@ -433,22 +444,29 @@ export function renderBalanceTeams(app, gameId) {
     });
   }
 
-  const targetSelect = app.querySelector('#target-game');
-  if (targetSelect) {
-    targetSelect.addEventListener('change', () => {
-      targetGameId = targetSelect.value;
+  app.querySelectorAll('[data-target-game]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const id = cb.dataset.targetGame;
+      if (cb.checked) targetGameIds.add(id);
+      else targetGameIds.delete(id);
+      // Which matches a squad was last sent to just changed — the old
+      // "✅ Sent to X" tags would now be describing a different set of
+      // targets than what's ticked, so drop them rather than show a status
+      // that no longer matches what's selected.
+      resetImportStatus();
       renderBalanceTeams(app, gameId);
     });
-  }
+  });
 
   const importSquadBtn = app.querySelector('[data-action="import-squad"]');
   if (importSquadBtn) {
     importSquadBtn.addEventListener('click', async () => {
-      const targetGame = findGame(targetGameId);
-      if (!targetGame) return;
-      if (!(await confirmOverwrite(targetGame))) return;
-      sendSquadToMatch(included.map((p) => p.id), targetGameId);
-      importedSquad = { gameId: targetGameId, opponent: targetGame.opponent };
+      const targetGames = [...targetGameIds].map((id) => findGame(id)).filter(Boolean);
+      if (!targetGames.length) return;
+      if (!(await confirmOverwrite(targetGames))) return;
+      const playerIds = included.map((p) => p.id);
+      targetGames.forEach((g) => sendSquadToMatch(playerIds, g.id));
+      importedSquad = targetGames.map((g) => ({ gameId: g.id, opponent: g.opponent }));
       renderBalanceTeams(app, gameId);
     });
   }
@@ -457,14 +475,19 @@ export function renderBalanceTeams(app, gameId) {
     btn.addEventListener('click', async () => {
       const idx = Number(btn.dataset.teamIndex);
       const teamPlayers = split?.[idx];
-      const targetGame = findGame(targetGameId);
-      if (!targetGame || !teamPlayers) return;
-      if (!(await confirmOverwrite(targetGame))) return;
-      sendSquadToMatch(teamPlayers.map((p) => p.id), targetGameId);
-      importedTeams[idx] = { gameId: targetGameId, opponent: targetGame.opponent };
+      const targetGames = [...targetGameIds].map((id) => findGame(id)).filter(Boolean);
+      if (!targetGames.length || !teamPlayers) return;
+      if (!(await confirmOverwrite(targetGames))) return;
+      const playerIds = teamPlayers.map((p) => p.id);
+      targetGames.forEach((g) => sendSquadToMatch(playerIds, g.id));
+      importedTeams[idx] = targetGames.map((g) => ({ gameId: g.id, opponent: g.opponent }));
       renderBalanceTeams(app, gameId);
     });
   });
+}
+
+function matchLabelHtml(g) {
+  return `${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)} · ${formatDate(g.date)}${g.time ? ' · ' + formatTime(g.time) : ''}${g.location ? ' · ' + escapeHtml(g.location) : ''}`;
 }
 
 function matchTargetHtml(upcoming) {
@@ -472,22 +495,31 @@ function matchTargetHtml(upcoming) {
     return `<div class="banner info">No scheduled matches yet — <a href="#/schedule">add one</a> first, then come back to send a squad straight into it.</div>`;
   }
   return `
-    <div class="section-title">Send to a scheduled match</div>
+    <div class="section-title">Send to scheduled match(es)</div>
     <div class="card">
-      <div class="field" style="margin-bottom:0;">
-        <label>Match</label>
-        <select id="target-game">
-          ${upcoming.map((g) => `<option value="${g.id}" ${g.id === targetGameId ? 'selected' : ''}>${g.isHome ? 'vs' : '@'} ${escapeHtml(g.opponent)} · ${formatDate(g.date)}</option>`).join('')}
-        </select>
+      <div class="muted small" style="margin-bottom:8px;">Tick every match this squad plays — handy on a tournament day with more than one kickoff to tell apart by time and pitch.</div>
+      <div class="stack">
+        ${upcoming.map((g) => `
+          <label class="checkbox-row" style="display:flex; align-items:center; gap:8px; padding:4px 0;">
+            <input type="checkbox" data-target-game="${g.id}" ${targetGameIds.has(g.id) ? 'checked' : ''} />
+            <span>${matchLabelHtml(g)}</span>
+          </label>
+        `).join('')}
       </div>
     </div>
   `;
 }
 
+function sentToHtml(sentList) {
+  if (!sentList || !sentList.length) return '';
+  return `<div class="banner info" style="margin-top:-4px;">✅ Sent to ${sentList.map((s) => `${escapeHtml(s.opponent)} (<a href="#/game/${s.gameId}/lineup">open</a>)`).join(', ')}</div>`;
+}
+
 function wholeSquadImportHtml(included) {
+  const canSend = included.length && targetGameIds.size;
   return `
-    <button class="btn secondary block" data-action="import-squad" style="margin:12px 0;" ${included.length ? '' : 'disabled'}>→ Set as Match Squad (${included.length})</button>
-    ${importedSquad ? `<div class="banner info" style="margin-top:-4px;">✅ Sent to ${escapeHtml(importedSquad.opponent)} — <a href="#/game/${importedSquad.gameId}/lineup">open match</a></div>` : ''}
+    <button class="btn secondary block" data-action="import-squad" style="margin:12px 0;" ${canSend ? '' : 'disabled'}>→ Set as Match Squad (${included.length})${targetGameIds.size > 1 ? ` — ${targetGameIds.size} matches` : ''}</button>
+    ${sentToHtml(importedSquad)}
   `;
 }
 
@@ -546,10 +578,10 @@ function teamCardHtml(label, team, idx, upcoming) {
       </div>
       ${upcoming.length ? `
         <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">
-          ${imported
-            ? `<div class="small" style="color:var(--green-600); font-weight:600;">✅ Sent to ${escapeHtml(imported.opponent)}</div>
-               <a class="btn ghost sm" href="#/game/${imported.gameId}/lineup" style="margin-top:6px; display:inline-flex;">Open match →</a>`
-            : `<button type="button" class="btn secondary sm block" data-action="import-team" data-team-index="${idx}" ${team.length ? '' : 'disabled'}>→ Set as Match Squad</button>`}
+          ${imported && imported.length
+            ? `<div class="small" style="color:var(--green-600); font-weight:600;">✅ Sent to ${imported.map((s) => escapeHtml(s.opponent)).join(', ')}</div>
+               ${imported.map((s) => `<a class="btn ghost sm" href="#/game/${s.gameId}/lineup" style="margin-top:6px; display:inline-flex; margin-right:6px;">Open ${escapeHtml(s.opponent)} →</a>`).join('')}`
+            : `<button type="button" class="btn secondary sm block" data-action="import-team" data-team-index="${idx}" ${team.length && targetGameIds.size ? '' : 'disabled'}>→ Set as Match Squad${targetGameIds.size > 1 ? ` (${targetGameIds.size} matches)` : ''}</button>`}
         </div>
       ` : ''}
     </div>

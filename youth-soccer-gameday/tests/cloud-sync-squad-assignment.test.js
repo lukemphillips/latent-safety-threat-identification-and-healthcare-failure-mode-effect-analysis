@@ -110,7 +110,8 @@ function roleForToken(token) {
   // ============ Back on Device A (same session, never reloaded): Balance Teams sets the squad ============
   await pageA.goto(BASE + '/index.html#/balance');
   await pageA.waitForTimeout(200);
-  await pageA.selectOption('#target-game', gameId);
+  const targetCheckbox = pageA.locator(`[data-target-game="${gameId}"]`);
+  if (!(await targetCheckbox.isChecked())) await targetCheckbox.check();
   await pageA.waitForTimeout(100);
   await pageA.click('[data-action="import-squad"]');
   await pageA.waitForTimeout(150);
