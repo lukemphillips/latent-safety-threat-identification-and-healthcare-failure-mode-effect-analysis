@@ -138,7 +138,7 @@ export function renderLiveGame(app, gameId) {
         <div class="score-team">
           <div class="label">${escapeHtml(game.opponent)}</div>
           <div class="value">${live.scoreThem}</div>
-          ${isCompleted ? '' : `<div class="score-controls"><button class="btn ghost" data-action="log-goal-them">+1</button></div>`}
+          ${isCompleted ? '' : `<div class="score-controls"><button class="btn ghost" data-action="log-goal-them">+1</button><button class="btn ghost sm" data-action="log-own-goal">😬 Own Goal</button></div>`}
         </div>
       </div>
 
@@ -180,9 +180,10 @@ export function renderLiveGame(app, gameId) {
     ${!isCompleted ? upcomingSubsHtml(team, live, bench, onFieldOutfield) : ''}
 
     ${!isCompleted ? `
-      <div class="section-title" style="margin-top:0;">Formation</div>
+      <div class="section-title" style="margin-top:0;">Formation &amp; Squad Size</div>
+      <div class="muted small" style="margin:0 0 6px;">Currently ${escapeHtml(formation.label)}${formation.custom ? ' (yours)' : ''}.</div>
       <div class="timer-actions" style="margin:0 0 10px;">
-        <button type="button" class="btn ghost sm" data-action="change-formation">${escapeHtml(formation.label)}${formation.custom ? ' (yours)' : ''} — change</button>
+        <button type="button" class="btn secondary sm" data-action="change-formation">✏️ Change squad size or formation</button>
         <button type="button" class="btn secondary sm" data-action="auto-fill-field" ${canAutoFillField ? '' : 'disabled'}>⚡ Auto-Fill Field</button>
       </div>
       <div class="muted small" style="margin:0 0 8px;">Tap any player — on the pitch or the bench — to substitute, swap, or add them.</div>
@@ -226,7 +227,8 @@ export function renderLiveGame(app, gameId) {
       <summary style="cursor:pointer; font-weight:700; font-size:13px;">⏱ Playing Time</summary>
       <div style="margin-top:10px;">
         ${!live.running && periodElapsedSeconds > 0 ? `
-          <button type="button" class="btn ghost sm" data-action="correct-clock" style="margin-bottom:10px;">✂️ Correct clock — forgot to pause or end on time?</button>
+          <button type="button" class="btn ghost sm" data-action="correct-clock">✂️ Correct Clock</button>
+          <p class="muted small" style="margin:4px 0 10px;">Forgot to pause or end on time? Remove the extra minutes here.</p>
         ` : ''}
         ${playingTimeRows(active, live, presentIds)}
       </div>
@@ -266,6 +268,7 @@ export function renderLiveGame(app, gameId) {
         g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'goal-them' });
       });
     }));
+    app.querySelectorAll('[data-action="log-own-goal"]').forEach((btn) => btn.addEventListener('click', () => openOwnGoalModal(gameId, onPitchPool)));
     app.querySelectorAll('[data-action="log-save"]').forEach((btn) => btn.addEventListener('click', () => {
       // A single tap just records the save right now, credited to whoever
       // is currently in goal — no dialog to fill in first, matching the
@@ -1006,7 +1009,7 @@ function goalkeeperCardHtml(team, numPeriods, live, currentGk, isCompleted) {
 
 function matchSummaryHtml(live) {
   const s = computeMatchSummary(live);
-  const hasAnything = s.scorers.length || s.saves.length || s.openPlaySaves || s.cards.length;
+  const hasAnything = s.scorers.length || s.saves.length || s.openPlaySaves || s.cards.length || s.ownGoals || s.opponentOwnGoals;
   if (!hasAnything) return '';
 
   return `
@@ -1038,6 +1041,18 @@ function matchSummaryHtml(live) {
           ${s.cards.map((c) => `
             <div class="card-row"><span class="small">${escapeHtml(c.name)}</span><span class="small">${'🟨'.repeat(c.yellow)}${'🟥'.repeat(c.red)}</span></div>
           `).join('')}
+        </div>
+      ` : ''}
+      ${s.ownGoals ? `
+        <div>
+          <div class="muted small" style="margin-bottom:4px;">😬 Own Goals</div>
+          <div class="card-row"><span class="small">${s.ownGoalPlayerNames.length ? escapeHtml(s.ownGoalPlayerNames.join(', ')) : 'Unattributed'}</span><span class="small muted">${s.ownGoals}</span></div>
+        </div>
+      ` : ''}
+      ${s.opponentOwnGoals ? `
+        <div>
+          <div class="muted small" style="margin-bottom:4px;">🙌 Opponent Own Goals</div>
+          <div class="card-row"><span class="small">${s.opponentOwnGoalNotes.length ? escapeHtml(s.opponentOwnGoalNotes.join(', ')) : 'No note'}</span><span class="small muted">${s.opponentOwnGoals}</span></div>
         </div>
       ` : ''}
     </div>
@@ -1198,7 +1213,7 @@ function playingTimeRows(active, live, presentIds) {
 }
 
 const EVENT_ICONS = {
-  'goal-us': '⚽', 'goal-them': '🥅', save: '🧤', sub: '🔄', add: '⬆️',
+  'goal-us': '⚽', 'goal-them': '🥅', 'own-goal': '😬', 'opponent-own-goal': '🙌', save: '🧤', sub: '🔄', add: '⬆️',
   'period-start': '⏱', 'gk-change': '🧤', recovered: '↩️',
   'position-swap': '🔃', 'clock-correction': '✂️',
 };
@@ -1214,7 +1229,7 @@ const SEND_OFF_ICONS = { 'second yellow': '🟥', injury: '🚑', other: '🚪' 
 // boundaries) each have side effects elsewhere (who's on the pitch, who's
 // been sent off) that an edit here wouldn't reverse, so they're left
 // read-only for now.
-const EDITABLE_EVENT_TYPES = ['goal-us', 'goal-them', 'save'];
+const EDITABLE_EVENT_TYPES = ['goal-us', 'goal-them', 'save', 'own-goal', 'opponent-own-goal'];
 
 function eventRowHtml(entry, numPeriods, index) {
   const icon = entry.type === 'card' ? (entry.cardType === 'red' ? '🟥' : '🟨')
@@ -1227,6 +1242,12 @@ function eventRowHtml(entry, numPeriods, index) {
       break;
     case 'goal-them':
       label = `Goal (opponent)`;
+      break;
+    case 'own-goal':
+      label = `Own goal${entry.playerName ? ` — ${escapeHtml(entry.playerName)}` : ''}`;
+      break;
+    case 'opponent-own-goal':
+      label = `Opponent own goal${entry.note ? ` — ${escapeHtml(entry.note)}` : ''}`;
       break;
     case 'save':
       label = `GK save${entry.name ? ` — ${escapeHtml(entry.name)}` : ' (open play)'}`;
@@ -1448,14 +1469,101 @@ function openEditSubLogEntryModal(gameId, index, entry, pool) {
         });
       },
     });
+    return;
+  }
+
+  if (entry.type === 'own-goal') {
+    openModal({
+      title: 'Edit Own Goal',
+      bodyHtml: `
+        <form id="edit-own-goal-form" class="stack">
+          <div class="field">
+            <label>Came off (optional)</label>
+            <select name="playerId">
+              <option value="">Not sure / unattributed</option>
+              ${pool.map((p) => `<option value="${p.id}" ${p.id === entry.playerId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <button type="submit" class="btn block">Save Changes</button>
+          <button type="button" class="btn danger block" data-action="delete-entry">🗑 Delete This Own Goal</button>
+        </form>
+      `,
+      onMount: (modalEl) => {
+        modalEl.querySelector('#edit-own-goal-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const playerId = new FormData(e.target).get('playerId') || null;
+          const player = playerId ? pool.find((p) => p.id === playerId) : null;
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            const e2 = g.live.subLog[index];
+            e2.playerId = player?.id || null;
+            e2.playerName = player?.name || '';
+          });
+          closeModal();
+        });
+        modalEl.querySelector('[data-action="delete-entry"]').addEventListener('click', async () => {
+          if (!(await confirmDialog('Delete this own goal? This also adjusts the score.', { okLabel: 'Delete', danger: true }))) return;
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            g.live.scoreThem = Math.max(0, g.live.scoreThem - 1);
+            g.live.subLog.splice(index, 1);
+          });
+          closeModal();
+        });
+      },
+    });
+    return;
+  }
+
+  if (entry.type === 'opponent-own-goal') {
+    openModal({
+      title: 'Edit Opponent Own Goal',
+      bodyHtml: `
+        <form id="edit-opp-og-form" class="stack">
+          <div class="field">
+            <label>Note (optional)</label>
+            <input type="text" name="note" value="${escapeHtml(entry.note || '')}" placeholder="e.g. their #4, deflected off a cross" />
+          </div>
+          <button type="submit" class="btn block">Save Changes</button>
+          <button type="button" class="btn danger block" data-action="delete-entry">🗑 Delete This Own Goal</button>
+        </form>
+      `,
+      onMount: (modalEl) => {
+        modalEl.querySelector('#edit-opp-og-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const note = (new FormData(e.target).get('note') || '').trim();
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            g.live.subLog[index].note = note;
+          });
+          closeModal();
+        });
+        modalEl.querySelector('[data-action="delete-entry"]').addEventListener('click', async () => {
+          if (!(await confirmDialog('Delete this own goal? This also adjusts the score.', { okLabel: 'Delete', danger: true }))) return;
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            g.live.scoreUs = Math.max(0, g.live.scoreUs - 1);
+            g.live.subLog.splice(index, 1);
+          });
+          closeModal();
+        });
+      },
+    });
   }
 }
 
+// The scorer picker also offers "Opponent own goal" as a choice, not a
+// separate button — it belongs here because it's the same real-world
+// event as every other option in this list: our score going up. The app
+// has no opposition roster to pick a named player from (it only ever
+// tracks the other team's players conceptually, not individually), so
+// this takes a free-text note instead ("their #4") rather than a select.
+// Logged as its own event type, never 'goal-us' — crediting it to
+// whichever of OUR players happened to be picked would wrongly inflate
+// their scoring stats for a goal none of them actually scored.
+const OPPONENT_OWN_GOAL = '__opponent_own_goal__';
+
 function openGoalModal(gameId, pool) {
-  if (!pool.length) {
-    alertDialog('No one is on the pitch yet to credit with a goal.');
-    return;
-  }
   const options = (excludeId) => `<option value="">— none —</option>` + pool
     .filter((p) => p.id !== excludeId)
     .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
@@ -1467,13 +1575,18 @@ function openGoalModal(gameId, pool) {
         <div class="field">
           <label>Who scored?</label>
           <select name="scorer" required>
-            <option value="" disabled selected>Select player</option>
+            <option value="" disabled selected>Select</option>
+            <option value="${OPPONENT_OWN_GOAL}">⚠️ Opponent own goal</option>
             ${pool.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
           </select>
         </div>
-        <div class="field">
+        <div class="field" data-assist-field>
           <label>Assist (optional)</label>
           <select name="assist">${options()}</select>
+        </div>
+        <div class="field" data-opp-og-note-field hidden>
+          <label>Note (optional)</label>
+          <input type="text" name="oppOgNote" placeholder="e.g. their #4, deflected off a cross" />
         </div>
         <button type="submit" class="btn block">Log Goal</button>
       </form>
@@ -1482,15 +1595,30 @@ function openGoalModal(gameId, pool) {
       const form = modalEl.querySelector('#goal-form');
       const scorerSelect = form.querySelector('[name="scorer"]');
       const assistSelect = form.querySelector('[name="assist"]');
+      const assistField = form.querySelector('[data-assist-field]');
+      const noteField = form.querySelector('[data-opp-og-note-field]');
       scorerSelect.addEventListener('change', () => {
-        assistSelect.innerHTML = options(scorerSelect.value);
+        const isOppOwnGoal = scorerSelect.value === OPPONENT_OWN_GOAL;
+        assistField.hidden = isOppOwnGoal;
+        noteField.hidden = !isOppOwnGoal;
+        if (!isOppOwnGoal) assistSelect.innerHTML = options(scorerSelect.value);
       });
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         const fd = new FormData(form);
         const scorerId = fd.get('scorer');
-        const assistId = fd.get('assist') || null;
         if (!scorerId) return;
+        if (scorerId === OPPONENT_OWN_GOAL) {
+          const note = (fd.get('oppOgNote') || '').trim();
+          update((state) => {
+            const g = state.games.find((x) => x.id === gameId);
+            g.live.scoreUs += 1;
+            g.live.subLog.push({ atSeconds: g.live.elapsedSeconds, type: 'opponent-own-goal', note });
+          });
+          closeModal();
+          return;
+        }
+        const assistId = fd.get('assist') || null;
         const scorer = pool.find((p) => p.id === scorerId);
         const assist = assistId ? pool.find((p) => p.id === assistId) : null;
         update((state) => {
@@ -1500,6 +1628,51 @@ function openGoalModal(gameId, pool) {
             atSeconds: g.live.elapsedSeconds, type: 'goal-us',
             scorerId, scorerName: scorer?.name || '',
             assistId: assist?.id || null, assistName: assist?.name || '',
+          });
+        });
+        closeModal();
+      });
+    },
+  });
+}
+
+// Counts for the OPPOSITION's score (same effect as the plain "+1" button),
+// but logged as its own event type rather than folded into 'goal-them' so
+// the match record and stats can always tell the two apart — most
+// importantly, this is never 'goal-us', so it can never inflate a
+// player's own scoring stats just because it's credited to someone on our
+// side. Unlike openGoalModal above, an empty pool isn't a dead end here:
+// the coach may simply not have anyone to pin it on (or not be sure who
+// touched it last), and "logged as an own goal with no one named" is
+// still more useful to the match record than refusing to let it be
+// logged at all.
+function openOwnGoalModal(gameId, pool) {
+  openModal({
+    title: 'Own Goal',
+    bodyHtml: `
+      <p class="muted small mt-0">Counts for the opposition's score. Pick which of our players it came off if you're sure — otherwise leave it unattributed.</p>
+      <form id="own-goal-form" class="stack">
+        <div class="field">
+          <label>Came off (optional)</label>
+          <select name="playerId">
+            <option value="">Not sure / unattributed</option>
+            ${pool.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button type="submit" class="btn block">Log Own Goal</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#own-goal-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const playerId = new FormData(e.target).get('playerId') || null;
+        const player = playerId ? pool.find((p) => p.id === playerId) : null;
+        update((state) => {
+          const g = state.games.find((x) => x.id === gameId);
+          g.live.scoreThem += 1;
+          g.live.subLog.push({
+            atSeconds: g.live.elapsedSeconds, type: 'own-goal',
+            playerId: player?.id || null, playerName: player?.name || '',
           });
         });
         closeModal();
