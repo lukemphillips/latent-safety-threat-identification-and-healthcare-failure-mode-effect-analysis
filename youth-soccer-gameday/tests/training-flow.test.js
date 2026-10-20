@@ -37,17 +37,22 @@ function assert(cond, msg) {
   const upcomingCards = await page.$$('a.card[href^="#/training/"]');
   assert(upcomingCards.length >= 1, 'Seeded training session shows in list, found ' + upcomingCards.length);
 
-  // Add a new training session.
+  // Add a new training session — lands on the Plan tab first, since the
+  // plan itself (what's actually happening) doesn't depend on who shows
+  // up or how they're split, unlike Attendance/Groups/Matches.
   await page.click('[data-action="add-training"]');
   await page.waitForSelector('#training-form');
   await page.fill('#training-form [name="location"]', 'Test Ground');
   await page.click('#training-form button[type="submit"]');
-  await page.waitForFunction(() => location.hash.includes('/attendance'));
+  await page.waitForFunction(() => location.hash.includes('/plan'));
   const url = page.url();
   const trainingId = url.split('/training/')[1].split('/')[0];
   console.log('New training id:', trainingId);
+  const tabOrder = await page.$$eval('.tabs a.tab', (els) => els.map((e) => e.textContent.trim()));
+  assert(tabOrder[0] === 'Plan', `Plan is the first tab, got order: ${JSON.stringify(tabOrder)}`);
 
   // Attendance tab: mark all present.
+  await page.click(`a.tab:has-text("Attendance")`);
   await page.waitForSelector('[data-action="mark-all-present"]');
   await page.click('[data-action="mark-all-present"]');
   await page.waitForTimeout(150);
@@ -59,23 +64,24 @@ function assert(cond, msg) {
   await page.waitForSelector('[data-action="auto-build-groups"]');
   await page.click('[data-action="auto-build-groups"]');
   await page.waitForTimeout(150);
-  const groupCards = await page.$$('[data-group-player]');
+  const groupCards = await page.$$('[data-group-assign]');
   assert(groupCards.length > 0, 'Groups were built with players assigned, found ' + groupCards.length);
 
-  const groupTitles = await page.$$eval('[data-group-card] > div[style*="margin-bottom:6px"] > div[style*="font-weight:700"]', (els) => els.map((e) => e.textContent));
+  const groupTitles = await page.$$eval('[data-group-card] > div[style*="font-weight:700"]', (els) => els.map((e) => e.textContent));
   console.log('Groups built:', groupTitles);
   assert(groupTitles.length >= 2, 'At least 2 groups were auto-built, found ' + groupTitles.length);
 
-  // Manually move a player from the first group to the second group.
-  const firstGroupPlayerBtn = await page.$('[data-group-player]');
-  const firstGroupPlayerId = await firstGroupPlayerBtn.getAttribute('data-group-player');
-  const sourceGroupId = await firstGroupPlayerBtn.getAttribute('data-source-group');
-  await firstGroupPlayerBtn.click();
-  await page.waitForSelector('[data-move-to-group]');
-  const moveButtons = await page.$$('[data-move-to-group]');
-  assert(moveButtons.length >= 1, 'A "Move here" target group button appears after selecting a player');
-  const targetGroupId = await moveButtons[0].getAttribute('data-move-to-group');
-  await moveButtons[0].click();
+  // Manually move a player from their group to another one, using the
+  // same per-player dropdown pattern Balance Teams uses to move someone
+  // between split teams — kept consistent across the app rather than a
+  // separate tap-to-select-then-"Move here" flow just for this tab.
+  const firstGroupSelect = await page.$('[data-group-assign]');
+  const firstGroupPlayerId = await firstGroupSelect.getAttribute('data-group-assign');
+  const sourceGroupId = await firstGroupSelect.evaluate((el) => el.value);
+  const groupOptions = await firstGroupSelect.$$eval('option', (opts) => opts.map((o) => o.value));
+  const targetGroupId = groupOptions.find((v) => v !== sourceGroupId);
+  assert(targetGroupId, 'At least one other group is offered as a move target');
+  await firstGroupSelect.selectOption(targetGroupId);
   await page.waitForTimeout(150);
 
   // Verify persistence via localStorage.

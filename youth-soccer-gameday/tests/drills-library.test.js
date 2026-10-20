@@ -141,8 +141,7 @@ function assert(cond, msg) {
   await page.click('[data-action="add-training"]');
   await page.waitForSelector('#training-form');
   await page.click('#training-form button[type="submit"]');
-  await page.waitForFunction(() => location.hash.includes('/attendance'));
-  await page.click('a.tab:has-text("Plan")');
+  await page.waitForFunction(() => location.hash.includes('/plan'));
   await page.waitForSelector('[data-action="add-block"]');
   await page.click('[data-action="add-block"]');
   await page.waitForSelector('#block-form');

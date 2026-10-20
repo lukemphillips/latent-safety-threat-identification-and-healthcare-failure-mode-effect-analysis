@@ -44,8 +44,6 @@ export function computeMatchSummary(live) {
   const saves = new Map();
   const cards = new Map();
   let openPlaySaves = 0;
-  let ownGoals = 0;
-  const ownGoalPlayerNames = [];
   let opponentOwnGoals = 0;
   const opponentOwnGoalNotes = [];
 
@@ -71,12 +69,6 @@ export function computeMatchSummary(live) {
       const rec = cards.get(e.playerId) || { name: e.name, yellow: 0, red: 0 };
       if (e.cardType === 'red') rec.red += 1; else rec.yellow += 1;
       cards.set(e.playerId, rec);
-    } else if (e.type === 'own-goal') {
-      // Deliberately never folded into `scorers` above — an own goal is
-      // never a credit to the player it's attributed to, just a note for
-      // the record of whose touch it came off, if known.
-      ownGoals += 1;
-      if (e.playerName) ownGoalPlayerNames.push(e.playerName);
     } else if (e.type === 'opponent-own-goal') {
       // Counts for OUR score but is never one of `scorers` above — there's
       // no actual one of our players to credit, just our opponent's bad
@@ -94,8 +86,6 @@ export function computeMatchSummary(live) {
     cards: [...cards.values()],
     opponentOwnGoals,
     opponentOwnGoalNotes,
-    ownGoals,
-    ownGoalPlayerNames,
   };
 }
 

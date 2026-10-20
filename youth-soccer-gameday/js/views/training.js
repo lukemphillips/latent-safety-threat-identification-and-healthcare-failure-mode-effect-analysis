@@ -6,8 +6,6 @@ import { openDrillForm as openDrillLibraryForm, openDrillDetailModal } from './d
 import { splitBalancedTeams } from './balanceTeams.js';
 import { addMinutesToTime, resolveStations, resolveRotationCount, blockEffectiveMinutes, planTimeline, currentTimelineEntry, rotationLegInfo, advanceTrainingLive } from '../trainingPlanLogic.js';
 
-let selectingPlayerId = null;
-let selectingSourceGroupId = null;
 // Off by default — "Same stream" grouping exists specifically to keep
 // players of similar ability together, and silently moving someone out
 // of their actual stream to even up group sizes undercuts that unless a
@@ -56,7 +54,7 @@ function trainingCard(training) {
     ? ' · <span style="color:var(--red);">🔴 LIVE</span>'
     : (training.completedAt ? ' · <span class="muted">✅ Completed</span>' : '');
   return `
-    <a class="card" href="#/training/${training.id}/${training.live || training.completedAt ? 'plan' : 'attendance'}" style="display:block;">
+    <a class="card" href="#/training/${training.id}/plan" style="display:block;">
       <div class="card-row">
         <div>
           <div style="font-weight:700; font-size:15px;">Training${statusTag}</div>
@@ -120,7 +118,7 @@ export function openTrainingForm(existing) {
           });
           saveAutoBackup();
           closeModal();
-          location.hash = `#/training/${id}/attendance`;
+          location.hash = `#/training/${id}/plan`;
         }
       });
       const deleteBtn = modalEl.querySelector('[data-action="delete-training"]');
@@ -144,9 +142,6 @@ export function renderTrainingDetail(app, trainingId, tab) {
     app.innerHTML = '<p class="empty">Training session not found. <a href="#/training">Back to training</a></p>';
     return;
   }
-  selectingPlayerId = null;
-  selectingSourceGroupId = null;
-
   const { players, team } = getState();
   const shareText = formatTrainingForShare(training, players, team.name);
 
@@ -176,10 +171,10 @@ export function renderTrainingDetail(app, trainingId, tab) {
     </div>
 
     <div class="tabs">
+      <a class="tab ${tab === 'plan' ? 'active' : ''}" href="#/training/${training.id}/plan">Plan</a>
       <a class="tab ${tab === 'attendance' ? 'active' : ''}" href="#/training/${training.id}/attendance">Attendance</a>
       <a class="tab ${tab === 'groups' ? 'active' : ''}" href="#/training/${training.id}/groups">Groups</a>
       <a class="tab ${tab === 'matches' ? 'active' : ''}" href="#/training/${training.id}/matches">Matches</a>
-      <a class="tab ${tab === 'plan' ? 'active' : ''}" href="#/training/${training.id}/plan">Plan</a>
     </div>
 
     <div id="tab-content"></div>
@@ -329,9 +324,9 @@ function renderGroupsTab(container, training) {
     </div>
 
     ${groups.length ? `
-      <div class="banner info" style="margin-top:12px;">Tap a player to select them, then tap "Move here" on another group to move them across — handy when a group ends up too big or too small.</div>
+      <div class="muted small" style="margin-top:12px;">Not happy with a group? Use the dropdown next to a player's name to move them to another one.</div>
       <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; margin-top:12px;">
-        ${groups.map((g) => groupCardHtml(g, byId)).join('')}
+        ${groups.map((g) => groupCardHtml(g, groups, byId)).join('')}
       </div>
     ` : '<div class="card empty" style="margin-top:12px;">No groups yet — tap Auto-Build Groups above.</div>'}
   `;
@@ -358,8 +353,6 @@ function renderGroupsTab(container, training) {
     const newGroups = currentMode === 'mixed'
       ? buildMixedGroups(present, Math.max(1, Math.min(maxGroups, Number(raw) || groups.length || 2)))
       : buildGroupsByStream(present, raw ? Number(raw) : null, balanceGroupNumbers);
-    selectingPlayerId = null;
-    selectingSourceGroupId = null;
     update((state) => {
       const t = state.trainings.find((x) => x.id === training.id);
       t.groups = newGroups;
@@ -377,34 +370,15 @@ function renderGroupsTab(container, training) {
     });
   });
 
-  container.querySelectorAll('[data-group-player]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const playerId = el.dataset.groupPlayer;
-      const groupId = el.dataset.sourceGroup;
-      if (selectingPlayerId === playerId) {
-        selectingPlayerId = null;
-        selectingSourceGroupId = null;
-      } else {
-        selectingPlayerId = playerId;
-        selectingSourceGroupId = groupId;
-      }
-      renderGroupsTab(container, findTraining(training.id));
-    });
-  });
-
-  container.querySelectorAll('[data-move-to-group]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const targetGroupId = el.dataset.moveToGroup;
-      const playerId = selectingPlayerId;
-      const sourceGroupId = selectingSourceGroupId;
-      if (!playerId || !sourceGroupId) return;
-      selectingPlayerId = null;
-      selectingSourceGroupId = null;
+  container.querySelectorAll('[data-group-assign]').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const playerId = sel.dataset.groupAssign;
+      const targetGroupId = sel.value;
       update((state) => {
         const t = state.trainings.find((x) => x.id === training.id);
-        const source = t.groups.find((g) => g.id === sourceGroupId);
+        const source = t.groups.find((g) => g.playerIds.includes(playerId));
         const target = t.groups.find((g) => g.id === targetGroupId);
-        if (!source || !target) return;
+        if (!source || !target || source.id === target.id) return;
         source.playerIds = source.playerIds.filter((id) => id !== playerId);
         if (!target.playerIds.includes(playerId)) target.playerIds.push(playerId);
       });
@@ -412,24 +386,35 @@ function renderGroupsTab(container, training) {
   });
 }
 
-function groupCardHtml(group, byId) {
-  const isSourceGroup = selectingSourceGroupId === group.id;
+// Same per-player dropdown pattern Balance Teams uses to move someone
+// between split teams (js/views/balanceTeams.js's splitTeamCellHtml) —
+// kept consistent here rather than this tab's old separate tap-to-select-
+// then-"Move here" flow, so moving a player between groups/teams works
+// the same way everywhere in the app.
+function groupAssignSelectHtml(p, groups) {
+  const currentGroupId = groups.find((g) => g.playerIds.includes(p.id))?.id;
+  return `
+    <select data-group-assign="${p.id}">
+      ${groups.map((g) => `<option value="${g.id}" ${g.id === currentGroupId ? 'selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}
+    </select>
+  `;
+}
+
+function groupCardHtml(group, groups, byId) {
   const groupPlayers = sortPlayersByName(group.playerIds.map((id) => byId[id]).filter(Boolean));
   const counts = { A: 0, B: 0, C: 0, D: 0, none: 0 };
   groupPlayers.forEach((p) => { counts[p.skillStream && counts[p.skillStream] !== undefined ? p.skillStream : 'none'] += 1; });
   return `
     <div class="card" data-group-card="${group.id}" style="flex:1 1 220px;">
-      <div class="spread" style="margin-bottom:6px;">
-        <div style="font-weight:700;">${escapeHtml(group.name)} (${groupPlayers.length})</div>
-        ${selectingPlayerId && !isSourceGroup ? `<button type="button" class="btn ghost sm" data-move-to-group="${group.id}">Move here →</button>` : ''}
-      </div>
+      <div style="font-weight:700; margin-bottom:6px;">${escapeHtml(group.name)} (${groupPlayers.length})</div>
       <div class="muted small" style="margin-bottom:8px;">A:${counts.A} · B:${counts.B} · C:${counts.C} · D:${counts.D}${counts.none ? ` · Unclassified:${counts.none}` : ''}</div>
       <div class="stack">
         ${groupPlayers.length ? groupPlayers.map((p) => `
-          <button type="button" class="bench-chip ${selectingPlayerId === p.id ? 'picking' : ''}" data-group-player="${p.id}" data-source-group="${group.id}" style="justify-content:flex-start;">
-            <span class="jersey">${p.jerseyNumber ?? '-'}</span>
-            ${escapeHtml(p.name)}
-          </button>
+          <div class="player-row">
+            <div class="jersey">${p.jerseyNumber ?? '-'}</div>
+            <div class="player-meta"><div class="player-name">${escapeHtml(p.name)}</div></div>
+            ${groupAssignSelectHtml(p, groups)}
+          </div>
         `).join('') : '<span class="muted small">No one in this group.</span>'}
       </div>
     </div>
@@ -504,8 +489,9 @@ function renderMatchesTab(container, training) {
 
     ${teams.length ? `
       ${matchRoundCardHtml(round)}
+      <div class="muted small" style="margin-top:12px;">Not happy with a team? Use the dropdown next to a player's name to move them to another one.</div>
       <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; margin-top:12px;">
-        ${teams.map((t) => matchTeamCardHtml(t, byId)).join('')}
+        ${teams.map((t) => matchTeamCardHtml(t, teams, byId)).join('')}
       </div>
     ` : '<div class="card empty" style="margin-top:12px;">No match teams yet — tap Build Match Teams above.</div>'}
   `;
@@ -593,6 +579,21 @@ function renderMatchesTab(container, training) {
       });
     });
   });
+
+  container.querySelectorAll('[data-match-team-assign]').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const playerId = sel.dataset.matchTeamAssign;
+      const targetTeamId = sel.value;
+      update((state) => {
+        const t = state.trainings.find((x) => x.id === training.id);
+        const source = (t.matchTeams || []).find((team) => team.playerIds.includes(playerId));
+        const target = (t.matchTeams || []).find((team) => team.id === targetTeamId);
+        if (!source || !target || source.id === target.id) return;
+        source.playerIds = source.playerIds.filter((id) => id !== playerId);
+        if (!target.playerIds.includes(playerId)) target.playerIds.push(playerId);
+      });
+    });
+  });
 }
 
 // A running round patches just its own clock text on the ordinary 1-second
@@ -648,7 +649,16 @@ function matchRoundCardHtml(round) {
   `;
 }
 
-function matchTeamCardHtml(team, byId) {
+function matchTeamAssignSelectHtml(p, teams) {
+  const currentTeamId = teams.find((t) => t.playerIds.includes(p.id))?.id;
+  return `
+    <select data-match-team-assign="${p.id}">
+      ${teams.map((t) => `<option value="${t.id}" ${t.id === currentTeamId ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}
+    </select>
+  `;
+}
+
+function matchTeamCardHtml(team, teams, byId) {
   const teamPlayers = sortPlayersByName(team.playerIds.map((id) => byId[id]).filter(Boolean));
   const counts = { A: 0, B: 0, C: 0, D: 0, none: 0 };
   teamPlayers.forEach((p) => { counts[p.skillStream && counts[p.skillStream] !== undefined ? p.skillStream : 'none'] += 1; });
@@ -661,6 +671,7 @@ function matchTeamCardHtml(team, byId) {
           <div class="player-row">
             <div class="jersey">${p.jerseyNumber ?? '-'}</div>
             <div class="player-meta"><div class="player-name">${escapeHtml(p.name)}</div></div>
+            ${matchTeamAssignSelectHtml(p, teams)}
           </div>
         `).join('') : '<span class="muted small">No one on this team.</span>'}
       </div>
@@ -1126,13 +1137,12 @@ function openBlockForm(training, groups, existing) {
         </label>
         <div data-mode-field class="field" ${pf.isBreak ? 'hidden' : ''}>
           <label>Activity type</label>
-          <select name="mode" ${hasGroups ? '' : 'disabled'}>
+          <select name="mode">
             <option value="whole" ${pf.mode !== 'grouped' ? 'selected' : ''}>Whole team, one activity</option>
             <option value="grouped" ${pf.mode === 'grouped' ? 'selected' : ''}>Each group does something different</option>
           </select>
-          ${!hasGroups ? '<div class="muted small" style="margin-top:4px;">Build groups on the Groups tab to unlock per-group activities.</div>' : ''}
         </div>
-        <div data-whole-field ${pf.mode === 'grouped' && hasGroups && !pf.isBreak ? 'hidden' : ''}>
+        <div data-whole-field ${pf.mode === 'grouped' && !pf.isBreak ? 'hidden' : ''}>
           <div class="field">
             <label data-whole-activity-label>${pf.isBreak ? 'Note (optional)' : 'Activity'}</label>
             <input type="text" name="activity" value="${escapeHtml(pf.activity || '')}" placeholder="e.g. Passing triangles" />
@@ -1140,7 +1150,7 @@ function openBlockForm(training, groups, existing) {
             ${drillLinkFieldHtml('activity', pf.activityDrillId)}
           </div>
         </div>
-        <div data-grouped-fields ${pf.mode === 'grouped' && hasGroups && !pf.isBreak ? '' : 'hidden'}>
+        <div data-grouped-fields ${pf.mode === 'grouped' && !pf.isBreak ? '' : 'hidden'}>
           <label class="checkbox-row">
             <input type="checkbox" name="rotate" ${pf.rotate ? 'checked' : ''} />
             Rotate groups through each activity (a circuit — every group does every station in turn)
@@ -1148,14 +1158,14 @@ function openBlockForm(training, groups, existing) {
           <div class="muted small" data-rotate-hint style="margin-bottom:8px;"></div>
 
           <div data-per-group-fields ${pf.rotate ? 'hidden' : ''}>
-            ${groups.map((g) => `
+            ${hasGroups ? groups.map((g) => `
               <div class="field">
                 <label>${escapeHtml(g.name)}</label>
                 <input type="text" name="group-${g.id}" value="${escapeHtml((pf.groupActivities || {})[g.id] || '')}" placeholder="Activity for this group" />
                 ${drillFillHtml(`group-${g.id}`, drills)}
                 ${drillLinkFieldHtml(`group-${g.id}`, (pf.groupActivityDrillIds || {})[g.id])}
               </div>
-            `).join('')}
+            `).join('') : '<div class="muted small">Build groups on the Groups tab to assign a specific activity per group — or turn on rotation above, which you can set up before groups are built.</div>'}
           </div>
 
           <div data-stations-fields ${pf.rotate ? '' : 'hidden'}>
@@ -1298,28 +1308,32 @@ function openBlockForm(training, groups, existing) {
 
       isBreakCheckbox.addEventListener('change', refreshBreakUi);
 
-      if (hasGroups) {
-        modeSelect.addEventListener('change', () => {
-          const grouped = modeSelect.value === 'grouped';
-          wholeField.hidden = grouped;
-          groupedFields.hidden = !grouped;
-          refreshRotateUi();
+      // Wired unconditionally — picking "Each group does something
+      // different" and setting up a rotation (stations/activities, how
+      // many rotations) never needed real groups to already exist, only
+      // the per-group (non-rotating) fields above do. A coach can plan a
+      // whole station circuit days before training, before knowing who's
+      // showing up or how they'll be split.
+      modeSelect.addEventListener('change', () => {
+        const grouped = modeSelect.value === 'grouped';
+        wholeField.hidden = grouped;
+        groupedFields.hidden = !grouped;
+        refreshRotateUi();
+      });
+      rotateCheckbox.addEventListener('change', refreshRotateUi);
+      minutesInput.addEventListener('input', refreshRotateUi);
+      if (rotationCountInput) rotationCountInput.addEventListener('input', refreshRotateUi);
+      groups.forEach((g) => {
+        const input = form.querySelector(`[name="group-${g.id}"]`);
+        if (input) input.addEventListener('input', refreshRotateUi);
+      });
+      const addStationBtn = form.querySelector('[data-action="add-station"]');
+      if (addStationBtn) {
+        addStationBtn.addEventListener('click', () => {
+          syncStationsStateFromDom();
+          stationsState.push({ id: uid(), activity: '', drillId: null });
+          renderStationsList();
         });
-        rotateCheckbox.addEventListener('change', refreshRotateUi);
-        minutesInput.addEventListener('input', refreshRotateUi);
-        if (rotationCountInput) rotationCountInput.addEventListener('input', refreshRotateUi);
-        groups.forEach((g) => {
-          const input = form.querySelector(`[name="group-${g.id}"]`);
-          if (input) input.addEventListener('input', refreshRotateUi);
-        });
-        const addStationBtn = form.querySelector('[data-action="add-station"]');
-        if (addStationBtn) {
-          addStationBtn.addEventListener('click', () => {
-            syncStationsStateFromDom();
-            stationsState.push({ id: uid(), activity: '', drillId: null });
-            renderStationsList();
-          });
-        }
       }
       refreshBreakUi();
       renderStationsList();
@@ -1332,7 +1346,7 @@ function openBlockForm(training, groups, existing) {
         const fd = new FormData(form);
         const minutes = Number(fd.get('minutes')) || 1;
         const isBreak = fd.get('isBreak') === 'on';
-        const mode = isBreak ? 'whole' : (hasGroups ? (fd.get('mode') || 'whole') : 'whole');
+        const mode = isBreak ? 'whole' : (fd.get('mode') || 'whole');
         const activity = (fd.get('activity') || '').trim();
         const activityDrillId = (fd.get('activity-drillId') || '').trim() || null;
         const rotate = !isBreak && mode === 'grouped' && fd.get('rotate') === 'on';
