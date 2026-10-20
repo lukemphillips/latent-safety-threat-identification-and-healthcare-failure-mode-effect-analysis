@@ -46,6 +46,44 @@ if (window.visualViewport) {
   vv.addEventListener('scroll', pinNav);
   pinNav();
 }
+
+// Two more on-screen-keyboard quirks, app-wide (not just inside a modal —
+// the exact same thing happens on any page with a date/time/text field,
+// e.g. Settings' Team form or the Archive date picker, which aren't
+// modals). Delegated on `document` rather than wired per-screen: a
+// `focusin`/`focusout` on a field inside an open <dialog> still bubbles
+// all the way up here (a <dialog> promoted to the "top layer" for
+// painting is still an ordinary child of <body> for event bubbling), so
+// this covers modal forms and inline page forms alike from one place.
+//
+// 1. "Snap to box": focusing a field doesn't guarantee it ends up visible
+// once the keyboard's reserved its space — scroll it into view once the
+// keyboard's resize/animation has actually finished (scrolling the instant
+// focus fires just gets fought and re-covered a moment later). Checkboxes/
+// radios don't bring up a keyboard, so they're excluded to avoid an
+// unnecessary scroll jump on a plain tap.
+const KEYBOARD_FIELD_SELECTOR = 'input:not([type="checkbox"]):not([type="radio"]), select, textarea';
+document.addEventListener('focusin', (e) => {
+  if (!e.target.matches?.(KEYBOARD_FIELD_SELECTOR)) return;
+  setTimeout(() => { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 300);
+});
+
+// 2. iOS Safari sometimes leaves the on-screen keyboard's (or a native
+// date/time wheel picker's) space reserved — a blank gap at the bottom of
+// the screen that can swallow everything below it, including a submit
+// button — even after focus has moved off that field onto something else
+// (another field, a checkbox, a select, or nothing at all). It isn't that
+// the keyboard/picker is still shown; the page just never gets nudged to
+// recalculate the visible area once it's gone. Nudging a scroll position
+// after any field loses focus is the standard workaround — a genuine
+// no-op when there's no gap to begin with, so this is safe to run for
+// every field everywhere rather than needing to enumerate which input
+// types or screens can trigger it.
+document.addEventListener('focusout', (e) => {
+  if (!e.target.matches?.('input, select, textarea')) return;
+  setTimeout(() => window.scrollTo(0, window.scrollY), 50);
+});
+
 const brandNameEl = document.getElementById('brand-team-name');
 const brandBadgeEl = document.getElementById('brand-badge');
 const defaultBadgeHtml = brandBadgeEl.innerHTML;
@@ -113,7 +151,7 @@ function route() {
   else if (parts[0] === 'settings') result = renderSettings(app);
   else if (parts[0] === 'help') result = renderHelp(app);
   else if (parts[0] === 'training') {
-    result = parts[1] ? renderTrainingDetail(app, parts[1], parts[2] || 'attendance') : renderTraining(app);
+    result = parts[1] ? renderTrainingDetail(app, parts[1], parts[2] || 'plan') : renderTraining(app);
   }
   else if (parts[0] === 'drills') result = renderDrillLibrary(app);
   else if (parts[0] === 'game' && parts[1]) {

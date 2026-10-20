@@ -18,24 +18,12 @@ export function openModal({ title, bodyHtml, onMount }) {
     if (e.target === dlg || e.target.closest('[data-close-modal]')) dlg.close();
   });
   dlg.addEventListener('close', () => dlg.remove());
-  // iOS Safari sometimes leaves the on-screen keyboard's (or a native
-  // date/time wheel picker's) space reserved — a blank gap at the bottom
-  // of the screen that can swallow everything below it, including a
-  // submit button — even after focus has moved off that field onto
-  // something else in the same modal (another field, a checkbox, a
-  // select). It isn't that the keyboard/picker is still shown; the page
-  // just never gets nudged to recalculate the visible area once it's
-  // gone, and stays stuck until some OTHER field is focused and
-  // explicitly dismissed. Nudging a scroll position after any field loses
-  // focus is the standard workaround — a genuine no-op when there's no gap
-  // to begin with, so this is safe to run for every field in every modal
-  // rather than needing to enumerate which input types can trigger it
-  // (text/number originally covered this; date/time pickers hit the exact
-  // same gap and were previously missed).
-  dlg.addEventListener('focusout', (e) => {
-    if (!e.target.matches('input, select, textarea')) return;
-    setTimeout(() => window.scrollTo(0, window.scrollY), 50);
-  });
+  // The iOS keyboard-gap nudge (on focusout) and scroll-into-view "snap to
+  // box" (on focusin) both used to be wired here, per dialog — now handled
+  // once for the whole app in main.js, since the exact same quirks happen
+  // on any field anywhere, not just inside a modal. A focus event on a
+  // field inside this dialog still bubbles all the way up to that
+  // document-level listener once it's open.
   dlg.showModal();
   if (onMount) onMount(dlg);
   return dlg;
