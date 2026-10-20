@@ -36,6 +36,7 @@ function assert(cond, msg) {
   await page.waitForSelector('#training-form');
   await page.click('#training-form button[type="submit"]');
   await page.waitForFunction(() => location.hash.includes('/plan'));
+  await page.waitForSelector('.tabs a.tab');
   const tabOrder = await page.$$eval('.tabs a.tab', (els) => els.map((e) => e.textContent.trim()));
   assert(JSON.stringify(tabOrder) === JSON.stringify(['Plan', 'Attendance', 'Groups', 'Matches']), `Tabs are ordered Plan first, got: ${JSON.stringify(tabOrder)}`);
   assert((await page.locator('a.tab.active').innerText()) === 'Plan', 'Plan is the active/landing tab on a fresh session');

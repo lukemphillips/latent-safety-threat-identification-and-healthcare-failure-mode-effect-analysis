@@ -45,6 +45,7 @@ function assert(cond, msg) {
   await page.fill('#training-form [name="location"]', 'Test Ground');
   await page.click('#training-form button[type="submit"]');
   await page.waitForFunction(() => location.hash.includes('/plan'));
+  await page.waitForSelector('.tabs a.tab');
   const url = page.url();
   const trainingId = url.split('/training/')[1].split('/')[0];
   console.log('New training id:', trainingId);
