@@ -318,6 +318,7 @@ function renderSquadTab(container, game) {
       <div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap;">
         <button class="btn secondary sm" data-action="mark-all-present">Mark All Present</button>
         <button class="btn ghost sm" data-action="use-rsvp-list" ${rsvpYes.length ? '' : 'disabled'}>✅ Use RSVP List</button>
+        <button class="btn ghost sm" data-action="add-fill-in">+ Fill-In Player</button>
       </div>
     </div>
     ${present.length ? `<a class="btn ghost sm" href="#/balance/${game.id}" style="margin:10px 0; display:inline-flex;">🎲 Balance Teams from today's squad</a>` : ''}
@@ -392,6 +393,8 @@ function renderSquadTab(container, game) {
   if (openSubPlanBtn) {
     openSubPlanBtn.addEventListener('click', () => openSubPlanListModal(game, present, byId));
   }
+
+  container.querySelector('[data-action="add-fill-in"]').addEventListener('click', () => openAddFillInPlayerModal(game));
 
   container.querySelector('#formation-select').addEventListener('change', (e) => {
     const newFormationId = e.target.value;
@@ -734,6 +737,7 @@ function renderLiveSquadTab(container, game, active, present, absent) {
           </span>
         `).join('') : '<span class="muted small">No one marked present yet.</span>'}
       </div>
+      <button type="button" class="btn ghost sm" data-action="add-fill-in" style="margin-top:10px;">+ Fill-In Player</button>
     </div>
 
     ${absent.length ? `
@@ -759,6 +763,71 @@ function renderLiveSquadTab(container, game, active, present, absent) {
         g.presentIds = [...new Set([...(g.presentIds || []), playerId])];
       });
     });
+  });
+
+  container.querySelector('[data-action="add-fill-in"]').addEventListener('click', () => openAddFillInPlayerModal(game));
+}
+
+// A Matchday device can't open the full Roster "+ Add" form — the Apps
+// Script server rejects an edit to an EXISTING player from that token, so
+// roster.js blocks it client-side too rather than letting an edit look
+// like it saved when it didn't (see blockIfMatchdayOnly there). But the
+// server explicitly DOES accept a brand-new player pushed from a Matchday
+// token (see cloudSync.js: "matchday: can push match data and add
+// brand-new players, e.g. a late arrival") — this is the client-side door
+// for that: a quick, minimal way to add someone not already on the
+// roster (short on numbers, a borrowed player) and mark them present for
+// this match right away. Deliberately NOT `isGuest` — that flag is for
+// Training-only visitors and is excluded from every match-facing screen
+// (see matchEligiblePlayers), the opposite of what a fill-in needs.
+function openAddFillInPlayerModal(game) {
+  openModal({
+    title: 'Add Fill-In Player',
+    bodyHtml: `
+      <p class="muted small mt-0">For someone not already on your roster — short on numbers, a borrowed player, etc. They're added to the roster and marked present for this match right away. Works even on a Matchday device.</p>
+      <form id="fill-in-form" class="stack">
+        <div class="field">
+          <label>Player name</label>
+          <input type="text" name="name" required placeholder="e.g. Jamie (borrowed from Riverside)" />
+        </div>
+        <div class="field">
+          <label>Jersey # <span class="muted small">(optional)</span></label>
+          <input type="number" name="jerseyNumber" min="0" max="99" style="max-width:120px;" />
+        </div>
+        <button type="submit" class="btn block">Add &amp; Mark Present</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#fill-in-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const name = (fd.get('name') || '').trim();
+        if (!name) return;
+        const jerseyNumber = fd.get('jerseyNumber') ? Number(fd.get('jerseyNumber')) : null;
+
+        // Same advisory-only dupe check as the full Roster "Add Player"
+        // form — an easy sideline typo otherwise saves silently and only
+        // surfaces confusion later, on the lineup or in the live match.
+        if (jerseyNumber != null) {
+          const dupe = matchEligiblePlayers(getState().players).find((pl) => pl.jerseyNumber === jerseyNumber);
+          if (dupe) {
+            const proceed = await confirmDialog(`${dupe.name} already wears #${jerseyNumber}. Add ${name} with the same number anyway?`, { okLabel: 'Add Anyway' });
+            if (!proceed) return;
+          }
+        }
+
+        const id = uid();
+        update((state) => {
+          state.players.push({
+            id, name, jerseyNumber, positions: [], skillStream: null, teamAllocation: '',
+            guardianName: '', guardianPhone: '', notes: '', active: true, isGuest: false, guestTeamName: '',
+          });
+          const g = touchGame(state, game.id);
+          g.presentIds = [...new Set([...(g.presentIds || []), id])];
+        });
+        closeModal();
+      });
+    },
   });
 }
 
