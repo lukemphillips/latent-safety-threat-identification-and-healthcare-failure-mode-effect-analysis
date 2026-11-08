@@ -6,11 +6,13 @@
 // reworked interaction: tapping any slot (filled or empty) selects it;
 // a second tap on another slot swaps/moves, a second tap on a bench
 // player substitutes them in, and tapping the SAME slot again clears it.
-// Also covers Attendance and the Substitution Plan now living in their
-// own modals rather than an inline collapsible section — a collapsed
-// <details> there had to survive the Squad tab's own frequent full
-// re-renders (every lineup action re-renders the whole tab) and would
-// sometimes pop back open; a modal's DOM isn't touched by that at all.
+// Also covers the Substitution Plan living in its own modal rather than
+// an inline collapsible section — a collapsed <details> there had to
+// survive the Squad tab's own frequent full re-renders (every lineup
+// action re-renders the whole tab) and would sometimes pop back open; a
+// modal's DOM isn't touched by that at all. And the merged RSVP/Squad
+// control: tapping a player's In/Maybe/Out status IS their attendance —
+// no separate step, replacing the old two-tabs-plus-a-modal setup.
 const { launch, BASE_URL } = require('./support/launch');
 
 const BASE = BASE_URL;
@@ -44,37 +46,28 @@ function assert(cond, msg) {
   await page.goto(`${BASE}/index.html#/game/${game.id}/lineup`);
   await page.waitForTimeout(200);
 
-  // ============ Mark All Present is a direct, one-tap action on the main tab ============
-  const presentBefore = await page.$eval('[data-action="open-attendance"]', (btn) => btn.closest('.card').querySelector('.small.muted').textContent);
-  assert(presentBefore.includes('0/12 present'), `Squad tab shows a compact attendance summary before opening it, got "${presentBefore}"`);
+  // ============ Mark All In is a direct, one-tap action on the main tab ============
+  const presentSummary = () => page.locator('.small.muted', { hasText: 'present' }).first().textContent();
+
+  const presentBefore = await presentSummary();
+  assert(presentBefore.includes('0/12 present'), `Squad tab shows a compact attendance summary, got "${presentBefore}"`);
 
   await page.click('[data-action="mark-all-present"]');
   await page.waitForTimeout(150);
-  const summaryAfterMarkAll = await page.$eval('[data-action="open-attendance"]', (btn) => btn.closest('.card').querySelector('.small.muted').textContent);
-  assert(summaryAfterMarkAll.includes('12/12 present'), `Mark All Present works directly on the tab, no modal needed, got "${summaryAfterMarkAll}"`);
+  const summaryAfterMarkAll = await presentSummary();
+  assert(summaryAfterMarkAll.includes('12/12 present'), `Mark All In works directly on the tab, no modal needed, got "${summaryAfterMarkAll}"`);
 
-  // ============ "Edit" opens a modal for fine-grained per-player attendance ============
-  await page.click('[data-action="open-attendance"]');
-  await page.waitForSelector('[data-attendance-toggle]');
-  const firstChip = page.locator('[data-attendance-toggle]').first();
-  const firstChipId = await firstChip.getAttribute('data-attendance-toggle');
-  await firstChip.click();
+  // ============ Tapping a player's status directly IS their attendance — no separate modal ============
+  await page.waitForSelector('[data-squad-status-btn]');
+  const firstOutBtn = page.locator('[data-squad-status-btn][data-value="no"]').first();
+  const firstChipId = await firstOutBtn.getAttribute('data-player-id');
+  await firstOutBtn.click();
   await page.waitForTimeout(150);
-  const presentInModal = await page.$eval('#attendance-modal-body .muted.small', (el) => el.textContent);
-  assert(presentInModal.includes('11/12 present'), `Toggling one player off inside the modal updates the modal in place, got "${presentInModal}"`);
-  await page.click('[data-close-modal]');
-  await page.waitForTimeout(150);
-  const summaryAfterClose = await page.$eval('[data-action="open-attendance"]', (btn) => btn.closest('.card').querySelector('.small.muted').textContent);
-  assert(summaryAfterClose.includes('11/12 present'), `Closing the modal leaves the Squad tab's own summary updated too, got "${summaryAfterClose}"`);
+  const summaryAfterOut = await presentSummary();
+  assert(summaryAfterOut.includes('11/12 present'), `Marking one player Out on the tab itself updates the summary in place, no modal needed, got "${summaryAfterOut}"`);
 
-  // Put that player back present so Auto-Fill below has the full 12 to work with.
-  await page.evaluate(async ({ gameId, playerId }) => {
-    const mod = await import('/js/store.js');
-    mod.update((state) => {
-      const g = state.games.find((x) => x.id === gameId);
-      g.presentIds = [...new Set([...(g.presentIds || []), playerId])];
-    });
-  }, { gameId: game.id, playerId: firstChipId });
+  // Put that player back In so Auto-Fill below has the full 12 to work with.
+  await page.click(`[data-squad-status-btn][data-value="yes"][data-player-id="${firstChipId}"]`);
   await page.waitForTimeout(150);
 
   await page.click('[data-action="auto-fill-lineup"]');

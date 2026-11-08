@@ -157,7 +157,7 @@ function route() {
   else if (parts[0] === 'game' && parts[1]) {
     result = parts[2] === 'live'
       ? renderLiveGame(app, parts[1])
-      : renderGameDetail(app, parts[1], parts[2] || 'rsvp');
+      : renderGameDetail(app, parts[1]);
   } else {
     app.innerHTML = '<p class="empty">Page not found.</p>';
   }
