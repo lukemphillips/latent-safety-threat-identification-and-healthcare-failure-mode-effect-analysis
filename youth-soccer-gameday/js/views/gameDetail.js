@@ -22,7 +22,6 @@ function touchGame(state, id) {
 
 const RSVP_OPTIONS = [
   { key: 'yes', label: 'In', icon: '✅' },
-  { key: 'maybe', label: 'Maybe', icon: '❓' },
   { key: 'no', label: 'Out', icon: '❌' },
 ];
 
@@ -198,15 +197,15 @@ function statusBanner(game) {
 }
 
 // One tap per player sets BOTH their status and whether they're present —
-// "In" marks them present and ready for the lineup below, "Maybe"/"Out"
-// keeps them off it, with no separate attendance step. Used to be two
-// things a coach had to keep in sync themselves: a whole separate RSVP
-// tab (for planning ahead of matchday) and the Squad tab's own, different
+// "In" marks them present and ready for the lineup below, "Out" keeps
+// them off it, with no separate attendance step. Used to be two things a
+// coach had to keep in sync themselves: a whole separate RSVP tab (for
+// planning ahead of matchday) and the Squad tab's own, different
 // attendance toggle (for who actually showed) — confusing to have two
 // different controls that both answered "is this person playing", so
-// this is the one place that sets both at once. The underlying `rsvps`
-// field is unchanged (still handy to tell "said Maybe" apart from "never
-// responded"), only the UI is merged.
+// this is the one place that sets both at once. A third "Maybe" choice
+// used to sit between them but did nothing a coach could act on
+// differently from Out, so it's gone — just the two real outcomes.
 function squadStatusRowHtml(game, p) {
   const current = game.rsvps[p.id] || 'pending';
   return `
@@ -264,7 +263,7 @@ function renderSquadTab(container, game) {
           <div class="small muted" style="margin-top:2px;">${present.length}/${active.length} present</div>
         </div>
       </div>
-      <div class="muted small" style="margin-top:6px;">Tap In/Maybe/Out for each player below — In marks them present and ready for the lineup, right away. Set this as early or as late as you like; there's nothing else to do once someone's In.</div>
+      <div class="muted small" style="margin-top:6px;">Tap In/Out for each player below — In marks them present and ready for the lineup, right away. Set this as early or as late as you like; there's nothing else to do once someone's In.</div>
       <div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap;">
         <button class="btn secondary sm" data-action="mark-all-present">Mark All In</button>
         <button class="btn ghost sm" data-action="add-fill-in">+ Fill-In Player</button>
@@ -720,8 +719,8 @@ function openAddFillInPlayerModal(game) {
           });
           const g = touchGame(state, game.id);
           g.presentIds = [...new Set([...(g.presentIds || []), id])];
-          // Keeps them consistent with the merged In/Maybe/Out control
-          // above — they're present, so their status reads as In too.
+          // Keeps them consistent with the merged In/Out control above —
+          // they're present, so their status reads as In too.
           g.rsvps[id] = 'yes';
         });
         closeModal();

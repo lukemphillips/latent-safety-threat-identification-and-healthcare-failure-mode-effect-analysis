@@ -2,6 +2,10 @@ import { getState, shouldOfferAutoBackupRestore, getAutoBackups, restoreAutoBack
 import { formatDate, formatTime, sortByDateTime, escapeHtml as escape, matchEligiblePlayers } from '../util.js';
 
 function rsvpCounts(game, activePlayers) {
+  // 'maybe' isn't a choice a coach can set anymore (it never did anything
+  // a plain Out didn't already cover) — still tallied defensively here in
+  // case older saved data still has one sitting on a game from before,
+  // rather than silently dropping it from the total.
   const counts = { yes: 0, no: 0, maybe: 0, pending: 0 };
   activePlayers.forEach((p) => {
     const v = game.rsvps[p.id] || 'pending';
@@ -98,8 +102,7 @@ function nextGameCard(game, activePlayers) {
       </div>
       <div class="rsvp-summary" style="margin-top:10px;">
         <span>✅ ${counts.yes} in</span>
-        <span>❓ ${counts.maybe} maybe</span>
-        <span>❌ ${counts.no} out</span>
+        <span>❌ ${counts.no + counts.maybe} out</span>
         <span>⏳ ${counts.pending} pending</span>
       </div>
     </a>
