@@ -805,6 +805,22 @@ function openAddFillInPlayerModal(game) {
         if (!name) return;
         const jerseyNumber = fd.get('jerseyNumber') ? Number(fd.get('jerseyNumber')) : null;
 
+        // Advisory-only name check — catches a coach typing a quick first
+        // name for someone who's actually already on the roster (meant to
+        // just mark them present) rather than genuinely adding a new
+        // person, which otherwise silently creates a duplicate. Checks
+        // both an exact full-name match and a first-name-only match,
+        // case-insensitive.
+        const typedLower = name.toLowerCase();
+        const existingMatch = matchEligiblePlayers(getState().players).find((pl) => {
+          const plLower = pl.name.trim().toLowerCase();
+          return plLower === typedLower || plLower.split(/\s+/)[0] === typedLower;
+        });
+        if (existingMatch) {
+          const proceed = await confirmDialog(`${existingMatch.name} is already on your roster. If that's who you mean, close this and mark them present from the Squad tab instead — don't add them again here. Add "${name}" as a separate, brand-new player anyway?`, { okLabel: 'Add Anyway, Different Person' });
+          if (!proceed) return;
+        }
+
         // Same advisory-only dupe check as the full Roster "Add Player"
         // form — an easy sideline typo otherwise saves silently and only
         // surfaces confusion later, on the lineup or in the live match.

@@ -1,4 +1,4 @@
-import { getState, update, findPlayer } from '../store.js';
+import { getState, update, findPlayer, recordPlayerDeletion } from '../store.js';
 import { uid, escapeHtml, streamBadgeHtml, playerPositions, formatPositions, tryDownloadFile, comparePlayersBy, usedTeamAllocationsInOrder, matchEligiblePlayers } from '../util.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { parseRosterFile, TEMPLATE_CSV } from '../importRoster.js';
@@ -304,6 +304,12 @@ function openPlayerForm(playerId) {
           if (!(await confirmDialog(`Remove ${p.name} from the roster? This also removes their RSVPs and lineup spots.`, { okLabel: 'Remove', danger: true }))) return;
           update((state) => {
             state.players = state.players.filter((pl) => pl.id !== existing.id);
+            // Without this tombstone, a device that's ever held this
+            // player (most often whichever device created a duplicate —
+            // e.g. a Matchday coach's "Add Fill-In Player") would just
+            // keep re-pushing its own copy forever, and this deletion
+            // would never actually stick past the next Cloud Sync.
+            recordPlayerDeletion(state, existing.id);
             state.team.rules = (state.team.rules || []).filter(
               (r) => r.playerAId !== existing.id && r.playerBId !== existing.id
             );

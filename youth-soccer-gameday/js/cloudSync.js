@@ -19,7 +19,13 @@ import { getState, applyCloudSync } from './store.js';
 //     Matchday-token request sends, no matter what this app posts. The
 //     UI additionally hides those controls on a Matchday device (see
 //     isMatchdayOnly, used by roster.js/settings.js) so an edit never
-//     looks like it saved when it didn't.
+//     looks like it saved when it didn't. If the Full Edit coach deletes
+//     a player (e.g. a duplicate a Matchday coach created by mistake),
+//     that deletion is recorded as a tombstone (deletedPlayerIds) and
+//     stops the Matchday device's own still-held copy from being treated
+//     as "brand new" and re-added on its next sync — see mergeTombstones_
+//     in buildAppsScript below, and applyCloudSync in store.js for the
+//     client-side half.
 // Training sessions sync the same way as the roster — adopted from the
 // cloud unless this device has touched that exact session more recently
 // than its own last sync (see store.js's applyCloudSync). Only the Full
@@ -246,12 +252,13 @@ function mergeGames_(currentGames, postedGames) {
 
 // mergeGames_ deliberately never lets a game disappear just because one
 // side's push didn't mention it — that's the whole point of it, and
-// exactly why a deleted game used to come straight back on the next
-// sync: there was no way to tell "deleted" apart from "this device never
-// knew about it". A tombstone ({id, deletedAt}) is that explicit signal.
-// Union two tombstone lists, keeping the later deletedAt for any id both
-// sides know about.
-function mergeDeletedGameIds_(current, posted) {
+// exactly why a deleted game (or, below, a deleted player) used to come
+// straight back on the next sync: there was no way to tell "deleted"
+// apart from "this device never knew about it". A tombstone ({id,
+// deletedAt}) is that explicit signal. Union two tombstone lists, keeping
+// the later deletedAt for any id both sides know about. Shared by games
+// and players — same shape, same merge rule either way.
+function mergeTombstones_(current, posted) {
   var byId = {};
   (current || []).concat(posted || []).forEach(function (t) {
     if (!t || !t.id) return;
@@ -312,7 +319,15 @@ function doPost(e) {
     }
 
     var current = readStored_().data;
-    var mergedTombstones = mergeDeletedGameIds_(current ? current.deletedGameIds : [], posted.deletedGameIds);
+    var mergedTombstones = mergeTombstones_(current ? current.deletedGameIds : [], posted.deletedGameIds);
+    // Without this, a device that's ever held a given player id (most
+    // often whichever device created it — e.g. a Matchday coach's own
+    // "Add Fill-In Player") keeps re-pushing its full player list
+    // forever, and the Matchday branch below has no way to tell "this is
+    // genuinely new" apart from "this was deliberately deleted elsewhere"
+    // — so a deleted player (most often an accidental duplicate) kept
+    // coming straight back the next time that same device synced.
+    var mergedPlayerTombstones = mergeTombstones_(current ? current.deletedPlayerIds : [], posted.deletedPlayerIds);
     var toStore;
 
     if (role === 'editor') {
@@ -321,6 +336,7 @@ function doPost(e) {
         players: posted.players,
         games: applyTombstones_(mergeGames_(current ? current.games : [], posted.games), mergedTombstones),
         deletedGameIds: mergedTombstones,
+        deletedPlayerIds: mergedPlayerTombstones,
         // Trusted wholesale, same as players/team — no union-merge
         // protection, so deleting a session (just omitting it from the
         // posted list, same as a player) actually sticks.
@@ -336,12 +352,15 @@ function doPost(e) {
       }
       var existingIds = {};
       (current.players || []).forEach(function (p) { existingIds[p.id] = true; });
-      var newPlayers = (posted.players || []).filter(function (p) { return !existingIds[p.id]; });
+      var deletedPlayerIds_ = {};
+      mergedPlayerTombstones.forEach(function (t) { deletedPlayerIds_[t.id] = true; });
+      var newPlayers = (posted.players || []).filter(function (p) { return !existingIds[p.id] && !deletedPlayerIds_[p.id]; });
       toStore = {
         team: current.team,
         players: (current.players || []).concat(newPlayers),
         games: applyTombstones_(mergeGames_(current.games, posted.games), mergedTombstones),
         deletedGameIds: mergedTombstones,
+        deletedPlayerIds: mergedPlayerTombstones,
         trainings: current.trainings || [],
       };
     }
@@ -537,10 +556,10 @@ export function pullFromCloud(url) {
 // enforce it. Drills are deliberately never included — see the comment
 // near the top of this file.
 export function pushToCloud(url, coachName) {
-  const { team, players, games, trainings, deletedGameIds } = getState();
+  const { team, players, games, trainings, deletedGameIds, deletedPlayerIds } = getState();
   return callAppsScriptWithRetries(url, {
     method: 'POST',
-    body: JSON.stringify({ team, players, games, trainings, deletedGameIds: deletedGameIds || [], syncedByName: coachName || '' }),
+    body: JSON.stringify({ team, players, games, trainings, deletedGameIds: deletedGameIds || [], deletedPlayerIds: deletedPlayerIds || [], syncedByName: coachName || '' }),
   });
 }
 

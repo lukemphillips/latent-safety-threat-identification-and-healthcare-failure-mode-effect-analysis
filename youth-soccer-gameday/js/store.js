@@ -21,13 +21,13 @@ function sampleData() {
   const games = seedGames(players, team.squadFormat);
   const trainings = seedTrainings(players);
   const drills = seedDrills();
-  return { team, players, games, trainings, drills, deletedGameIds: [] };
+  return { team, players, games, trainings, drills, deletedGameIds: [], deletedPlayerIds: [] };
 }
 
 // A genuinely blank slate — what a coach sees the first time they open the
 // app, and what "Clear All Data" resets to.
 function emptyData() {
-  return { team: emptyTeam(), players: [], games: [], trainings: [], drills: [], deletedGameIds: [] };
+  return { team: emptyTeam(), players: [], games: [], trainings: [], drills: [], deletedGameIds: [], deletedPlayerIds: [] };
 }
 
 // One-time upgrades for data shapes this app used to save before a later
@@ -84,6 +84,7 @@ function load() {
         if (!Array.isArray(parsed.trainings)) parsed.trainings = [];
         if (!Array.isArray(parsed.drills)) parsed.drills = [];
         if (!Array.isArray(parsed.deletedGameIds)) parsed.deletedGameIds = [];
+        if (!Array.isArray(parsed.deletedPlayerIds)) parsed.deletedPlayerIds = [];
         parsed.players = migratePlayers(parsed.players);
         parsed.trainings = migrateTrainings(parsed.trainings);
         return parsed;
@@ -202,6 +203,7 @@ export function restoreFromBackup(data) {
   if (!Array.isArray(data.trainings)) data.trainings = [];
   if (!Array.isArray(data.drills)) data.drills = [];
   if (!Array.isArray(data.deletedGameIds)) data.deletedGameIds = [];
+  if (!Array.isArray(data.deletedPlayerIds)) data.deletedPlayerIds = [];
   data.players = migratePlayers(data.players);
   data.trainings = migrateTrainings(data.trainings);
   state = data;
@@ -249,6 +251,19 @@ function gameIsNewer(incoming, existing) {
 export function recordGameDeletion(state, gameId) {
   state.deletedGameIds = state.deletedGameIds || [];
   state.deletedGameIds.push({ id: gameId, deletedAt: Date.now() });
+}
+
+// Same tombstone idea as recordGameDeletion above, for players — without
+// it, a device that's ever held a given player id (most often whichever
+// device created it, e.g. a Matchday coach's own "Add Fill-In Player")
+// keeps re-pushing its full player list forever, and Cloud Sync's merge
+// (here and in the Apps Script) has no way to tell "this is genuinely
+// new" apart from "this was deliberately deleted elsewhere" — so a
+// deleted player (most often an accidental duplicate) kept coming
+// straight back the next time that other device synced.
+export function recordPlayerDeletion(state, playerId) {
+  state.deletedPlayerIds = state.deletedPlayerIds || [];
+  state.deletedPlayerIds.push({ id: playerId, deletedAt: Date.now() });
 }
 
 // Union of two tombstone lists, keeping the later deletedAt for any id
@@ -313,6 +328,12 @@ export function mergeBackup(data) {
   // THIS device's own games, which mergeBackup never does.
   if (Array.isArray(data.deletedGameIds) && data.deletedGameIds.length) {
     s.deletedGameIds = mergeTombstones(s.deletedGameIds, data.deletedGameIds);
+  }
+  // Same for players — adopt the other coach's knowledge of a deletion
+  // (most often a duplicate they already cleaned up) without ever
+  // removing anything from THIS device's own roster, same as above.
+  if (Array.isArray(data.deletedPlayerIds) && data.deletedPlayerIds.length) {
+    s.deletedPlayerIds = mergeTombstones(s.deletedPlayerIds, data.deletedPlayerIds);
   }
 
   const incomingAwards = data.team.weeklyAwards || [];
@@ -417,8 +438,23 @@ export function applyCloudSync(cloudData, lastSyncedPlayers, lastSyncedTrainings
   cloudData.players = migratePlayers(cloudData.players);
   const localById = new Map(s.players.map((p) => [p.id, p]));
   const lastSyncedById = new Map((lastSyncedPlayers || []).map((p) => [p.id, p]));
-  const cloudPlayerIds = new Set(cloudData.players.map((p) => p.id));
-  const mergedCloudPlayers = cloudData.players
+  // Same tombstone idea as deletedGameIds elsewhere in this function, for
+  // players — without it, a device that's ever held a given player id
+  // (most often whichever device created it, e.g. a Matchday coach's own
+  // "Add Fill-In Player") keeps re-pushing its full player list forever,
+  // and there's no way to tell "this is genuinely new" apart from "this
+  // was deliberately deleted elsewhere" — so a deleted player (most often
+  // an accidental duplicate) kept coming straight back on this device's
+  // very next sync. Players don't carry their own updatedAt the way games
+  // do, so there's no "edited after the deletion, so it wins" exception
+  // here: a tombstone is absolute once applied, same as the server treats
+  // it. Applied below to BOTH the cloud's copy (don't resurrect it from
+  // there) and this device's own local-only players (don't keep holding
+  // onto a copy that's been tombstoned, even if this device created it).
+  const playerTombstoneById = new Map(mergeTombstones(s.deletedPlayerIds, cloudData.deletedPlayerIds).map((t) => [t.id, t]));
+  const cloudPlayers = cloudData.players.filter((p) => !playerTombstoneById.has(p.id));
+  const cloudPlayerIds = new Set(cloudPlayers.map((p) => p.id));
+  const mergedCloudPlayers = cloudPlayers
     // A player this device knew about as of its last sync, but no longer
     // has locally, was deleted here since — the same staleness problem
     // as an unsynced edit above, just the other direction: don't let the
@@ -434,8 +470,9 @@ export function applyCloudSync(cloudData, lastSyncedPlayers, lastSyncedTrainings
       if (lastSynced && !jsonEqual(local, lastSynced)) return local;
       return incoming;
     });
-  const localOnlyPlayers = s.players.filter((p) => !cloudPlayerIds.has(p.id));
+  const localOnlyPlayers = s.players.filter((p) => !cloudPlayerIds.has(p.id) && !playerTombstoneById.has(p.id));
   s.players = [...mergedCloudPlayers, ...localOnlyPlayers];
+  s.deletedPlayerIds = [...playerTombstoneById.values()];
 
   // Same adopt-if-unchanged-since-last-sync treatment as players above.
   // Training sessions don't carry their own updatedAt, so this snapshot
