@@ -2,6 +2,16 @@ import { escapeHtml } from './util.js';
 
 export function openModal({ title, bodyHtml, onMount }) {
   closeModal();
+  // closeModal() above calls the native .close(), but that only
+  // guarantees its 'close' event (which is what actually removes the old
+  // dialog — see the listener below) fires at SOME point, not necessarily
+  // before this function's own synchronous code continues. A confirm
+  // dialog opened from inside another modal's own submit handler (e.g. a
+  // dupe-jersey-number or dupe-name check) hits exactly this: without a
+  // forced, synchronous removal here too, two <dialog id="ysg-modal">
+  // elements could briefly both exist, and which one a later querySelector
+  // or getElementById finds is then a genuine race.
+  document.getElementById('ysg-modal')?.remove();
   const dlg = document.createElement('dialog');
   dlg.id = 'ysg-modal';
   dlg.className = 'modal';
