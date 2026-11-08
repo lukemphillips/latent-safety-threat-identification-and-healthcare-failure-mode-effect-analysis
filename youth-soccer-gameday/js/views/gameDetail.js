@@ -275,6 +275,10 @@ function renderSquadTab(container, game) {
     ${present.length ? `<a class="btn ghost sm" href="#/balance/${game.id}" style="margin:10px 0; display:inline-flex;">🎲 Balance Teams from today's squad</a>` : ''}
 
     <div class="card" style="margin-top:16px;">
+      <div class="spread" style="gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+        <span class="small muted">Squad size: <strong>${squadFormat}-a-side</strong></span>
+        <button type="button" class="btn ghost sm" data-action="change-squad-size">Change</button>
+      </div>
       <div class="spread" style="gap:10px; flex-wrap:wrap;">
         <div class="field" style="margin:0; flex:1 1 180px;">
           <label class="small muted" style="margin-bottom:2px;">Formation</label>
@@ -353,6 +357,8 @@ function renderSquadTab(container, game) {
   }
 
   container.querySelector('[data-action="add-fill-in"]').addEventListener('click', () => openAddFillInPlayerModal(game));
+
+  container.querySelector('[data-action="change-squad-size"]').addEventListener('click', () => openSquadSizeModal(game));
 
   container.querySelector('#formation-select').addEventListener('change', (e) => {
     const newFormationId = e.target.value;
@@ -868,6 +874,53 @@ async function startGame(game) {
   location.hash = `#/game/${game.id}/live`;
 }
 
+// Shared by the Edit Game modal's own Format field and the Squad tab's
+// "Change" shortcut below, so the two paths to the same change can't drift.
+function applySquadFormatChange(g, team, newSquadFormat) {
+  if (newSquadFormat === gameSquadFormat(g, team)) return;
+  // null (rather than the team's own current default) so this game keeps
+  // inheriting — and reshaping alongside — the team default if that's
+  // changed later in Settings, same as a game that was never given its
+  // own override at all.
+  g.squadFormat = newSquadFormat === team.squadFormat ? null : newSquadFormat;
+  g.formationId = null;
+  const newFormation = formationFor(newSquadFormat, null, team.customFormations || []);
+  g.lineup.slots = remapLineupToFormat(g.lineup.slots, newFormation);
+}
+
+// A quick path to the same Format field the Edit Game modal already has —
+// surfaced right on the Squad tab (where a coach is actually picking who's
+// playing) instead of only behind the ✏️ edit icon, since that's where the
+// need to change squad size for this match actually comes up.
+function openSquadSizeModal(game) {
+  const { team } = getState();
+  const currentFormat = gameSquadFormat(game, team);
+  openModal({
+    title: 'Squad Size',
+    bodyHtml: `
+      <form id="squad-size-form" class="stack">
+        <div class="field">
+          <label>Format</label>
+          <select name="squadFormat">${squadFormatOptionsHtml(currentFormat)}</select>
+          <p class="muted small" style="margin:4px 0 0;">Only for this match — your team's usual format (${team.squadFormat}-a-side) is unaffected. Switches to that size's default formation; worth a check on the pitch layout below afterward.</p>
+        </div>
+        <button type="submit" class="btn block">Save</button>
+      </form>
+    `,
+    onMount: (modalEl) => {
+      modalEl.querySelector('#squad-size-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const newSquadFormat = Number(new FormData(e.target).get('squadFormat')) || currentFormat;
+        update((state) => {
+          const g = touchGame(state, game.id);
+          applySquadFormatChange(g, state.team, newSquadFormat);
+        });
+        closeModal();
+      });
+    },
+  });
+}
+
 function openEditGameForm(game) {
   openModal({
     title: 'Edit Game',
@@ -968,17 +1021,7 @@ function openEditGameForm(game) {
           if (fd.has('periodMinutes')) g.periodMinutes = Number(fd.get('periodMinutes')) || g.periodMinutes;
           if (fd.has('numPeriods')) g.numPeriods = Number(fd.get('numPeriods')) || g.numPeriods;
           if (fd.has('squadFormat')) {
-            const newSquadFormat = Number(fd.get('squadFormat')) || gameSquadFormat(g, state.team);
-            if (newSquadFormat !== gameSquadFormat(g, state.team)) {
-              // null (rather than the team's own current default) so this
-              // game keeps inheriting — and reshaping alongside — the team
-              // default if that's changed later in Settings, same as a
-              // game that was never given its own override at all.
-              g.squadFormat = newSquadFormat === state.team.squadFormat ? null : newSquadFormat;
-              g.formationId = null;
-              const newFormation = formationFor(newSquadFormat, null, state.team.customFormations || []);
-              g.lineup.slots = remapLineupToFormat(g.lineup.slots, newFormation);
-            }
+            applySquadFormatChange(g, state.team, Number(fd.get('squadFormat')) || gameSquadFormat(g, state.team));
           }
         });
         closeModal();
