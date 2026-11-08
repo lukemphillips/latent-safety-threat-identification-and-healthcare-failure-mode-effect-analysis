@@ -65,6 +65,10 @@ function assert(cond, msg) {
   });
   await page.reload();
   await page.waitForSelector('[data-action="cloud-sync-now"]');
+  // Show Share Links / Update Script / Disconnect now live inside a
+  // collapsed "More options" <details> to declutter the common case —
+  // open it before interacting with anything inside.
+  await page.click('summary:has-text("More options")');
   const showLinksBtn = await page.$('[data-action="cloud-sync-show-links"]');
   assert(!!showLinksBtn, '"Show Share Links" is shown on the device that actually set Cloud Sync up');
 

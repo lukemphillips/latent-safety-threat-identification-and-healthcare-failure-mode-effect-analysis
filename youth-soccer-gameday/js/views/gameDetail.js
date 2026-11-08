@@ -314,8 +314,6 @@ function renderSquadTab(container, game) {
         <button class="btn ghost sm block" data-action="open-sub-plan" style="margin-top:10px;">${subPlanCount ? 'Manage Plan' : '+ Add Planned Sub'}</button>
       </div>
     ` : ''}
-
-    ${absent.length ? `<div class="muted small" style="margin-top:16px;">Not here: ${absent.map((p) => escapeHtml(p.name)).join(', ')}</div>` : ''}
   `;
 
   container.querySelector('[data-action="mark-all-present"]').addEventListener('click', () => {

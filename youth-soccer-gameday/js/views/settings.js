@@ -784,10 +784,15 @@ function cloudSyncSectionHtml(syncConfig) {
       <div class="banner warn">⚠️ Running two matches at once (e.g. two pitches) is fine — each match syncs back independently. Just never have <strong>two devices both live-tracking the same match</strong> at the same time: sync isn't real-time, so whichever device syncs first can silently overwrite the other's events for that match. One device per live match.</div>
       <button class="btn secondary block" data-action="cloud-sync-now">🔄 Sync Now</button>
       <button class="btn ghost block" data-action="cloud-sync-diagnose">🔍 Diagnose Connection</button>
-      ${syncConfig.role === 'editor' && syncConfig.baseUrl ? '<button class="btn ghost block" data-action="cloud-sync-show-links">📋 Show Share Links</button>' : ''}
-      ${syncConfig.role === 'editor' && syncConfig.baseUrl ? '<button class="btn ghost block" data-action="cloud-sync-update-script">🔧 Update Script (bug fix)</button>' : ''}
-      ${syncConfig.role === 'editor' && !syncConfig.baseUrl ? `<p class="muted small" style="margin:0;">Share links can only be shown again on the device that originally ran "Set Up Cloud Sync" — this one connected with a link instead, so it doesn't have what's needed to rebuild them.</p>` : ''}
-      <button class="btn ghost block" data-action="cloud-sync-disconnect">Disconnect This Device</button>
+      <details>
+        <summary class="muted small" style="cursor:pointer; padding:4px 0;">More options</summary>
+        <div class="stack" style="margin-top:8px;">
+          ${syncConfig.role === 'editor' && syncConfig.baseUrl ? '<button class="btn ghost block" data-action="cloud-sync-show-links">📋 Show Share Links</button>' : ''}
+          ${syncConfig.role === 'editor' && syncConfig.baseUrl ? '<button class="btn ghost block" data-action="cloud-sync-update-script">🔧 Update Script (bug fix)</button>' : ''}
+          ${syncConfig.role === 'editor' && !syncConfig.baseUrl ? `<p class="muted small" style="margin:0;">Share links can only be shown again on the device that originally ran "Set Up Cloud Sync" — this one connected with a link instead, so it doesn't have what's needed to rebuild them.</p>` : ''}
+          <button class="btn ghost block" data-action="cloud-sync-disconnect">Disconnect This Device</button>
+        </div>
+      </details>
     </div>
   `;
 }
