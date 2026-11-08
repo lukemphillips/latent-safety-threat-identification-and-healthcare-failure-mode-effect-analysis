@@ -279,6 +279,22 @@ export function renderSettings(app) {
         });
       }
     });
+
+    // update() above already re-renders Settings via its own subscriber
+    // (main.js's route() is subscribed to every update()) — this explicit
+    // call just gets us fresh button references afterward so the "✓
+    // Saved" flash below actually lands on the buttons on screen, instead
+    // of on the stale pre-render ones that got replaced underneath it.
+    renderSettings(app);
+    const justSavedBtns = [
+      app.querySelector('[data-action="save-team-top"]'),
+      app.querySelector('#team-form button[type="submit"]'),
+    ].filter(Boolean);
+    justSavedBtns.forEach((btn) => {
+      const original = btn.textContent;
+      btn.textContent = '✓ Saved';
+      setTimeout(() => { btn.textContent = original; }, 1200);
+    });
   });
 
   const resetSampleBtn = app.querySelector('[data-action="reset-sample"]');

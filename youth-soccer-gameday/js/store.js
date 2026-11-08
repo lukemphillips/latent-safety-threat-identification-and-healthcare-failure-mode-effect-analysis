@@ -12,6 +12,8 @@ const MAX_AUTO_BACKUPS = 5;
 
 let state = null;
 const listeners = new Set();
+const persistFailureListeners = new Set();
+let persistHasFailed = false;
 
 // The "Thunder FC" demo squad — only loaded on request (Reload Sample Data).
 function sampleData() {
@@ -99,9 +101,30 @@ function load() {
 function persist() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // Only notify on the fail->ok edge, not every successful save, same as
+    // the fail notification below only fires on the ok->fail edge — a
+    // listener (main.js's banner) just wants to know when this changes.
+    if (persistHasFailed) {
+      persistHasFailed = false;
+      persistFailureListeners.forEach((fn) => fn(false));
+    }
   } catch (e) {
     console.warn('Could not save to localStorage', e);
+    if (!persistHasFailed) {
+      persistHasFailed = true;
+      persistFailureListeners.forEach((fn) => fn(true));
+    }
   }
+}
+
+// Lets main.js show a banner the moment a save actually fails (full
+// storage, a private window blocking it, etc.) instead of this failing
+// silently behind a console.warn — a coach could otherwise run an entire
+// match believing it's saving and lose all of it on refresh with no
+// warning. Called with true on failure, false once a save succeeds again.
+export function onPersistFailure(fn) {
+  persistFailureListeners.add(fn);
+  return () => persistFailureListeners.delete(fn);
 }
 
 // A live match's clock used to advance purely by counting +1 ticks from

@@ -587,6 +587,16 @@ button { font: inherit; }
 .banner.warn { background: var(--amber-bg); color: var(--amber-dark); border-left: 4px solid var(--amber); }
 .banner.warn strong { color: var(--ink); }
 .banner.warn .btn { font-size: 14px; font-weight: 700; }
+.banner.danger { background: var(--red-bg); color: var(--red); border-left: 4px solid var(--red); }
+.banner.danger strong { color: var(--ink); }
+
+/* Sits above #app, outside the router's output, so it survives every
+   page navigation instead of getting wiped on the next route() render. */
+.save-error-banner-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 10px 16px 0;
+}
 
 /* Modal */
 dialog.modal {

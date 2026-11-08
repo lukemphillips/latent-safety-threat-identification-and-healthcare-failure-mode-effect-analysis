@@ -1,5 +1,5 @@
 import { initErrorLogging } from './errorLog.js';
-import { getState, update, updateSilently, notifyListeners, subscribe } from './store.js';
+import { getState, update, updateSilently, notifyListeners, subscribe, onPersistFailure } from './store.js';
 import { isSubDue, matchEligiblePlayers } from './util.js';
 import { playSubDueAlert } from './subAlert.js';
 import { renderDashboard } from './views/dashboard.js';
@@ -20,6 +20,24 @@ initErrorLogging();
 
 const app = document.getElementById('app');
 const navEl = document.getElementById('nav');
+
+// Outside #app so it survives every route() re-render — see
+// store.js's onPersistFailure for why this exists.
+const saveErrorBannerWrap = document.getElementById('save-error-banner-wrap');
+const saveErrorDismissBtn = document.getElementById('save-error-dismiss-btn');
+let saveErrorDismissed = false;
+onPersistFailure((failed) => {
+  if (failed) {
+    saveErrorBannerWrap.hidden = saveErrorDismissed;
+  } else {
+    saveErrorDismissed = false;
+    saveErrorBannerWrap.hidden = true;
+  }
+});
+saveErrorDismissBtn.addEventListener('click', () => {
+  saveErrorDismissed = true;
+  saveErrorBannerWrap.hidden = true;
+});
 
 // `position: fixed` anchors to the LAYOUT viewport, not what's actually on
 // screen — pinch-zooming on iOS Safari pans/scales a VISUAL viewport that's
