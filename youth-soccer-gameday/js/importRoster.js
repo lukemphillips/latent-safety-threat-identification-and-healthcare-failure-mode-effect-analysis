@@ -4,17 +4,15 @@
 // or a club's own template all have a decent chance of lining up.
 
 export const TEMPLATE_CSV =
-  'Name,Jersey #,Position,Stream,Guardian Name,Guardian Phone\n' +
-  'Ava Martinez,1,DEF,A,,\n' +
-  'Noah Patel,3,MID/DEF,C,,\n';
+  'Name,Jersey #,Position,Stream\n' +
+  'Ava Martinez,1,DEF,A\n' +
+  'Noah Patel,3,MID/DEF,C\n';
 
 const HEADER_ALIASES = {
   name: ['name', 'player', 'playername', 'fullname'],
   jerseyNumber: ['jersey', 'jerseynumber', 'jerseyno', 'number', 'no', 'squadnumber'],
   positions: ['position', 'positions', 'pos', 'preferredposition', 'preferredpositions'],
   skillStream: ['stream', 'streamingclassification', 'classification', 'skillstream', 'group', 'tier'],
-  guardianName: ['guardian', 'guardianname', 'parent', 'parentname'],
-  guardianPhone: ['guardianphone', 'phone', 'parentphone', 'contact', 'contactnumber', 'mobile'],
 };
 
 const VALID_POSITIONS = ['GK', 'DEF', 'MID', 'FWD'];
@@ -95,8 +93,6 @@ function normalizePlayerRow(raw) {
     jerseyNumber,
     positions: splitPositions(raw.positions),
     skillStream: normalizeStream(raw.skillStream),
-    guardianName: String(raw.guardianName ?? '').trim(),
-    guardianPhone: String(raw.guardianPhone ?? '').trim(),
     positionsRaw: raw.positions ? String(raw.positions).trim() : '',
     streamRaw: raw.skillStream ? String(raw.skillStream).trim() : '',
   };

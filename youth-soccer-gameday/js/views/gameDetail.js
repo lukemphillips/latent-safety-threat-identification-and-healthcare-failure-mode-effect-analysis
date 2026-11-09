@@ -719,7 +719,7 @@ function openAddFillInPlayerModal(game) {
         update((state) => {
           state.players.push({
             id, name, jerseyNumber, positions: [], skillStream: null, teamAllocation: '',
-            guardianName: '', guardianPhone: '', notes: '', active: true, isGuest: false, guestTeamName: '',
+            notes: '', active: true, isGuest: false, guestTeamName: '',
           });
           const g = touchGame(state, game.id);
           g.presentIds = [...new Set([...(g.presentIds || []), id])];

@@ -133,7 +133,7 @@ function playerRow(p) {
       <div class="jersey">${p.jerseyNumber ?? '-'}</div>
       <div class="player-meta">
         <div class="player-name ${p.active ? '' : 'inactive'}">${escapeHtml(p.name)}</div>
-        <div class="player-sub">${formatPositions(p)}${p.guardianName ? ' · ' + escapeHtml(p.guardianName) : ''}</div>
+        <div class="player-sub">${formatPositions(p)}</div>
         ${p.notes ? `<div class="muted small" style="margin-top:2px;">📝 ${escapeHtml(p.notes)}</div>` : ''}
       </div>
       ${streamBadgeHtml(p.skillStream)}
@@ -161,12 +161,6 @@ function openPlayerDetailsView(playerId) {
           <div class="field"><label>Position(s)</label><div>${positions || '—'}</div></div>
         </div>
         ${p.teamAllocation ? `<div class="field"><label>Team allocation</label><div>${escapeHtml(p.teamAllocation)}</div></div>` : ''}
-        ${p.guardianName || p.guardianPhone ? `
-          <div class="field">
-            <label>Guardian</label>
-            <div>${p.guardianName ? escapeHtml(p.guardianName) : ''}${p.guardianName && p.guardianPhone ? ' · ' : ''}${p.guardianPhone ? escapeHtml(p.guardianPhone) : ''}</div>
-          </div>
-        ` : ''}
         <div class="field">
           <label>Notes</label>
           <div>${p.notes ? escapeHtml(p.notes) : '<span class="muted small">None</span>'}</div>
@@ -179,7 +173,7 @@ function openPlayerDetailsView(playerId) {
 
 function openPlayerForm(playerId) {
   const existing = playerId ? findPlayer(playerId) : null;
-  const p = existing || { name: '', jerseyNumber: '', positions: [], skillStream: '', teamAllocation: '', guardianName: '', guardianPhone: '', notes: '', active: true, isGuest: false, guestTeamName: '' };
+  const p = existing || { name: '', jerseyNumber: '', positions: [], skillStream: '', teamAllocation: '', notes: '', active: true, isGuest: false, guestTeamName: '' };
   const currentPositions = playerPositions(p);
 
   const dlg = openModal({
@@ -216,14 +210,6 @@ function openPlayerForm(playerId) {
           <label>Team allocation <span class="muted small">(optional)</span></label>
           <input type="text" name="teamAllocation" value="${escapeHtml(p.teamAllocation || '')}" placeholder="e.g. 9.4" style="max-width:160px;" />
           <div class="muted small" style="margin-top:4px;">Which of your club's teams this player is actually rostered to — for clubs running one big squad across several named teams (e.g. 9.4, 9.5). Separate from Balance Teams' random daily split.</div>
-        </div>
-        <div class="field">
-          <label>Guardian name <span class="muted small">(optional)</span></label>
-          <input type="text" name="guardianName" value="${escapeHtml(p.guardianName)}" />
-        </div>
-        <div class="field">
-          <label>Guardian phone <span class="muted small">(optional)</span></label>
-          <input type="tel" name="guardianPhone" value="${escapeHtml(p.guardianPhone)}" />
         </div>
         <div class="field">
           <label>Notes <span class="muted small">(optional)</span></label>
@@ -266,8 +252,6 @@ function openPlayerForm(playerId) {
           positions: fd.getAll('positions'),
           skillStream: fd.get('skillStream') || null,
           teamAllocation: (fd.get('teamAllocation') || '').trim(),
-          guardianName: (fd.get('guardianName') || '').trim(),
-          guardianPhone: (fd.get('guardianPhone') || '').trim(),
           notes: (fd.get('notes') || '').trim(),
           active: fd.get('active') === 'on',
           isGuest,
@@ -367,7 +351,7 @@ function openImportModal() {
     title: 'Import Roster',
     bodyHtml: `
       <div class="stack">
-        <p class="muted small mt-0">Import from a .csv or .xlsx file. The first row should have headers — we'll match common ones like Name, Jersey #, Position(s), Stream, Guardian Name, Guardian Phone. Only "Name" is required.</p>
+        <p class="muted small mt-0">Import from a .csv or .xlsx file. The first row should have headers — we'll match common ones like Name, Jersey #, Position(s), Stream. Only "Name" is required.</p>
         <div class="card-row" style="background:var(--green-100); border-radius:10px; padding:10px 12px;">
           <span class="small">New to this? Start from a template.</span>
           <button type="button" class="btn secondary sm" data-action="download-template">⬇️ Download CSV Template</button>
@@ -496,8 +480,6 @@ function openImportModal() {
                 jerseyNumber: r.jerseyNumber,
                 positions: r.positions,
                 skillStream: r.skillStream,
-                guardianName: r.guardianName,
-                guardianPhone: r.guardianPhone,
                 active: true,
                 isGuest,
                 guestTeamName,

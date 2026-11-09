@@ -42,11 +42,22 @@ function emptyData() {
 // on every entry unconditionally.
 function migratePlayers(players) {
   return players.map((p) => {
-    if ((!Array.isArray(p.positions) || !p.positions.length) && p.position) {
-      const { position, ...rest } = p;
-      return { ...rest, positions: [position] };
+    let next = p;
+    if ((!Array.isArray(next.positions) || !next.positions.length) && next.position) {
+      const { position, ...rest } = next;
+      next = { ...rest, positions: [position] };
     }
-    return p;
+    // Guardian name/phone were removed — the club already holds this
+    // elsewhere (its registration system), and keeping it here meant it
+    // flowed through Cloud Sync's Google Sheet (undisclosed there) and
+    // was readable by anyone holding a Matchday link, not just Full Edit.
+    // Stripped on every load/pull so already-stored copies clear out too,
+    // not just new ones.
+    if ('guardianName' in next || 'guardianPhone' in next) {
+      const { guardianName, guardianPhone, ...rest } = next;
+      next = rest;
+    }
+    return next;
   });
 }
 
@@ -156,7 +167,14 @@ function syncRunningClocks(s) {
 }
 
 export function getState() {
-  if (!state) state = load();
+  if (!state) {
+    state = load();
+    // load() may have just migrated something out of the stored shape
+    // (e.g. stripping a removed field like guardian contact) — commit
+    // that immediately rather than leaving the pre-migration copy sitting
+    // in localStorage until some unrelated edit happens to save again.
+    persist();
+  }
   return state;
 }
 

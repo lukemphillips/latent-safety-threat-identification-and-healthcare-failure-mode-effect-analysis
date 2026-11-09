@@ -32,10 +32,10 @@ see everything working immediately. Reset or clear that data any time from
   top, then a Quick Links grid to every other section — Roster, Matchday,
   Training, Stats, Settings, and Help & How-To.
 - **Roster** — players with jersey number, one or more preferred positions
-  (a versatile player can be both DEF and MID, say), guardian contact, a
-  free-text **notes** field (allergies, pickup arrangements, an injury —
-  anything worth remembering that doesn't fit another field; shows as a
-  📝 preview line on the roster row when set), active/inactive status,
+  (a versatile player can be both DEF and MID, say), a free-text **notes**
+  field (allergies, pickup arrangements, an injury — anything worth
+  remembering that doesn't fit another field; shows as a 📝 preview line
+  on the roster row when set), active/inactive status,
   and a streaming classification (A/B/C/D) you assign per player to keep
   team-building fair. A separate **team allocation** field (free text, e.g.
   "9.4") records which of your club's actual named teams a player is
@@ -47,8 +47,8 @@ see everything working immediately. Reset or clear that data any time from
   players first, then guests, then by jersey number). **Import** lets you bulk-add
   players from a .csv or .xlsx file instead of typing each one in — the
   first row should be headers, and common variants (Name/Player, Jersey/
-  Number/#, Position/Pos, Stream/Group/Classification, Guardian/Parent,
-  Phone/Mobile/Contact) are matched automatically. Only "Name" is required.
+  Number/#, Position/Pos, Stream/Group/Classification) are matched
+  automatically. Only "Name" is required.
   It previews every row before importing, skips rows with no name, flags
   values it doesn't recognize (an odd position or stream) instead of
   guessing, and defaults to skipping any name that's already on the roster
@@ -649,8 +649,8 @@ see everything working immediately. Reset or clear that data any time from
     hides. The UI additionally disables Roster and Team Settings editing
     on a Matchday device, so a change never looks like it saved when it
     silently wouldn't have — tapping a player on the Roster still opens a
-    read-only view of their position, notes, and guardian info, just with
-    no way to change any of it from there.
+    read-only view of their position and notes, just with no way to
+    change any of it from there.
   - **Training sessions and the Drill Library are not part of Cloud Sync
     at all** — they stay purely local to each device, exactly as they did
     before Cloud Sync existed. `pushToCloud` never includes them, so

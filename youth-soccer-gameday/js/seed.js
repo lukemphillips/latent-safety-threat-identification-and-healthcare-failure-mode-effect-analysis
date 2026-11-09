@@ -52,8 +52,6 @@ export function seedPlayers() {
     jerseyNumber: i + 1,
     positions,
     skillStream,
-    guardianName: '',
-    guardianPhone: '',
     notes: '',
     active: true,
   }));

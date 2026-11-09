@@ -51,7 +51,7 @@ function assert(cond, msg) {
     stream.on('error', reject);
   });
   const content = Buffer.concat(chunks).toString('utf-8');
-  assert(content.includes('Name,Jersey #,Position,Stream,Guardian Name,Guardian Phone'), `Downloaded CSV has the expected header row, got: ${content.slice(0, 80)}`);
+  assert(content.includes('Name,Jersey #,Position,Stream'), `Downloaded CSV has the expected header row, got: ${content.slice(0, 80)}`);
   assert(content.includes('Ava Martinez'), 'Downloaded CSV includes the example row');
 
   await page.waitForTimeout(150);
