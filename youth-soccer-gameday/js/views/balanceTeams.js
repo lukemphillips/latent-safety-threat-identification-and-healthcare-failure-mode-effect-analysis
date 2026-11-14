@@ -138,6 +138,11 @@ function sendSquadToMatch(playerIds, gameId) {
     // its Squad tab) rather than silently resetting it back to the default.
     const formation = formationFor(gameSquadFormat(g, state.team), g.formationId, state.team.customFormations || []);
     g.presentIds = [...playerIds];
+    // The Squad tab's per-player In/Out buttons read rsvps, not presentIds
+    // — without this, a player sent here shows up on the pitch but their
+    // own row back on the Squad tab still reads as neither In nor Out.
+    const presentSet = new Set(playerIds);
+    matchEligiblePlayers(state.players).forEach((p) => { g.rsvps[p.id] = presentSet.has(p.id) ? 'yes' : 'no'; });
     const presentPlayers = state.players.filter((p) => playerIds.includes(p.id));
     g.lineup = { slots: autoFillLineup(formation, presentPlayers, emptyLineupSlots(formation)) };
     // For a still-scheduled game, presentIds/lineup are invisible to

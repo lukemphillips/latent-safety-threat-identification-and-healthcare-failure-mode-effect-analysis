@@ -11,8 +11,9 @@
 // survive the Squad tab's own frequent full re-renders (every lineup
 // action re-renders the whole tab) and would sometimes pop back open; a
 // modal's DOM isn't touched by that at all. And the merged RSVP/Squad
-// control: tapping a player's In/Maybe/Out status IS their attendance —
-// no separate step, replacing the old two-tabs-plus-a-modal setup.
+// control (now itself living in an on-demand "Select Squad" modal,
+// rather than a permanently-visible list): tapping a player's In/Out
+// status IS their attendance — no separate step.
 const { launch, BASE_URL } = require('./support/launch');
 
 const BASE = BASE_URL;
@@ -57,17 +58,22 @@ function assert(cond, msg) {
   const summaryAfterMarkAll = await presentSummary();
   assert(summaryAfterMarkAll.includes('12/12 present'), `Mark All In works directly on the tab, no modal needed, got "${summaryAfterMarkAll}"`);
 
-  // ============ Tapping a player's status directly IS their attendance — no separate modal ============
+  // ============ Tapping a player's status in the "Select Squad" modal IS their attendance — no separate step ============
+  await page.click('[data-action="open-squad-picker"]');
   await page.waitForSelector('[data-squad-status-btn]');
   const firstOutBtn = page.locator('[data-squad-status-btn][data-value="no"]').first();
   const firstChipId = await firstOutBtn.getAttribute('data-player-id');
   await firstOutBtn.click();
   await page.waitForTimeout(150);
+  const countInModalAfterOut = await page.textContent('#squad-picker-count');
+  assert(countInModalAfterOut.includes('11/12 present'), `Marking one player Out in the picker updates its own count in place, got "${countInModalAfterOut}"`);
   const summaryAfterOut = await presentSummary();
-  assert(summaryAfterOut.includes('11/12 present'), `Marking one player Out on the tab itself updates the summary in place, no modal needed, got "${summaryAfterOut}"`);
+  assert(summaryAfterOut.includes('11/12 present'), `The Squad tab's own summary behind the modal updates too, got "${summaryAfterOut}"`);
 
   // Put that player back In so Auto-Fill below has the full 12 to work with.
   await page.click(`[data-squad-status-btn][data-value="yes"][data-player-id="${firstChipId}"]`);
+  await page.waitForTimeout(150);
+  await page.click('[data-close-modal]');
   await page.waitForTimeout(150);
 
   await page.click('[data-action="auto-fill-lineup"]');

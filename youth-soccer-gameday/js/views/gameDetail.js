@@ -225,6 +225,65 @@ function squadStatusRowHtml(game, p) {
   `;
 }
 
+// Shared by the squad picker modal's per-row buttons below — sets both
+// rsvps and presentIds for one player, same as the old always-visible
+// list did inline.
+function setSquadStatus(state, gameId, playerId, value) {
+  const g = touchGame(state, gameId);
+  g.rsvps[playerId] = value;
+  const set = new Set(g.presentIds || []);
+  if (value === 'yes') {
+    set.add(playerId);
+  } else {
+    set.delete(playerId);
+    // No longer present means no longer holding a pitch spot either.
+    Object.keys(g.lineup?.slots || {}).forEach((sid) => {
+      if (g.lineup.slots[sid] === playerId) g.lineup.slots[sid] = null;
+    });
+  }
+  g.presentIds = [...set];
+}
+
+// The full per-player In/Out list used to sit permanently on the Squad
+// tab — for a roster of any real size that pushed the actual lineup/pitch
+// below the fold on every visit, even on the common case where nobody's
+// attendance changed since last time. Moved into an on-demand modal
+// instead; the Squad tab itself just shows the current present/total
+// count and a button to open this. Re-renders its own list in place
+// after every tap (rather than relying on the page-wide re-render
+// update() already triggers, which rebuilds the Squad tab behind this
+// modal but not the modal's own content) so it stays open and in sync
+// across multiple taps.
+function openSquadPickerModal(gameRef) {
+  function renderList(modalEl) {
+    const game = findGame(gameRef.id);
+    const { players } = getState();
+    const active = matchEligiblePlayers(players);
+    const presentCount = (game.presentIds || []).length;
+    modalEl.querySelector('#squad-picker-count').textContent = `${presentCount}/${active.length} present`;
+    const listEl = modalEl.querySelector('#squad-picker-list');
+    listEl.innerHTML = active.length ? active.map((p) => squadStatusRowHtml(game, p)).join('') : '<div class="empty">No active players on the roster.</div>';
+    listEl.querySelectorAll('[data-squad-status-btn]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const { playerId, value } = btn.dataset;
+        update((state) => setSquadStatus(state, gameRef.id, playerId, value));
+        renderList(modalEl);
+      });
+    });
+  }
+
+  const dlg = openModal({
+    title: "Who's Playing?",
+    bodyHtml: `
+      <p class="muted small" style="margin:0 0 10px;">Tap In/Out for each player — In marks them present and ready for the lineup, right away.</p>
+      <div class="small muted" id="squad-picker-count" style="margin-bottom:6px;"></div>
+      <div id="squad-picker-list" class="stack" style="gap:0;"></div>
+    `,
+    onMount: (modalEl) => renderList(modalEl),
+  });
+  return dlg;
+}
+
 function renderSquadTab(container, game) {
   const { players, team } = getState();
   const active = matchEligiblePlayers(players);
@@ -262,15 +321,12 @@ function renderSquadTab(container, game) {
           <div style="font-weight:700;">Who's playing?</div>
           <div class="small muted" style="margin-top:2px;">${present.length}/${active.length} present</div>
         </div>
+        <button class="btn secondary sm" data-action="open-squad-picker">👥 Select Squad</button>
       </div>
-      <div class="muted small" style="margin-top:6px;">Tap In/Out for each player below — In marks them present and ready for the lineup, right away. Set this as early or as late as you like; there's nothing else to do once someone's In.</div>
       <div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap;">
         <button class="btn secondary sm" data-action="mark-all-present">Mark All In</button>
         <button class="btn ghost sm" data-action="add-fill-in">+ Fill-In Player</button>
       </div>
-    </div>
-    <div class="card" style="margin-top:16px;">
-      ${active.length ? active.map((p) => squadStatusRowHtml(game, p)).join('') : '<div class="empty">No active players on the roster.</div>'}
     </div>
     ${present.length ? `<a class="btn ghost sm" href="#/balance/${game.id}" style="margin:10px 0; display:inline-flex;">🎲 Balance Teams from today's squad</a>` : ''}
 
@@ -320,34 +376,14 @@ function renderSquadTab(container, game) {
     ` : ''}
   `;
 
+  container.querySelector('[data-action="open-squad-picker"]').addEventListener('click', () => openSquadPickerModal(game));
+
   container.querySelector('[data-action="mark-all-present"]').addEventListener('click', () => {
     update((state) => {
       const g = touchGame(state, game.id);
       const ids = matchEligiblePlayers(state.players).map((p) => p.id);
       ids.forEach((id) => { g.rsvps[id] = 'yes'; });
       g.presentIds = ids;
-    });
-  });
-
-  container.querySelectorAll('[data-squad-status-btn]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const { playerId, value } = btn.dataset;
-      update((state) => {
-        const g = touchGame(state, game.id);
-        g.rsvps[playerId] = value;
-        const set = new Set(g.presentIds || []);
-        if (value === 'yes') {
-          set.add(playerId);
-        } else {
-          set.delete(playerId);
-          // Same behavior the old separate attendance toggle already had —
-          // no longer present means no longer holding a pitch spot either.
-          Object.keys(g.lineup?.slots || {}).forEach((sid) => {
-            if (g.lineup.slots[sid] === playerId) g.lineup.slots[sid] = null;
-          });
-        }
-        g.presentIds = [...set];
-      });
     });
   });
 
@@ -532,6 +568,10 @@ function openApplySquadModal(sourceGame, candidateGames) {
             const target = touchGame(state, targetId);
             if (!target || target.status !== 'scheduled') return;
             target.presentIds = [...(source.presentIds || [])];
+            // Keep rsvps in sync with presentIds — the Squad tab's per-player
+            // In/Out buttons read rsvps, not presentIds.
+            const presentSet = new Set(target.presentIds);
+            matchEligiblePlayers(state.players).forEach((p) => { target.rsvps[p.id] = presentSet.has(p.id) ? 'yes' : 'no'; });
             const targetFormation = formationFor(gameSquadFormat(target, team), source.formationId, team.customFormations || []);
             target.formationId = targetFormation.id;
             target.lineup.slots = remapLineupToFormat(source.lineup.slots, targetFormation);

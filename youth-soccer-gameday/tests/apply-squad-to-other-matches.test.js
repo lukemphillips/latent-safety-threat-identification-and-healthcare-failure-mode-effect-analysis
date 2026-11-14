@@ -142,6 +142,7 @@ function assert(cond, msg) {
       bDate: b.date,
       bTime: b.time,
       bRsvps: b.rsvps,
+      activeIds: s.players.filter((p) => p.active && !p.isGuest).map((p) => p.id),
     };
   }, { aId: gameA.id, bId: gameB.id });
 
@@ -149,7 +150,12 @@ function assert(cond, msg) {
   assert(JSON.stringify(afterApply.bSlots) === JSON.stringify(afterApply.aSlots), `Game B's lineup slots now match Game A's, got ${JSON.stringify(afterApply.bSlots)} vs ${JSON.stringify(afterApply.aSlots)}`);
   assert(afterApply.bFormationId === afterApply.aFormationId, `Game B adopted Game A's formation, got "${afterApply.bFormationId}" vs "${afterApply.aFormationId}"`);
   assert(afterApply.bOpponent === 'Squad Push B', 'Game B keeps its own opponent name');
-  assert(afterApply.bRsvps && Object.values(afterApply.bRsvps).every((v) => v === 'pending'), 'Game B\'s RSVPs were left untouched (still all pending)');
+  // rsvps is kept in sync with presentIds by the apply (not left all
+  // "pending") — otherwise a player pushed onto Game B's pitch would show
+  // up on its Squad tab as neither In nor Out.
+  const bPresentSet = new Set(afterApply.bPresentIds);
+  const rsvpsMatchPresence = afterApply.activeIds.every((id) => afterApply.bRsvps[id] === (bPresentSet.has(id) ? 'yes' : 'no'));
+  assert(rsvpsMatchPresence, `Game B's RSVPs match its presentIds (yes iff present), got rsvps ${JSON.stringify(afterApply.bRsvps)} vs presentIds ${JSON.stringify(afterApply.bPresentIds)}`);
 
   assert(errors.length === 0, 'No console/page errors: ' + errors.join(', '));
 
