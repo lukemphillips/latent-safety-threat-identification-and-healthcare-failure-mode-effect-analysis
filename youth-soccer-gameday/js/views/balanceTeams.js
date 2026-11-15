@@ -211,7 +211,7 @@ export function renderBalanceTeams(app, gameId) {
   app.innerHTML = `
     <div class="page-title">
       <div>
-        <h1>Balance Teams</h1>
+        <h1>Team Selection</h1>
         <div class="sub">${game
           ? `For ${game.isHome ? 'vs' : '@'} ${escapeHtml(game.opponent)} · ${formatDate(game.date)}`
           : 'Randomly split a squad into teams, balanced by skill stream'}</div>

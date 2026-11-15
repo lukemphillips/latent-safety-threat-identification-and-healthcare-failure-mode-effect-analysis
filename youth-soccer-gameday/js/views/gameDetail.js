@@ -362,7 +362,7 @@ function renderSquadTab(container, game) {
         <button class="btn ghost sm" data-action="add-fill-in">+ Fill-In Player</button>
       </div>
     </div>
-    ${present.length ? `<a class="btn ghost sm" href="#/balance/${game.id}" style="margin:10px 0; display:inline-flex;">🎲 Balance Teams from today's squad</a>` : ''}
+    ${present.length ? `<a class="btn ghost sm" href="#/balance/${game.id}" style="margin:10px 0; display:inline-flex;">🎲 Team Selection from today's squad</a>` : ''}
 
     <div class="card" style="margin-top:16px;">
       <div class="spread" style="gap:10px; flex-wrap:wrap; margin-bottom:10px;">
