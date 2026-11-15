@@ -88,13 +88,13 @@ function assert(cond, msg) {
 
   // ============ Team cards below reflect the same total headcount as the squad ============
   const sectionTitles = await page.$$eval('.section-title', (els) => els.map((e) => e.textContent.trim()));
-  const includedCountText = sectionTitles.find((t) => t.startsWith('Squad ('));
+  const includedCountText = sectionTitles.find((t) => t.startsWith('Team Selection ('));
   const totalOnTeams = await page.$$eval('.card [style*="font-weight:700"]', (els) =>
     els.filter((e) => /^Team \d+ \(/.test(e.textContent.trim())).reduce((sum, e) => sum + Number(e.textContent.match(/\((\d+)\)/)[1]), 0)
   );
-  const includedMatch = includedCountText.match(/Squad \((\d+)\//);
-  assert(includedMatch, `Found the Squad count label, got "${includedCountText}"`);
-  assert(Number(includedMatch[1]) === totalOnTeams, `Squad count (${includedMatch[1]}) matches total players across team cards (${totalOnTeams})`);
+  const includedMatch = includedCountText.match(/Team Selection \((\d+)\//);
+  assert(includedMatch, `Found the Team Selection count label, got "${includedCountText}"`);
+  assert(Number(includedMatch[1]) === totalOnTeams, `Team Selection count (${includedMatch[1]}) matches total players across team cards (${totalOnTeams})`);
 
   // ============ Reassigning a player via the dropdown actually moves them ============
   const firstSelect = teamSelects[0];

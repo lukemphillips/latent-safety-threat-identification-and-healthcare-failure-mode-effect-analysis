@@ -1,5 +1,5 @@
 import { getState, update, findGame, recordGameDeletion } from '../store.js';
-import { uid, escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions, gameNumPeriods, gamePeriodMinutes, gameSquadFormat, matchEligiblePlayers } from '../util.js';
+import { uid, escapeHtml, formatDate, formatTime, todayIso, matchTypeBadgeHtml, periodLabel, formatPositions, playerPositions, gameNumPeriods, gamePeriodMinutes, gameSquadFormat, matchEligiblePlayers, usedTeamAllocationsInOrder } from '../util.js';
 import { formationFor, formationOptionsFor, remapLineupToFormat, formationHasGk } from '../formations.js';
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { openGameForm, squadFormatOptionsHtml } from './schedule.js';
@@ -255,14 +255,47 @@ function setSquadStatus(state, gameId, playerId, value) {
 // modal but not the modal's own content) so it stays open and in sync
 // across multiple taps.
 function openSquadPickerModal(gameRef) {
+  // Local to this one modal instance — resets to "show everyone" each time
+  // it's freshly opened, and (being a closure variable, not module state)
+  // is untouched by the full-page re-render update() triggers behind it on
+  // every tap, so filtering doesn't reset itself mid-use.
+  let teamAllocFilter = null;
+
   function renderList(modalEl) {
     const game = findGame(gameRef.id);
     const { players } = getState();
     const active = matchEligiblePlayers(players);
     const presentCount = (game.presentIds || []).length;
     modalEl.querySelector('#squad-picker-count').textContent = `${presentCount}/${active.length} present`;
+
+    // For clubs running one big squad across several named teams (see
+    // "Team allocation" on Roster/Balance Teams) — lets whoever's filling
+    // in a specific team's attendance find just their players in a long
+    // shared roster, same filter-chip pattern as those two screens.
+    const teamAllocValues = usedTeamAllocationsInOrder(active);
+    if (teamAllocFilter && !teamAllocValues.includes(teamAllocFilter)) teamAllocFilter = null;
+    const filtersEl = modalEl.querySelector('#squad-picker-filters');
+    filtersEl.innerHTML = teamAllocValues.length ? `
+      <div class="chip-list" style="margin-bottom:10px;">
+        ${teamAllocValues.map((v) => `<button type="button" class="bench-chip ${teamAllocFilter === v ? 'picking' : ''}" data-team-alloc-filter="${escapeHtml(v)}">${escapeHtml(v)}</button>`).join('')}
+        ${teamAllocFilter ? '<button type="button" class="bench-chip" data-action="clear-team-alloc-filter">✕ Clear</button>' : ''}
+      </div>
+    ` : '';
+    filtersEl.querySelectorAll('[data-team-alloc-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const value = btn.dataset.teamAllocFilter;
+        teamAllocFilter = teamAllocFilter === value ? null : value;
+        renderList(modalEl);
+      });
+    });
+    const clearFilterBtn = filtersEl.querySelector('[data-action="clear-team-alloc-filter"]');
+    if (clearFilterBtn) clearFilterBtn.addEventListener('click', () => { teamAllocFilter = null; renderList(modalEl); });
+
+    const visible = teamAllocFilter ? active.filter((p) => p.teamAllocation === teamAllocFilter) : active;
     const listEl = modalEl.querySelector('#squad-picker-list');
-    listEl.innerHTML = active.length ? active.map((p) => squadStatusRowHtml(game, p)).join('') : '<div class="empty">No active players on the roster.</div>';
+    listEl.innerHTML = visible.length
+      ? visible.map((p) => squadStatusRowHtml(game, p)).join('')
+      : `<div class="empty">${teamAllocFilter ? 'No players with this team allocation.' : 'No active players on the roster.'}</div>`;
     listEl.querySelectorAll('[data-squad-status-btn]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const { playerId, value } = btn.dataset;
@@ -277,6 +310,7 @@ function openSquadPickerModal(gameRef) {
     bodyHtml: `
       <p class="muted small" style="margin:0 0 10px;">Tap In/Out for each player — In marks them present and ready for the lineup, right away.</p>
       <div class="small muted" id="squad-picker-count" style="margin-bottom:6px;"></div>
+      <div id="squad-picker-filters"></div>
       <div id="squad-picker-list" class="stack" style="gap:0;"></div>
     `,
     onMount: (modalEl) => renderList(modalEl),

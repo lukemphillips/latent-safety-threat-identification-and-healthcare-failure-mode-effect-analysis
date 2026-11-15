@@ -51,14 +51,14 @@ function assert(cond, msg) {
   // Filtering scopes who's actually included for the split, not just which
   // rows are shown — a coach who filters and taps Random Split straight
   // away (without first clearing everyone else) should only get those 4.
-  const squadHeading = await page.textContent('.section-title:has-text("Squad")');
+  const squadHeading = await page.textContent('.section-title:has-text("Team Selection")');
   assert(squadHeading.includes(`(4/${active.length})`), `Squad heading reflects only the 4 filtered players just from filtering, got "${squadHeading}"`);
 
   await page.click('[data-action="clear-team-alloc-filter"]');
   await page.waitForTimeout(100);
   const rowCountAfterClear = await page.$$eval('table tbody tr', (els) => els.length);
   assert(rowCountAfterClear === active.length, `Clearing the filter shows everyone again, got ${rowCountAfterClear}`);
-  const squadHeadingAfterClear = await page.textContent('.section-title:has-text("Squad")');
+  const squadHeadingAfterClear = await page.textContent('.section-title:has-text("Team Selection")');
   assert(squadHeadingAfterClear.includes(`(${active.length}/${active.length})`), `Clearing the filter restores everyone to the included count too, got "${squadHeadingAfterClear}"`);
 
   // ============ Select All while filtered only adds the filtered team ============
@@ -72,7 +72,7 @@ function assert(cond, msg) {
   await page.click('[data-action="select-all"]');
   await page.waitForTimeout(100);
 
-  const squadHeadingAfterFilteredSelectAll = await page.textContent('.section-title:has-text("Squad")');
+  const squadHeadingAfterFilteredSelectAll = await page.textContent('.section-title:has-text("Team Selection")');
   assert(squadHeadingAfterFilteredSelectAll.includes(`(4/${active.length})`), `"Select All" while filtered to "9.4" only selects those 4, got "${squadHeadingAfterFilteredSelectAll}"`);
 
   await page.click('[data-action="split"]');

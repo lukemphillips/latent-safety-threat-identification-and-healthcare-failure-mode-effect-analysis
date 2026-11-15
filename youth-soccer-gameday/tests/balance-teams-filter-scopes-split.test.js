@@ -46,14 +46,14 @@ function assert(cond, msg) {
   await page.goto(BASE + '/index.html#/balance');
   await page.waitForTimeout(200);
 
-  const squadHeadingBefore = await page.textContent('.section-title:has-text("Squad")');
+  const squadHeadingBefore = await page.textContent('.section-title:has-text("Team Selection")');
   assert(squadHeadingBefore.includes(`(${active.length}/${active.length})`), `Everyone is included by default on a fresh visit, got "${squadHeadingBefore}"`);
 
   // Filter only — deliberately skip "Select None".
   await page.click('[data-team-alloc-filter="9.5"]');
   await page.waitForTimeout(150);
 
-  const squadHeadingAfterFilter = await page.textContent('.section-title:has-text("Squad")');
+  const squadHeadingAfterFilter = await page.textContent('.section-title:has-text("Team Selection")');
   assert(squadHeadingAfterFilter.includes(`(4/${active.length})`), `Filtering alone scopes the included count to the 4 filtered players, got "${squadHeadingAfterFilter}"`);
 
   await page.click('[data-action="split"]');

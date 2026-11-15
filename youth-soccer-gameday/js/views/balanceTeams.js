@@ -245,7 +245,7 @@ export function renderBalanceTeams(app, gameId) {
       ? 'Clusters players of similar ability onto the same team — handy for running side-by-side matches at different intensities.'
       : 'Spreads each skill stream evenly across every team, for one fair, competitive match.'}</div>
 
-    <div class="section-title">Squad (${included.length}/${active.length})</div>
+    <div class="section-title">Team Selection (${included.length}/${active.length})</div>
     <div class="card" style="overflow-x:auto;">
       <div class="spread" style="margin-bottom:10px; flex-wrap:wrap; gap:8px;">
         <button class="btn ghost sm" data-action="select-all">Select All</button>
