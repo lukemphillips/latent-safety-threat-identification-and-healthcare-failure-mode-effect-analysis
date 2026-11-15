@@ -333,24 +333,20 @@ function goalkeeperStatsHtml() {
   `;
 }
 
-export function renderStats(app) {
-  const { games, trainings, team } = getState();
+const STATS_TABS = ['leaders', 'history', 'h2h', 'awards'];
+const STATS_TAB_LABELS = { leaders: 'Leaders', history: 'History', h2h: 'Head-to-Head', awards: 'Awards' };
+
+// Used to be one long scroll through Player of the Week, the Leaders
+// table, Goalkeeper Appearances, History, and Head-to-Head all stacked on
+// top of each other — a full season made that a lot of scrolling just to
+// check one thing. Tabbed instead, same pattern as Training's Plan/
+// Attendance/Groups/Matches; each tab renders into its own content div so
+// switching doesn't re-run the other tabs' setup.
+export function renderStats(app, tab = 'leaders') {
+  if (!STATS_TABS.includes(tab)) tab = 'leaders';
+  const { games, trainings } = getState();
   const completedCount = games.filter((g) => g.status === 'completed').length;
   const trainingsTrackedCount = (trainings || []).filter((t) => (t.presentIds || []).length > 0).length;
-  const rows = sortRows(computeLeaderRows());
-  const history = sortByDateTime(games).reverse();
-  const months = historyByMonth(history);
-  const h2h = headToHead();
-  const baseColumns = keyStatColumns(team);
-  const deepColumns = deepStatColumns(team);
-  const activeDeepColumn = deepColumns.find((c) => c.key === sortKey);
-  const columns = activeDeepColumn ? [...baseColumns, activeDeepColumn] : baseColumns;
-  const weeks = weeksWithGames();
-  // Only the most recent couple of weeks need to be visible right away —
-  // older ones are still one tap away, just tucked behind a drop-down
-  // instead of adding to how far a coach has to scroll every time.
-  const recentWeeks = weeks.slice(0, 2);
-  const earlierWeeks = weeks.slice(2);
 
   app.innerHTML = `
     <div class="page-title">
@@ -360,19 +356,30 @@ export function renderStats(app) {
       </div>
     </div>
 
-    ${weeks.length ? `
-      <div class="section-title">🏅 Player of the Week</div>
-      <div id="recent-weeks">${recentWeeks.map(weekRowHtml).join('')}</div>
-      ${earlierWeeks.length ? `
-        <details class="card" id="earlier-weeks" data-details-key="earlier-weeks" ${isDetailsOpen('earlier-weeks', false) ? 'open' : ''}>
-          <summary style="cursor:pointer; font-weight:700;">${earlierWeeks.length} earlier week${earlierWeeks.length === 1 ? '' : 's'}</summary>
-          <div class="stack" style="margin-top:10px;">${earlierWeeks.map(weekRowHtml).join('')}</div>
-        </details>
-      ` : ''}
-    ` : ''}
+    <div class="tabs">
+      ${STATS_TABS.map((t) => `<a class="tab ${tab === t ? 'active' : ''}" href="#/stats/${t}">${STATS_TAB_LABELS[t]}</a>`).join('')}
+    </div>
 
-    <div class="section-title">Leaders</div>
-    <p class="muted small" style="margin:-4px 0 4px;">Tap a column to sort, tap a player for their full stat breakdown.</p>
+    <div id="stats-tab-content" style="margin-top:14px;"></div>
+  `;
+
+  const content = app.querySelector('#stats-tab-content');
+  if (tab === 'history') renderHistoryTab(content);
+  else if (tab === 'h2h') renderH2hTab(content);
+  else if (tab === 'awards') renderAwardsTab(content, app);
+  else renderLeadersTab(content);
+}
+
+function renderLeadersTab(container) {
+  const { team } = getState();
+  const rows = sortRows(computeLeaderRows());
+  const baseColumns = keyStatColumns(team);
+  const deepColumns = deepStatColumns(team);
+  const activeDeepColumn = deepColumns.find((c) => c.key === sortKey);
+  const columns = activeDeepColumn ? [...baseColumns, activeDeepColumn] : baseColumns;
+
+  container.innerHTML = `
+    <p class="muted small" style="margin:0 0 4px;">Tap a column to sort, tap a player for their full stat breakdown.</p>
     ${team.minPlayingTimePercent != null ? `
       <p class="muted small" style="margin:0 0 8px;">⚠️ = below this team's ${team.minPlayingTimePercent}% playing-time standard (<a href="#/settings">Settings</a>).</p>
     ` : ''}
@@ -403,48 +410,73 @@ export function renderStats(app) {
     </div>
 
     ${goalkeeperStatsHtml()}
-
-    <div class="section-title">History</div>
-    ${history.length ? months.map((m, i) => historyMonthHtml(m, i === 0)).join('') : '<div class="card empty">No games yet.</div>'}
-
-    ${h2h.length ? `
-      <div class="section-title">Head-to-Head</div>
-      ${h2h.map(h2hRowHtml).join('')}
-    ` : ''}
   `;
 
-  trackDetailsToggle(app);
+  trackDetailsToggle(container);
 
-  app.querySelectorAll('[data-sort-col]').forEach((th) => {
+  container.querySelectorAll('[data-sort-col]').forEach((th) => {
     th.addEventListener('click', () => {
       const key = th.dataset.sortCol;
       if (sortKey === key) sortDir = sortDir === 'desc' ? 'asc' : 'desc';
       // Alphabetical sort reads more naturally starting A→Z; every stat
       // column still starts highest-first, same as before.
       else { sortKey = key; sortDir = key === 'name' ? 'asc' : 'desc'; }
-      renderStats(app);
+      renderLeadersTab(container);
     });
   });
-  const deepSortSelect = app.querySelector('#leader-deep-sort-select');
+  const deepSortSelect = container.querySelector('#leader-deep-sort-select');
   if (deepSortSelect) {
     deepSortSelect.addEventListener('change', () => {
       if (!deepSortSelect.value) return;
       sortKey = deepSortSelect.value;
       sortDir = 'desc';
-      renderStats(app);
+      renderLeadersTab(container);
     });
   }
-  app.querySelectorAll('[data-action="open-player-stats"]').forEach((row) => {
+  container.querySelectorAll('[data-action="open-player-stats"]').forEach((row) => {
     row.addEventListener('click', () => {
       const r = rows.find((x) => x.player.id === row.dataset.playerId);
       if (r) openPlayerStatsModal(r, team);
     });
   });
+}
 
-  app.querySelectorAll('[data-action="set-week-award"]').forEach((btn) => {
+function renderHistoryTab(container) {
+  const history = sortByDateTime(getState().games).reverse();
+  const months = historyByMonth(history);
+  container.innerHTML = history.length ? months.map((m, i) => historyMonthHtml(m, i === 0)).join('') : '<div class="card empty">No games yet.</div>';
+  trackDetailsToggle(container);
+}
+
+function renderH2hTab(container) {
+  const h2h = headToHead();
+  container.innerHTML = h2h.length ? h2h.map(h2hRowHtml).join('') : '<div class="card empty">No head-to-head history yet — play the same opponent twice to see it here.</div>';
+  trackDetailsToggle(container);
+}
+
+function renderAwardsTab(container, app) {
+  const weeks = weeksWithGames();
+  // Only the most recent couple of weeks need to be visible right away —
+  // older ones are still one tap away, just tucked behind a drop-down
+  // instead of adding to how far a coach has to scroll every time.
+  const recentWeeks = weeks.slice(0, 2);
+  const earlierWeeks = weeks.slice(2);
+
+  container.innerHTML = weeks.length ? `
+    <div id="recent-weeks">${recentWeeks.map(weekRowHtml).join('')}</div>
+    ${earlierWeeks.length ? `
+      <details class="card" id="earlier-weeks" data-details-key="earlier-weeks" ${isDetailsOpen('earlier-weeks', false) ? 'open' : ''}>
+        <summary style="cursor:pointer; font-weight:700;">${earlierWeeks.length} earlier week${earlierWeeks.length === 1 ? '' : 's'}</summary>
+        <div class="stack" style="margin-top:10px;">${earlierWeeks.map(weekRowHtml).join('')}</div>
+      </details>
+    ` : ''}
+  ` : '<div class="card empty">No completed match weeks yet.</div>';
+
+  trackDetailsToggle(container);
+  container.querySelectorAll('[data-action="set-week-award"]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const week = weeks.find((w) => w.weekStart === btn.dataset.week);
-      if (week) openWeekAwardModal(week, () => renderStats(app));
+      if (week) openWeekAwardModal(week, () => renderStats(app, 'awards'));
     });
   });
 }

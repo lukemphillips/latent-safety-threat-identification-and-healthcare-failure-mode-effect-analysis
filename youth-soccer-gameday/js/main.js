@@ -165,7 +165,7 @@ function route() {
   else if (parts[0] === 'roster') result = renderRoster(app);
   else if (parts[0] === 'balance') result = renderBalanceTeams(app, parts[1] || null);
   else if (parts[0] === 'schedule') result = renderSchedule(app);
-  else if (parts[0] === 'stats') result = renderStats(app);
+  else if (parts[0] === 'stats') result = renderStats(app, parts[1] || 'leaders');
   else if (parts[0] === 'settings') result = renderSettings(app);
   else if (parts[0] === 'help') result = renderHelp(app);
   else if (parts[0] === 'training') {

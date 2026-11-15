@@ -59,7 +59,7 @@ function assert(cond, msg) {
   // hash-change navigation wouldn't reload the document or make it
   // re-read localStorage, so the seeded data needs an actual reload.
   await page.reload();
-  await page.goto(BASE + '/index.html#/stats');
+  await page.goto(BASE + '/index.html#/stats/history');
   await page.waitForTimeout(200);
 
   // ============ History grouped by month, most recent open ============
@@ -88,6 +88,8 @@ function assert(cond, msg) {
   assert(await lastMonthLink.isVisible(), 'Clicking an earlier month\'s summary expands it');
 
   // ============ Player of the Week: recent shown, older tucked away ============
+  await page.goto(BASE + '/index.html#/stats/awards');
+  await page.waitForTimeout(150);
   const weekCards = await page.$$('#recent-weeks > .card');
   assert(weekCards.length === 2, `Only the 2 most recent weeks show directly, got ${weekCards.length}`);
   const earlierWeeksDetails = await page.$('#earlier-weeks');
