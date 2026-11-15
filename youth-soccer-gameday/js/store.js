@@ -474,7 +474,22 @@ export function applyCloudSync(cloudData, lastSyncedPlayers, lastSyncedTrainings
   const s = getState();
   let gamesAdded = 0, gamesUpdated = 0;
 
-  s.team = cloudData.team;
+  // team settings themselves are trusted wholesale from the cloud (see the
+  // comment above this function) — EXCEPT weeklyAwards, which (unlike,
+  // say, the team's name or squad format) can genuinely be set from more
+  // than one Full Edit device via the Awards tab. Reported bug: setting a
+  // Player of the Week, then syncing again shortly after (even on the
+  // SAME device, e.g. the auto-sync on app load) pulled back a still-stale
+  // cloud copy of `team` and blindly replaced the local one wholesale —
+  // wiping the award that had only just been set, before the push that
+  // follows this pull even got a chance to send it up. Unioning by id,
+  // same idea as mergeBackup's award merge above, keeps any award this
+  // device has that the cloud's copy doesn't know about yet, so it
+  // survives the pull and reaches the cloud for real on the push after it.
+  const cloudAwards = cloudData.team.weeklyAwards || [];
+  const cloudAwardIds = new Set(cloudAwards.map((a) => a.id));
+  const localOnlyAwards = (s.team.weeklyAwards || []).filter((a) => !cloudAwardIds.has(a.id));
+  s.team = { ...cloudData.team, weeklyAwards: [...cloudAwards, ...localOnlyAwards] };
 
   cloudData.players = migratePlayers(cloudData.players);
   const localById = new Map(s.players.map((p) => [p.id, p]));

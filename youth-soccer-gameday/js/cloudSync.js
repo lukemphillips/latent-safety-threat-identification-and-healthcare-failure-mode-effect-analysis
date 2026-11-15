@@ -250,6 +250,25 @@ function mergeGames_(currentGames, postedGames) {
   return result.concat(idless);
 }
 
+// Reported bug: a Player of the Week set from one Full Edit device
+// vanished after syncing again shortly after. Root cause was the exact
+// same shape as mergeGames_ above, just for team.weeklyAwards instead of
+// games: this editor branch used to trust posted.team wholesale, so
+// whichever Full Edit device's push landed last would silently overwrite
+// the server's whole team object — including any weekly award a
+// DIFFERENT device had just pushed and this device never pulled before
+// posting its own (still-stale) copy. Unioning by id, same idea as
+// mergeTombstones_ below, keeps any award either side knows about; on a
+// genuine edit to the SAME award id (a coach reopening Player of the
+// Week and changing the winner) the posted copy wins, since it's
+// whatever this exact push just intentionally set.
+function mergeAwards_(current, posted) {
+  var byId = {};
+  (current || []).forEach(function (a) { if (a && a.id) byId[a.id] = a; });
+  (posted || []).forEach(function (a) { if (a && a.id) byId[a.id] = a; });
+  return Object.keys(byId).map(function (id) { return byId[id]; });
+}
+
 // mergeGames_ deliberately never lets a game disappear just because one
 // side's push didn't mention it — that's the whole point of it, and
 // exactly why a deleted game (or, below, a deleted player) used to come
@@ -331,6 +350,12 @@ function doPost(e) {
     var toStore;
 
     if (role === 'editor') {
+      // team is trusted wholesale from whichever Full Edit device pushes
+      // (there's normally one source of truth for the team's own
+      // settings) — EXCEPT weeklyAwards, merged below (see mergeAwards_
+      // above): unlike the team's name or squad format, more than one
+      // Full Edit device can genuinely set a Player of the Week.
+      posted.team.weeklyAwards = mergeAwards_(current && current.team ? current.team.weeklyAwards : [], posted.team.weeklyAwards);
       toStore = {
         team: posted.team,
         players: posted.players,
