@@ -566,22 +566,200 @@ function leaderRowHtml(row, columns, team) {
   `;
 }
 
+// Matches the full-word STAT_FULL_LABELS above — a small icon in front of
+// each row so the card reads less like a spreadsheet and more like a
+// player card's stat line.
+const STAT_ICONS = {
+  apps: '📅',
+  minutes: '⏱️',
+  avgMinutes: '⏱️',
+  goals: '⚽',
+  assists: '🅰️',
+  saves: '🧤',
+  yellows: '🟨',
+  reds: '🟥',
+  playingTimePercent: '📊',
+  potm: '⭐',
+  captaincies: '🅲',
+  weeklyAwards: '🏅',
+  attendance: '✅',
+  trainingAttendance: '🏃',
+};
+
+// Manual rounded-rect path — kept local rather than ctx.roundRect() since
+// not every in-app-browser WebView a parent's phone might render this in
+// supports it yet.
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+const CARD_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+// Draws the same card the modal shows onto a <canvas> and resolves to a
+// PNG Blob — so it can be saved to the camera roll or handed to the
+// native share sheet, rather than a parent only ever seeing it as a
+// screenshot the coach happened to take.
+function renderPlayerCardImage(row, team, columns) {
+  const avatarLabel = row.player.jerseyNumber != null ? String(row.player.jerseyNumber) : row.player.name.charAt(0).toUpperCase();
+  const sub = `${formatPositions(row.player)}${row.player.jerseyNumber != null ? ` · #${row.player.jerseyNumber}` : ''}`;
+  const stats = columns.map((c) => ({
+    icon: STAT_ICONS[c.key] || '',
+    label: STAT_FULL_LABELS[c.key] || c.label,
+    value: String(statDisplayValue(row, c.key, team)),
+  }));
+
+  const SCALE = 3;
+  const W = 340;
+  const MARGIN = 16;
+  const HEADER_H = 172;
+  const ROW_H = 34;
+  const H = MARGIN * 2 + HEADER_H + 14 + stats.length * ROW_H;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W * SCALE;
+  canvas.height = H * SCALE;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(SCALE, SCALE);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  const hx = MARGIN, hy = MARGIN, hw = W - MARGIN * 2, hh = HEADER_H;
+  roundRectPath(ctx, hx, hy, hw, hh, 14);
+  const grad = ctx.createLinearGradient(hx, hy, hx + hw * 0.4, hy + hh * 1.2);
+  grad.addColorStop(0, '#0b3d38');
+  grad.addColorStop(0.55, '#155e54');
+  grad.addColorStop(1, '#c79a2e');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.save();
+  roundRectPath(ctx, hx, hy, hw, hh, 14);
+  ctx.clip();
+  const sheen = ctx.createRadialGradient(hx + hw * 0.25, hy + hh * 0.1, 0, hx + hw * 0.25, hy + hh * 0.1, hw * 0.65);
+  sheen.addColorStop(0, 'rgba(255,255,255,0.22)');
+  sheen.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(hx, hy, hw, hh);
+  ctx.restore();
+
+  const cx = W / 2, cy = hy + 54, r = 34;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#d9ae3f';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.stroke();
+  ctx.fillStyle = '#141414';
+  ctx.font = `800 26px ${CARD_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(avatarLabel, cx, cy + 1);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `800 21px ${CARD_FONT}`;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(row.player.name, cx, cy + r + 30);
+
+  ctx.globalAlpha = 0.88;
+  ctx.font = `13px ${CARD_FONT}`;
+  ctx.fillText(sub, cx, cy + r + 50);
+  ctx.globalAlpha = 1;
+
+  const listTop = hy + hh + 14;
+  ctx.textAlign = 'left';
+  stats.forEach((s, i) => {
+    const rowTop = listTop + i * ROW_H;
+    const textY = rowTop + ROW_H / 2 + 5;
+    ctx.fillStyle = '#141414';
+    ctx.font = `14px ${CARD_FONT}`;
+    ctx.fillText(`${s.icon} ${s.label}`, MARGIN, textY);
+    ctx.textAlign = 'right';
+    ctx.font = `700 15px ${CARD_FONT}`;
+    ctx.fillText(s.value, W - MARGIN, textY);
+    ctx.textAlign = 'left';
+    if (i < stats.length - 1) {
+      ctx.strokeStyle = '#e8e6df';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(MARGIN, rowTop + ROW_H);
+      ctx.lineTo(W - MARGIN, rowTop + ROW_H);
+      ctx.stroke();
+    }
+  });
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))), 'image/png');
+  });
+}
+
+function sanitizeFilename(name) {
+  return name.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'player';
+}
+
 function openPlayerStatsModal(row, team) {
   const columns = sortColumns(team);
+  const avatarLabel = row.player.jerseyNumber != null ? row.player.jerseyNumber : row.player.name.charAt(0).toUpperCase();
   openModal({
     title: row.player.name,
     bodyHtml: `
-      <div class="muted small mt-0" style="margin-bottom:6px;">${formatPositions(row.player)}${row.player.jerseyNumber != null ? ` · #${row.player.jerseyNumber}` : ''}</div>
+      <div class="player-card">
+        <div class="player-card-avatar">${escapeHtml(String(avatarLabel))}</div>
+        <div class="player-card-name">${escapeHtml(row.player.name)}</div>
+        <div class="player-card-sub">${formatPositions(row.player)}${row.player.jerseyNumber != null ? ` · #${row.player.jerseyNumber}` : ''}</div>
+      </div>
       <div class="stack" style="gap:0;">
         ${columns.map((c) => `
-          <div class="sublog-item">
-            <span>${escapeHtml(STAT_FULL_LABELS[c.key] || c.label)}</span>
+          <div class="sublog-item player-card-stat-row">
+            <span>${STAT_ICONS[c.key] || ''} ${escapeHtml(STAT_FULL_LABELS[c.key] || c.label)}</span>
             <strong>${statDisplayValue(row, c.key, team)}</strong>
           </div>
         `).join('')}
       </div>
-      <button type="button" class="btn block" data-close-modal style="margin-top:14px;">Close</button>
+      <button type="button" class="btn secondary block" data-action="save-player-card" style="margin-top:14px;">💾 Save as Image</button>
+      <button type="button" class="btn block" data-close-modal style="margin-top:10px;">Close</button>
     `,
+    onMount: (modalEl) => {
+      const saveBtn = modalEl.querySelector('[data-action="save-player-card"]');
+      saveBtn.addEventListener('click', async () => {
+        const originalLabel = saveBtn.textContent;
+        saveBtn.disabled = true;
+        try {
+          const blob = await renderPlayerCardImage(row, team, columns);
+          const filename = `${sanitizeFilename(row.player.name)}-card.png`;
+          const file = typeof File === 'function' ? new File([blob], filename, { type: 'image/png' }) : null;
+          if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({ files: [file], title: `${row.player.name} — Player Card` });
+              return;
+            } catch {
+              // User cancelled the share sheet, or it failed here — fall through to a plain save instead.
+            }
+          }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          saveBtn.textContent = '✅ Saved!';
+          setTimeout(() => { saveBtn.textContent = originalLabel; }, 2000);
+        } catch {
+          alertDialog('Could not generate the image on this device — try again, or take a screenshot instead.');
+        } finally {
+          saveBtn.disabled = false;
+        }
+      });
+    },
   });
 }
 

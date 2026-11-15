@@ -590,6 +590,68 @@ button { font: inherit; }
 }
 .sublog-item:last-child { border-bottom: none; }
 
+/* Player stat card — Stats tab's "tap a player" modal, styled like a
+   trading/playing card rather than a plain stat sheet. */
+.player-card {
+  position: relative;
+  margin: 4px 0 16px;
+  padding: 26px 20px 22px;
+  border-radius: var(--radius);
+  background: linear-gradient(150deg, var(--teal-900), var(--teal-700) 55%, var(--gold-600) 140%);
+  color: #fff;
+  text-align: center;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.player-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 25% 10%, rgba(255,255,255,0.22), transparent 55%);
+  pointer-events: none;
+}
+.player-card-avatar {
+  position: relative;
+  z-index: 1;
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: var(--gold-500);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 800;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+.player-card-name {
+  position: relative;
+  z-index: 1;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+.player-card-sub {
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  opacity: 0.88;
+  margin-top: 3px;
+}
+.player-card-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.player-card-stat-row:last-child { border-bottom: none; }
+.player-card-stat-row strong { font-size: 15px; }
+
 .banner {
   border-radius: 10px;
   padding: 12px 14px;
