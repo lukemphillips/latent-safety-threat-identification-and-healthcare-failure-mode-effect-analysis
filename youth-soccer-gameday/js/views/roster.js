@@ -68,7 +68,7 @@ export function renderRoster(app) {
         <div class="sub">${players.filter((p) => p.active && !p.isGuest).length} active players${players.some((p) => p.isGuest) ? ` · ${players.filter((p) => p.isGuest).length} guest${players.filter((p) => p.isGuest).length === 1 ? '' : 's'}` : ''}</div>
       </div>
       <div class="row" style="flex-wrap:wrap;">
-        <a class="btn ghost sm" href="#/balance">🎲 Team Selection</a>
+        <a class="btn ghost" href="#/balance">Team Selection</a>
         <button class="btn ghost sm" data-action="import-roster">📥 Import</button>
         <button class="btn" data-action="add-player">+ Add</button>
       </div>

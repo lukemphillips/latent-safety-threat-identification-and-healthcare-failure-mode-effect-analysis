@@ -200,7 +200,7 @@ function openRandomiseModal(app, gameId, included) {
       <div class="muted small" style="margin-top:6px;">${splitMode === 'same'
         ? 'Clusters players of similar ability onto the same team — handy for running side-by-side matches at different intensities.'
         : 'Spreads each skill stream evenly across every team, for one fair, competitive match.'}</div>
-      <button type="button" class="btn big block" data-action="confirm-split" style="margin-top:16px;" ${canSplitNow ? '' : 'disabled'}>🎲 Split</button>
+      <button type="button" class="btn big block" data-action="confirm-split" style="margin-top:16px;" ${canSplitNow ? '' : 'disabled'}>Split</button>
       ${!canSplitNow ? `<div class="muted small" style="margin-top:8px;">${included.length} selected — need at least ${teamCount * 2} for ${teamCount} teams.</div>` : ''}
     `;
     modalEl.querySelectorAll('[data-team-count]').forEach((el) => {
@@ -342,7 +342,7 @@ export function renderBalanceTeams(app, gameId) {
       ` : '<span class="muted small">No active players on the roster.</span>'}
     </div>
 
-    <button class="btn big block" data-action="open-randomise" style="margin:16px 0;" ${canOpenRandomise ? '' : 'disabled'}>🎲 ${split ? 'Shuffle Again' : 'Randomise Teams'}</button>
+    <button class="btn big block" data-action="open-randomise" style="margin:16px 0;" ${canOpenRandomise ? '' : 'disabled'}>${split ? 'Shuffle Again' : 'Randomise Teams'}</button>
     ${!canOpenRandomise ? `<div class="muted small" style="margin-top:-10px; margin-bottom:16px;">Pick at least ${MIN_TEAMS * 2} players to split into teams.</div>` : ''}
 
     ${split ? `
