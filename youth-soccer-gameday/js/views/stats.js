@@ -378,8 +378,14 @@ function renderLeadersTab(container) {
   const activeDeepColumn = deepColumns.find((c) => c.key === sortKey);
   const columns = activeDeepColumn ? [...baseColumns, activeDeepColumn] : baseColumns;
 
+  // Rank medals only mean something for an actual leaderboard ordering —
+  // sorted by a stat, highest first. Alphabetical (or ascending) sort
+  // isn't ranking anyone, so no medals then.
+  const showMedals = sortKey !== 'name' && sortDir === 'desc';
+  const sortChips = [{ key: 'name', label: 'Player' }, ...columns];
+
   container.innerHTML = `
-    <p class="muted small" style="margin:0 0 4px;">Tap a column to sort, tap a player for their full stat breakdown.</p>
+    <p class="muted small" style="margin:0 0 8px;">Tap a stat to sort by it, tap a player for their full stat breakdown.</p>
     ${team.minPlayingTimePercent != null ? `
       <p class="muted small" style="margin:0 0 8px;">⚠️ = below this team's ${team.minPlayingTimePercent}% playing-time standard (<a href="#/settings">Settings</a>).</p>
     ` : ''}
@@ -389,24 +395,15 @@ function renderLeadersTab(container) {
         ${deepColumns.map((c) => `<option value="${c.key}"${sortKey === c.key ? ' selected' : ''}>${escapeHtml(STAT_FULL_LABELS[c.key] || c.label)}</option>`).join('')}
       </select>
     </div>
-    <div class="card" style="overflow-x:auto; padding:0;">
-      <table style="width:100%; border-collapse:collapse; font-size:13.5px;">
-        <thead>
-          <tr>
-            <th data-sort-col="name" style="text-align:left; padding:8px 10px; cursor:pointer; white-space:nowrap;">
-              Player${sortKey === 'name' ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''}
-            </th>
-            ${columns.map((c) => `
-              <th data-sort-col="${c.key}" style="text-align:right; padding:8px 8px; cursor:pointer; white-space:nowrap;">
-                ${c.label}${sortKey === c.key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''}
-              </th>
-            `).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.length ? rows.map((r) => leaderRowHtml(r, columns, team)).join('') : `<tr><td colspan="${columns.length + 1}" class="empty">No players yet.</td></tr>`}
-        </tbody>
-      </table>
+    <div class="chip-list" style="margin-bottom:12px;">
+      ${sortChips.map((c) => `
+        <button type="button" class="leader-sort-chip${sortKey === c.key ? ' active' : ''}" data-sort-col="${c.key}">
+          ${escapeHtml(c.label)}${sortKey === c.key ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''}
+        </button>
+      `).join('')}
+    </div>
+    <div class="leader-list">
+      ${rows.length ? rows.map((r, i) => leaderRowHtml(r, columns, team, showMedals ? i : -1)).join('') : '<div class="card empty">No players yet.</div>'}
     </div>
 
     ${goalkeeperStatsHtml()}
@@ -414,9 +411,9 @@ function renderLeadersTab(container) {
 
   trackDetailsToggle(container);
 
-  container.querySelectorAll('[data-sort-col]').forEach((th) => {
-    th.addEventListener('click', () => {
-      const key = th.dataset.sortCol;
+  container.querySelectorAll('[data-sort-col]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const key = chip.dataset.sortCol;
       if (sortKey === key) sortDir = sortDir === 'desc' ? 'asc' : 'desc';
       // Alphabetical sort reads more naturally starting A→Z; every stat
       // column still starts highest-first, same as before.
@@ -548,21 +545,38 @@ function openWeekAwardModal(week, onSaved) {
   });
 }
 
-// Compact table row — just the key-stat columns (keyStatColumns above),
-// with the whole row tappable to open the full breakdown (every other
-// stat sortColumns(team) tracks) in a modal instead of needing more
-// columns than fit a phone screen.
-function leaderRowHtml(row, columns, team) {
+const RANK_MEDALS = ['🥇', '🥈', '🥉'];
+
+// A player "card" row — just the key-stat set (keyStatColumns above), with
+// the whole row tappable to open the full breakdown (every other stat
+// sortColumns(team) tracks) in a modal. Used to be a dense table row; a
+// phone-width table left little room per stat and read as a spreadsheet,
+// so each stat is now its own small tile instead of a table column, and
+// the current sort's leader(s) get a medal.
+function leaderRowHtml(row, columns, team, rank) {
   const belowStandard = team.minPlayingTimePercent != null && row.playingTimePercent != null
     && Math.round(row.playingTimePercent * 100) < team.minPlayingTimePercent;
+  const avatarLabel = row.player.jerseyNumber != null ? row.player.jerseyNumber : row.player.name.charAt(0).toUpperCase();
+  const medal = rank >= 0 && rank < RANK_MEDALS.length ? RANK_MEDALS[rank] : '';
   return `
-    <tr data-action="open-player-stats" data-player-id="${row.player.id}" style="border-top:1px solid var(--line); cursor:pointer;">
-      <td style="padding:8px 10px;">
-        <div style="font-weight:600;">${escapeHtml(row.player.name)}${belowStandard ? ` <span title="Below this team's ${team.minPlayingTimePercent}% minimum playing time standard (set in Settings)">⚠️</span>` : ''}</div>
-        <div class="muted" style="font-size:12px;">${formatPositions(row.player)}</div>
-      </td>
-      ${columns.map((c) => `<td style="text-align:right; padding:8px 8px; font-weight:600;">${statDisplayValue(row, c.key, team)}</td>`).join('')}
-    </tr>
+    <div class="leader-row" data-action="open-player-stats" data-player-id="${row.player.id}">
+      <div class="leader-avatar">
+        ${escapeHtml(String(avatarLabel))}
+        ${medal ? `<span class="leader-medal">${medal}</span>` : ''}
+      </div>
+      <div class="leader-main">
+        <div class="leader-name" data-stat="name">${escapeHtml(row.player.name)}${belowStandard ? ` <span title="Below this team's ${team.minPlayingTimePercent}% minimum playing time standard (set in Settings)">⚠️</span>` : ''}</div>
+        <div class="muted leader-pos">${formatPositions(row.player)}</div>
+        <div class="leader-stats">
+          ${columns.map((c) => `
+            <div class="leader-stat${sortKey === c.key ? ' active' : ''}" data-stat="${c.key}">
+              <span class="leader-stat-val">${statDisplayValue(row, c.key, team)}</span>
+              <span class="leader-stat-lbl">${escapeHtml(c.label)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
   `;
 }
 

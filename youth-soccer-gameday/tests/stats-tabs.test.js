@@ -34,14 +34,14 @@ function assert(cond, msg) {
   assert(JSON.stringify(tabTexts) === JSON.stringify(['Leaders', 'History', 'Head-to-Head', 'Awards']), `Tabs are ordered Leaders/History/Head-to-Head/Awards, got ${JSON.stringify(tabTexts)}`);
   const activeTab = await page.textContent('.tabs a.tab.active');
   assert(activeTab.trim() === 'Leaders', `Leaders is the active/landing tab on bare #/stats, got "${activeTab}"`);
-  assert(!!(await page.$('table th[data-sort-col]')), 'Leaders table is visible immediately');
+  assert(!!(await page.$('.leader-list')), 'Leaders list is visible immediately');
   assert(!(await page.$('details[data-month]')), 'History content is not shown on the Leaders tab');
 
   // ============ Each tab is its own URL, loads only that tab's content ============
   await page.goto(BASE + '/index.html#/stats/history');
   await page.waitForTimeout(150);
   assert((await page.textContent('.tabs a.tab.active')).trim() === 'History', 'Navigating straight to #/stats/history marks History active');
-  assert(!(await page.$('table th[data-sort-col]')), 'Leaders table is not shown on the History tab');
+  assert(!(await page.$('.leader-list')), 'Leaders list is not shown on the History tab');
 
   await page.goto(BASE + '/index.html#/stats/h2h');
   await page.waitForTimeout(150);
@@ -58,7 +58,7 @@ function assert(cond, msg) {
   await page.click('.tabs a.tab:has-text("History")');
   await page.waitForTimeout(150);
   assert(!!(await page.$('.section-title, .card')), 'History tab renders something');
-  assert(!(await page.$('table th[data-sort-col]')), 'Switching to History hides the Leaders table');
+  assert(!(await page.$('.leader-list')), 'Switching to History hides the Leaders list');
 
   // ============ Setting a Player of the Week award keeps you on the Awards tab ============
   await page.goto(BASE + '/index.html#/stats/awards');

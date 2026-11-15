@@ -75,53 +75,53 @@ function assert(cond, msg) {
   await page.waitForTimeout(200);
 
   // ============ A compact table with sortable headers and tappable rows ============
-  assert((await page.locator('th[data-sort-col]').count()) > 0, 'Leaders table has sortable column headers');
-  assert((await page.locator('th[data-sort-col="potm"]').count()) === 0, 'Deep stats (POTM, captaincies, awards, attendance, PT%) are not table columns — only the key-stat set is');
-  assert((await page.locator('tr[data-action="open-player-stats"]').count()) === 3, 'One tappable row per player, got ' + (await page.locator('tr[data-action="open-player-stats"]').count()));
-  assert((await page.locator('text=Tap a column to sort').count()) === 1, 'The tap hint sits above the table, not after scrolling past it');
+  assert((await page.locator('[data-sort-col]').count()) > 0, 'Leaders table has sortable column headers');
+  assert((await page.locator('[data-sort-col="potm"]').count()) === 0, 'Deep stats (POTM, captaincies, awards, attendance, PT%) are not table columns — only the key-stat set is');
+  assert((await page.locator('[data-action="open-player-stats"]').count()) === 3, 'One tappable row per player, got ' + (await page.locator('[data-action="open-player-stats"]').count()));
+  assert((await page.locator('text=Tap a stat to sort').count()) === 1, 'The tap hint sits above the table, not after scrolling past it');
 
   // ============ Default sort (goals, desc) puts the top scorer first ============
-  const firstRowBefore = await page.locator('tr[data-action="open-player-stats"]').first().getAttribute('data-player-id');
+  const firstRowBefore = await page.locator('[data-action="open-player-stats"]').first().getAttribute('data-player-id');
   assert(firstRowBefore === 'p1', `Default sort (goals) puts the top scorer (Ava Martinez) first, got player id "${firstRowBefore}"`);
 
   // ============ Tapping a column header re-sorts by that stat ============
-  await page.click('th[data-sort-col="minutes"]');
+  await page.click('[data-sort-col="minutes"]');
   await page.waitForTimeout(150);
-  const firstRowAfterMinutesSort = await page.locator('tr[data-action="open-player-stats"]').first().getAttribute('data-player-id');
+  const firstRowAfterMinutesSort = await page.locator('[data-action="open-player-stats"]').first().getAttribute('data-player-id');
   assert(firstRowAfterMinutesSort === 'p2', `Tapping the Min header sorts by minutes played (Liam Chen has the most), got player id "${firstRowAfterMinutesSort}"`);
 
   // ============ Tapping the same header again flips the direction ============
-  await page.click('th[data-sort-col="minutes"]');
+  await page.click('[data-sort-col="minutes"]');
   await page.waitForTimeout(150);
-  const firstRowAscMinutes = await page.locator('tr[data-action="open-player-stats"]').first().getAttribute('data-player-id');
+  const firstRowAscMinutes = await page.locator('[data-action="open-player-stats"]').first().getAttribute('data-player-id');
   assert(firstRowAscMinutes === 'p3', `Tapping Min again flips to ascending (Noah Patel has the fewest), got player id "${firstRowAscMinutes}"`);
 
   // ============ The Player column header sorts alphabetically ============
-  assert((await page.locator('th[data-sort-col="name"]').count()) === 1, 'Player column header is itself sortable');
-  await page.click('th[data-sort-col="name"]');
+  assert((await page.locator('[data-sort-col="name"]').count()) === 1, 'Player column header is itself sortable');
+  await page.click('[data-sort-col="name"]');
   await page.waitForTimeout(150);
-  const namesInOrder = await page.locator('tr[data-action="open-player-stats"] td:first-child').allInnerTexts();
+  const namesInOrder = await page.locator('[data-action="open-player-stats"] [data-stat="name"]').allInnerTexts();
   assert(namesInOrder[0].startsWith('Ava Martinez'), `Tapping Player sorts A→Z (first tap), got order: ${namesInOrder.map((t) => t.split('\n')[0]).join(', ')}`);
   assert(namesInOrder[2].startsWith('Noah Patel'), `Noah Patel sorts last A→Z, got order: ${namesInOrder.map((t) => t.split('\n')[0]).join(', ')}`);
 
   // ============ "More stats" dropdown sorts by a stat not shown as a column, and adds it as one while active ============
   assert((await page.locator('#leader-deep-sort-select').count()) === 1, 'A "more stats" dropdown exists for stats not shown as table columns');
-  assert((await page.locator('th[data-sort-col="attendance"]').count()) === 0, 'Match Attendance is not a column until actively sorted by');
+  assert((await page.locator('[data-sort-col="attendance"]').count()) === 0, 'Match Attendance is not a column until actively sorted by');
   await page.selectOption('#leader-deep-sort-select', 'attendance');
   await page.waitForTimeout(150);
-  assert((await page.locator('th[data-sort-col="attendance"]').count()) === 1, 'Selecting Match Attendance from the dropdown adds it as a table column');
-  const firstRowByAttendance = await page.locator('tr[data-action="open-player-stats"]').first().getAttribute('data-player-id');
+  assert((await page.locator('[data-sort-col="attendance"]').count()) === 1, 'Selecting Match Attendance from the dropdown adds it as a table column');
+  const firstRowByAttendance = await page.locator('[data-action="open-player-stats"]').first().getAttribute('data-player-id');
   assert(firstRowByAttendance === 'p1', `Sorting by Match Attendance (desc) puts a 100%-attendance player first (tied Ava/Liam, alphabetical breaks the tie), got player id "${firstRowByAttendance}"`);
-  const lastRowByAttendance = await page.locator('tr[data-action="open-player-stats"]').last().getAttribute('data-player-id');
+  const lastRowByAttendance = await page.locator('[data-action="open-player-stats"]').last().getAttribute('data-player-id');
   assert(lastRowByAttendance === 'p3', `Noah Patel (50% attendance) sorts last, got player id "${lastRowByAttendance}"`);
 
   // Switching back to a key-stat column removes the deep column again.
-  await page.click('th[data-sort-col="goals"]');
+  await page.click('[data-sort-col="goals"]');
   await page.waitForTimeout(150);
-  assert((await page.locator('th[data-sort-col="attendance"]').count()) === 0, 'Tapping a key-stat column header drops the deep-stat column again');
+  assert((await page.locator('[data-sort-col="attendance"]').count()) === 0, 'Tapping a key-stat column header drops the deep-stat column again');
 
   // ============ Tapping a row opens the full stat breakdown ============
-  await page.locator('tr[data-action="open-player-stats"][data-player-id="p1"]').click();
+  await page.locator('[data-action="open-player-stats"][data-player-id="p1"]').click();
   await page.waitForTimeout(200);
   const modalText = await page.locator('.modal-body').innerText();
   const modalTitle = await page.locator('.modal-header h3').innerText();

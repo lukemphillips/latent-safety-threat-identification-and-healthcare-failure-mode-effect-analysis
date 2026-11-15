@@ -652,6 +652,72 @@ button { font: inherit; }
 .player-card-stat-row:last-child { border-bottom: none; }
 .player-card-stat-row strong { font-size: 15px; }
 
+/* Stats → Leaders tab: a list of player "cards" rather than a table —
+   each stat gets its own small tile instead of a table column. */
+.leader-sort-chip {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.leader-sort-chip.active { background: var(--gold-600); color: var(--ink); border-color: var(--gold-600); }
+
+.leader-list { display: flex; flex-direction: column; gap: 10px; }
+.leader-row {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.leader-row:active { transform: scale(0.99); }
+.leader-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--teal-100);
+  color: var(--teal-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 15px;
+}
+.leader-medal {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 17px;
+  line-height: 1;
+}
+.leader-main { flex: 1; min-width: 0; }
+.leader-name { font-weight: 700; font-size: 15px; }
+.leader-pos { font-size: 12.5px; margin-top: 1px; margin-bottom: 8px; }
+.leader-stats { display: flex; flex-wrap: wrap; gap: 6px; }
+.leader-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 44px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #f6f6f3;
+}
+.leader-stat-val { font-weight: 800; font-size: 14px; line-height: 1.2; }
+.leader-stat-lbl { font-size: 10px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
+.leader-stat.active { background: var(--gold-100); }
+.leader-stat.active .leader-stat-val { color: var(--gold-700); }
+
 .banner {
   border-radius: 10px;
   padding: 12px 14px;

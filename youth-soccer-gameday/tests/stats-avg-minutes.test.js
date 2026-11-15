@@ -64,30 +64,27 @@ function assert(cond, msg) {
   await page.waitForTimeout(200);
 
   // ============ Avg Min is not a default column, but is offered in the "more stats" dropdown ============
-  assert((await page.locator('th[data-sort-col="avgMinutes"]').count()) === 0, 'Avg Min is not a key-stat column shown by default');
+  assert((await page.locator('[data-sort-col="avgMinutes"]').count()) === 0, 'Avg Min is not a key-stat column shown by default');
   const dropdownOptionText = await page.locator('#leader-deep-sort-select option[value="avgMinutes"]').innerText();
   assert(dropdownOptionText === 'Avg Playing Time per Match', `Dropdown offers it with a clear full label, got "${dropdownOptionText}"`);
 
   // ============ Selecting it sorts by true per-appearance average, not total minutes ============
   await page.selectOption('#leader-deep-sort-select', 'avgMinutes');
   await page.waitForTimeout(150);
-  assert((await page.locator('th[data-sort-col="avgMinutes"]').count()) === 1, 'Selecting Avg Min from the dropdown adds it as a table column');
+  assert((await page.locator('[data-sort-col="avgMinutes"]').count()) === 1, 'Selecting Avg Min from the dropdown adds it as a sortable stat');
 
-  const order = await page.locator('tr[data-action="open-player-stats"]').evaluateAll((rows) => rows.map((r) => r.getAttribute('data-player-id')));
+  const order = await page.locator('[data-action="open-player-stats"]').evaluateAll((rows) => rows.map((r) => r.getAttribute('data-player-id')));
   assert(JSON.stringify(order.slice(0, 3)) === JSON.stringify(['p2', 'p3', 'p1']),
     `Sorted desc by average (Bob 25' > Cara 11' > Alice 10'), despite Alice having the highest total minutes, got order: ${order.join(', ')}`);
 
-  // Read each row's Avg Min cell by its column index rather than guessing position.
+  // Read each row's Avg Min value directly by its data-stat key — no need
+  // to guess a column index now that each stat is its own tagged tile.
   const avgByPlayer = {};
-  const cellsPerRow = await page.locator('tr[data-action="open-player-stats"]').count();
-  const avgColIndex = await page.locator('th[data-sort-col]').evaluateAll((ths) => ths.findIndex((th) => th.dataset.sortCol === 'avgMinutes'));
-  for (let i = 0; i < cellsPerRow; i++) {
-    const row = page.locator('tr[data-action="open-player-stats"]').nth(i);
+  const rowCount = await page.locator('[data-action="open-player-stats"]').count();
+  for (let i = 0; i < rowCount; i++) {
+    const row = page.locator('[data-action="open-player-stats"]').nth(i);
     const pid = await row.getAttribute('data-player-id');
-    // avgColIndex already accounts for the Player (name) header sitting at
-    // index 0 in the th[data-sort-col] list, which lines up with the name
-    // cell at td index 0 — no offset needed.
-    const cellText = await row.locator('td').nth(avgColIndex).innerText();
+    const cellText = await row.locator('[data-stat="avgMinutes"] .leader-stat-val').innerText();
     avgByPlayer[pid] = cellText;
   }
   assert(avgByPlayer.p2 === '25′', `Bob's average is his single 1500s appearance, got "${avgByPlayer.p2}"`);
@@ -96,7 +93,7 @@ function assert(cond, msg) {
   assert(avgByPlayer.p4 === '—', `Dana never actually played (0 apps), so her average shows as "-", got "${avgByPlayer.p4}"`);
 
   // ============ The player detail modal shows it with a full label too ============
-  await page.locator('tr[data-action="open-player-stats"][data-player-id="p2"]').click();
+  await page.locator('[data-action="open-player-stats"][data-player-id="p2"]').click();
   await page.waitForTimeout(200);
   const modalText = await page.locator('.modal-body').innerText();
   assert(modalText.includes('Avg Playing Time per Match'), 'Modal lists the average under its full label');
