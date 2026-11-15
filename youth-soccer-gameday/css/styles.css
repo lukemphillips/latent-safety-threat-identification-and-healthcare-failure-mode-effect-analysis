@@ -1,14 +1,26 @@
 :root {
-  --green-900: #0b3d24;
-  --green-700: #16693f;
-  --green-600: #1c8a53;
-  --green-500: #22a862;
-  --green-100: #e6f6ec;
-  --ink: #16221c;
-  --ink-soft: #556259;
-  --line: #dfe7e1;
+  /* Balls.ie-inspired palette (replaces the old single-hue green brand):
+     teal + gold, white background, near-black ink — picked for outdoor/
+     bright-sunlight legibility as much as for the look. Split across two
+     hues rather than one: teal keeps the old green-900/700/100's
+     structural + "positive" role, gold takes over green-600/500's
+     call-to-action role. A single hue can't be both dark enough to carry
+     white text on a fill AND bright enough to read as a distinct accent
+     — gold-600 pairs with dark (--ink) text, never white, for exactly
+     that reason. */
+  --teal-900: #0b3d38;
+  --teal-700: #155e54;
+  --teal-600: #2b9385;
+  --teal-100: #e3f3f0;
+  --gold-700: #7a5a12;
+  --gold-600: #c79a2e;
+  --gold-500: #d9ae3f;
+  --gold-100: #faf1dc;
+  --ink: #141414;
+  --ink-soft: #5a5a52;
+  --line: #e8e6df;
   --card: #ffffff;
-  --bg: #f4f7f5;
+  --bg: #ffffff;
   --amber: #b8860b;
   --amber-dark: #8a5a00;
   --amber-bg: #fdf3d9;
@@ -16,7 +28,7 @@
   --red-bg: #fbe6e3;
   --blue: #2563eb;
   --radius: 14px;
-  --shadow: 0 1px 2px rgba(15, 40, 26, 0.06), 0 4px 16px rgba(15, 40, 26, 0.06);
+  --shadow: 0 1px 2px rgba(11, 61, 56, 0.06), 0 4px 16px rgba(11, 61, 56, 0.06);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -53,7 +65,10 @@ button { font: inherit; }
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--green-900);
+  /* The team name/crest sit at the left, solidly in the teal end of this
+     gradient, so white text stays legible regardless of how the gold end
+     renders on a given screen. */
+  background: linear-gradient(135deg, var(--teal-900), var(--gold-600));
   color: #fff;
 }
 .topbar-inner {
@@ -116,7 +131,7 @@ button { font: inherit; }
   font-weight: 600;
   min-height: 44px;
 }
-.nav-item.active { color: var(--green-600); }
+.nav-item.active { color: var(--gold-700); }
 .nav-icon { font-size: 21px; }
 
 /* Layout helpers */
@@ -178,16 +193,19 @@ button { font: inherit; }
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
-  background: var(--green-600);
-  color: #fff;
+  background: var(--gold-600);
+  /* Gold needs dark text, not white — it isn't dark enough to carry white
+     text at a usable contrast ratio, which is exactly the "washes out in
+     daylight" problem this palette is meant to fix. */
+  color: var(--ink);
   white-space: nowrap;
   min-height: 44px;
 }
 .btn:active { transform: translateY(1px); }
 .btn.secondary {
   background: #fff;
-  color: var(--green-700);
-  border-color: var(--green-600);
+  color: var(--gold-700);
+  border-color: var(--gold-600);
 }
 .btn.ghost {
   background: transparent;
@@ -222,7 +240,7 @@ button { font: inherit; }
   align-items: center;
   justify-content: center;
 }
-.icon-btn:hover { background: var(--green-100); }
+.icon-btn:hover { background: var(--teal-100); }
 
 .fab-row {
   display: flex;
@@ -292,7 +310,7 @@ button { font: inherit; }
   font-size: 12.5px;
   font-weight: 700;
 }
-.badge.yes { background: var(--green-100); color: var(--green-700); }
+.badge.yes { background: var(--teal-100); color: var(--teal-700); }
 .badge.no { background: var(--red-bg); color: var(--red); }
 .badge.maybe { background: var(--amber-bg); color: var(--amber); }
 .badge.pending { background: #eef0f2; color: var(--ink-soft); }
@@ -302,7 +320,7 @@ button { font: inherit; }
 .badge.league { background: #eaf1ff; color: var(--blue); }
 .badge.friendly { background: #f3eaff; color: #7c3aed; }
 .badge.tournament { background: #fff0e0; color: #c2691d; }
-.badge.stream-a { background: var(--green-100); color: var(--green-700); }
+.badge.stream-a { background: var(--teal-100); color: var(--teal-700); }
 .badge.stream-b { background: #eaf1ff; color: var(--blue); }
 .badge.stream-c { background: var(--amber-bg); color: var(--amber); }
 .badge.stream-d { background: #f3eaff; color: #7c3aed; }
@@ -322,8 +340,8 @@ button { font: inherit; }
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--green-100);
-  color: var(--green-700);
+  background: var(--teal-100);
+  color: var(--teal-700);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -372,7 +390,7 @@ button { font: inherit; }
   cursor: pointer;
   min-height: 38px;
 }
-.rsvp-btn.yes.active { background: var(--green-600); color: #fff; border-color: var(--green-600); }
+.rsvp-btn.yes.active { background: var(--gold-600); color: var(--ink); border-color: var(--gold-600); }
 .rsvp-btn.no.active { background: var(--red); color: #fff; border-color: var(--red); }
 .rsvp-btn.maybe.active { background: var(--amber); color: #fff; border-color: var(--amber); }
 .rsvp-summary { display: flex; gap: 14px; font-size: 14px; color: var(--ink-soft); }
@@ -385,7 +403,7 @@ button { font: inherit; }
   aspect-ratio: 3 / 4;
   background:
     linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px) 0 0/100% 12.5%,
-    linear-gradient(180deg, var(--green-600), var(--green-700));
+    linear-gradient(180deg, var(--teal-600), var(--teal-700));
   border-radius: 12px;
   border: 3px solid rgba(255,255,255,0.6);
   overflow: hidden;
@@ -421,13 +439,13 @@ button { font: inherit; }
   height: 48px;
   border-radius: 50%;
   background: #fff;
-  border: 3px solid var(--green-100);
+  border: 3px solid var(--teal-100);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
   font-size: 15px;
-  color: var(--green-700);
+  color: var(--teal-700);
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 .pitch-slot.empty .chip {
@@ -470,7 +488,7 @@ button { font: inherit; }
 }
 .bench-chip .jersey { width: 26px; height: 26px; font-size: 12px; }
 .bench-chip.disabled { opacity: 0.4; cursor: not-allowed; }
-.bench-chip.picking { outline: 2px solid var(--green-600); }
+.bench-chip.picking { outline: 2px solid var(--gold-600); }
 
 /* Live game */
 .live-mini-bar {

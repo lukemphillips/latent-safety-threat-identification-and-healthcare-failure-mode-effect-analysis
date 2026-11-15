@@ -636,7 +636,7 @@ function teamCardHtml(label, team, idx, upcoming) {
       ${upcoming.length ? `
         <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">
           ${imported && imported.length
-            ? `<div class="small" style="color:var(--green-600); font-weight:600;">✅ Sent to ${imported.map((s) => escapeHtml(s.opponent)).join(', ')}</div>
+            ? `<div class="small" style="color:var(--teal-700); font-weight:600;">✅ Sent to ${imported.map((s) => escapeHtml(s.opponent)).join(', ')}</div>
                ${imported.map((s) => `<a class="btn ghost sm" href="#/game/${s.gameId}/lineup" style="margin-top:6px; display:inline-flex; margin-right:6px;">Open ${escapeHtml(s.opponent)} →</a>`).join('')}`
             : `<button type="button" class="btn secondary sm block" data-action="import-team" data-team-index="${idx}" ${team.length && targetGameIds.size ? '' : 'disabled'}>→ Set as Match Squad${targetGameIds.size > 1 ? ` (${targetGameIds.size} matches)` : ''}</button>`}
         </div>

@@ -44,7 +44,7 @@ export function renderDashboard(app) {
     ` : ''}
 
     ${isFreshInstall ? `
-      <div class="card" style="margin-bottom:14px; border:1px dashed var(--green-600);">
+      <div class="card" style="margin-bottom:14px; border:1px dashed var(--teal-600);">
         <div style="font-weight:700; margin-bottom:8px;">👋 New here? Start with these 3 steps</div>
         <div class="stack" style="gap:8px;">
           <a class="btn secondary block" href="#/settings">1️⃣ Set up your team in Settings</a>

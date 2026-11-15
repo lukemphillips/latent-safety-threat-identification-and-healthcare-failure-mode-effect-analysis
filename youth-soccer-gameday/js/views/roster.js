@@ -352,7 +352,7 @@ function openImportModal() {
     bodyHtml: `
       <div class="stack">
         <p class="muted small mt-0">Import from a .csv or .xlsx file. The first row should have headers — we'll match common ones like Name, Jersey #, Position(s), Stream. Only "Name" is required.</p>
-        <div class="card-row" style="background:var(--green-100); border-radius:10px; padding:10px 12px;">
+        <div class="card-row" style="background:var(--teal-100); border-radius:10px; padding:10px 12px;">
           <span class="small">New to this? Start from a template.</span>
           <button type="button" class="btn secondary sm" data-action="download-template">⬇️ Download CSV Template</button>
         </div>

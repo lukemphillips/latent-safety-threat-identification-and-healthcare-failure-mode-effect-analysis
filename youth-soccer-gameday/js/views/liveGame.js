@@ -1260,7 +1260,7 @@ function playingTimeRows(active, live, presentIds) {
         <span class="muted">${formatClock(seconds)}</span>
       </div>
       <div style="background:var(--line); border-radius:6px; height:7px; overflow:hidden;">
-        <div style="background:var(--green-500); height:100%; width:${Math.round((seconds / max) * 100)}%;"></div>
+        <div style="background:var(--gold-500); height:100%; width:${Math.round((seconds / max) * 100)}%;"></div>
       </div>
     </div>
   `).join('');
