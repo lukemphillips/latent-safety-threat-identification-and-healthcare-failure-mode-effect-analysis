@@ -380,8 +380,11 @@ function renderLeadersTab(container) {
 
   // Rank medals only mean something for an actual leaderboard ordering —
   // sorted by a stat, highest first. Alphabetical (or ascending) sort
-  // isn't ranking anyone, so no medals then.
-  const showMedals = sortKey !== 'name' && sortDir === 'desc';
+  // isn't ranking anyone, so no medals then. Raw time-on-pitch isn't an
+  // achievement either (it's often just who was available, or a fair-play
+  // rotation) — Apps/Minutes/Avg Min get no medals even sorted desc.
+  const NO_MEDAL_KEYS = new Set(['apps', 'minutes', 'avgMinutes']);
+  const showMedals = sortKey !== 'name' && sortDir === 'desc' && !NO_MEDAL_KEYS.has(sortKey);
   const sortChips = [{ key: 'name', label: 'Player' }, ...columns];
 
   container.innerHTML = `
