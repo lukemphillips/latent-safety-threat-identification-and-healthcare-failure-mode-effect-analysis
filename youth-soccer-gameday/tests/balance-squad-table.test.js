@@ -76,8 +76,10 @@ function assert(cond, msg) {
   await (await page.$('table tbody tr td:first-child input[type="checkbox"]')).click();
   await page.waitForTimeout(100);
 
-  // ============ Random Split populates the Team column with real dropdowns ============
-  await page.click('[data-action="split"]');
+  // ============ Random Split (now behind the Randomise modal) populates the Team column with real dropdowns ============
+  await page.click('[data-action="open-randomise"]');
+  await page.waitForSelector('[data-action="confirm-split"]');
+  await page.click('[data-action="confirm-split"]');
   await page.waitForTimeout(200);
 
   const teamSelects = await page.$$('table tbody select[data-team-assign]');

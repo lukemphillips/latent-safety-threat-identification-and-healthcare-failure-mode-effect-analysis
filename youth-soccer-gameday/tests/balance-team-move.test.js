@@ -29,8 +29,10 @@ function assert(cond, msg) {
   assert(game, 'Sample game exists');
 
   await page.goto(`${BASE}/index.html#/balance/${game.id}`);
-  await page.waitForSelector('[data-action="split"]');
-  await page.click('[data-action="split"]');
+  await page.waitForSelector('[data-action="open-randomise"]');
+  await page.click('[data-action="open-randomise"]');
+  await page.waitForSelector('[data-action="confirm-split"]');
+  await page.click('[data-action="confirm-split"]');
   await page.waitForTimeout(200);
 
   // Reassignment lives in a select per included player — one in the Squad

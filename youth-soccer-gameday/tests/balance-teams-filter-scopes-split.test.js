@@ -56,7 +56,9 @@ function assert(cond, msg) {
   const squadHeadingAfterFilter = await page.textContent('.section-title:has-text("Team Selection")');
   assert(squadHeadingAfterFilter.includes(`(4/${active.length})`), `Filtering alone scopes the included count to the 4 filtered players, got "${squadHeadingAfterFilter}"`);
 
-  await page.click('[data-action="split"]');
+  await page.click('[data-action="open-randomise"]');
+  await page.waitForSelector('[data-action="confirm-split"]');
+  await page.click('[data-action="confirm-split"]');
   await page.waitForTimeout(150);
   const splitPlayerNames = await page.$$eval('.player-row .player-name', (els) => els.map((e) => e.textContent.trim()));
   assert(splitPlayerNames.length === 4, `Random Split with just the filter applied includes only those 4 players, got ${splitPlayerNames.length}: ${JSON.stringify(splitPlayerNames)}`);

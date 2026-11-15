@@ -4,7 +4,7 @@ import { isJuniorAgeGroup } from '../ageFormats.js';
 import { buildGroupsByStream } from '../trainingGroups.js';
 import { formationFor, emptyLineupSlots } from '../formations.js';
 import { autoFillLineup } from './gameDetail.js';
-import { confirmDialog } from '../modal.js';
+import { confirmDialog, openModal, closeModal } from '../modal.js';
 import { isMatchdayOnly } from '../cloudSync.js';
 
 const MIN_TEAMS = 2;
@@ -27,6 +27,12 @@ let squadSortDir = 'asc';
 // just theirs before picking who's involved. Doesn't touch `includedIds`
 // — hiding a row here doesn't change whether that player is selected.
 let squadTeamAllocFilter = null;
+
+// Same idea, but for skill stream, and multi-select — several streams can
+// be shown together (e.g. "just the two strongest streams for a friendly"),
+// unlike team allocation which is naturally one-at-a-time since a player
+// only ever belongs to one named team.
+let squadStreamFilter = new Set();
 
 function resetImportStatus() {
   importedSquad = null;
@@ -170,6 +176,60 @@ function confirmOverwrite(targetGames) {
   return confirmDialog(msg, { okLabel: 'Replace' });
 }
 
+// Number of teams and Balance by used to sit permanently on the page,
+// above the squad list — but you only need them once, right when you're
+// about to split, not while you're still picking who's involved. Moved
+// into this on-demand modal instead, opened from the Randomise button.
+// Re-renders its own settings in place on every tab tap, same pattern as
+// the Squad tab's "Who's Playing?" picker.
+function openRandomiseModal(app, gameId, included) {
+  function render(modalEl) {
+    const canSplitNow = included.length >= teamCount * 2;
+    modalEl.querySelector('#randomise-settings').innerHTML = `
+      <div class="section-title" style="margin-top:0;">Number of teams</div>
+      <div class="tabs" style="max-width:320px;">
+        ${Array.from({ length: MAX_TEAMS - MIN_TEAMS + 1 }, (_, i) => i + MIN_TEAMS).map((n) => `
+          <div class="tab ${n === teamCount ? 'active' : ''}" data-team-count="${n}">${n} teams</div>
+        `).join('')}
+      </div>
+      <div class="section-title">Balance by</div>
+      <div class="tabs" style="max-width:320px;">
+        <div class="tab ${splitMode === 'mixed' ? 'active' : ''}" data-split-mode="mixed">Mixed ability</div>
+        <div class="tab ${splitMode === 'same' ? 'active' : ''}" data-split-mode="same">Same stream</div>
+      </div>
+      <div class="muted small" style="margin-top:6px;">${splitMode === 'same'
+        ? 'Clusters players of similar ability onto the same team — handy for running side-by-side matches at different intensities.'
+        : 'Spreads each skill stream evenly across every team, for one fair, competitive match.'}</div>
+      <button type="button" class="btn big block" data-action="confirm-split" style="margin-top:16px;" ${canSplitNow ? '' : 'disabled'}>🎲 Split</button>
+      ${!canSplitNow ? `<div class="muted small" style="margin-top:8px;">${included.length} selected — need at least ${teamCount * 2} for ${teamCount} teams.</div>` : ''}
+    `;
+    modalEl.querySelectorAll('[data-team-count]').forEach((el) => {
+      el.addEventListener('click', () => { teamCount = Number(el.dataset.teamCount); render(modalEl); });
+    });
+    modalEl.querySelectorAll('[data-split-mode]').forEach((el) => {
+      el.addEventListener('click', () => { splitMode = el.dataset.splitMode; render(modalEl); });
+    });
+    const confirmBtn = modalEl.querySelector('[data-action="confirm-split"]');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        split = splitByMode(included, teamCount, splitMode);
+        resetImportStatus();
+        closeModal();
+        renderBalanceTeams(app, gameId);
+      });
+    }
+  }
+
+  openModal({
+    title: 'Randomise Teams',
+    bodyHtml: `
+      <p class="muted small" style="margin:0 0 10px;">Choose how many teams and how to balance them, then split.</p>
+      <div id="randomise-settings"></div>
+    `,
+    onMount: (modalEl) => render(modalEl),
+  });
+}
+
 export function renderBalanceTeams(app, gameId) {
   const { players, team, games } = getState();
   const active = matchEligiblePlayers(players);
@@ -197,16 +257,22 @@ export function renderBalanceTeams(app, gameId) {
   // Drop a filter that no longer matches anyone (e.g. the last player with
   // that value was reassigned) instead of silently showing an empty list.
   if (squadTeamAllocFilter && !teamAllocValues.includes(squadTeamAllocFilter)) squadTeamAllocFilter = null;
-  const squadRows = squadTeamAllocFilter ? active.filter((p) => p.teamAllocation === squadTeamAllocFilter) : active;
+  const streamValues = STREAM_ORDER.filter((s) => s && active.some((p) => p.skillStream === s));
+  squadStreamFilter = new Set([...squadStreamFilter].filter((s) => streamValues.includes(s)));
+  const squadRows = active.filter((p) =>
+    (!squadTeamAllocFilter || p.teamAllocation === squadTeamAllocFilter)
+    && (!squadStreamFilter.size || squadStreamFilter.has(p.skillStream)));
 
-  // A Team Allocation filter scopes the whole page, not just which rows
-  // are shown — a coach who filters to one team and taps Random Split
-  // expects only that team's players in the result, without first having
-  // to manually deselect everyone else with "Select None". Checkboxes
-  // still give fine control WITHIN the current filter (e.g. leaving one
-  // player out of that team's split).
+  // Both filters scope the whole page, not just which rows are shown — a
+  // coach who filters down and taps Randomise expects only those players
+  // in the result, without first having to manually deselect everyone else
+  // with "Select None". Checkboxes still give fine control WITHIN the
+  // current filters (e.g. leaving one player out of that team's split).
   const included = squadRows.filter((p) => includedIds.has(p.id));
-  const canSplit = included.length >= teamCount * 2;
+  // Finer per-teamCount validation happens inside the Randomise modal
+  // itself (teamCount is chosen there now) — this just gates opening it at
+  // all, against the smallest possible split.
+  const canOpenRandomise = included.length >= MIN_TEAMS * 2;
 
   app.innerHTML = `
     <div class="page-title">
@@ -225,27 +291,12 @@ export function renderBalanceTeams(app, gameId) {
         ? `Starting from ${includedFromLabel(game, active)} for this match — untick anyone who won't be involved before you split.`
         : ''}
       ${junior
-        ? ' Junior squads (U9 and under) often split a training group into several small teams for parallel mini-soccer games rather than one team with subs. Choose how many teams below, and whether to balance by ability or stream.'
-        : " Pick who's involved, then split — choose how many teams and whether to balance by ability or stream below."}
+        ? ' Junior squads (U9 and under) often split a training group into several small teams for parallel mini-soccer games rather than one team with subs.'
+        : ''}
+      Pick who's involved below — filter by team or stream if it's a big shared roster — then tap Randomise to choose how many teams and how to balance them.
     </div>
 
-    <div class="section-title" style="margin-top:0;">Number of teams</div>
-    <div class="tabs" style="max-width:320px;">
-      ${Array.from({ length: MAX_TEAMS - MIN_TEAMS + 1 }, (_, i) => i + MIN_TEAMS).map((n) => `
-        <div class="tab ${n === teamCount ? 'active' : ''}" data-team-count="${n}">${n} teams</div>
-      `).join('')}
-    </div>
-
-    <div class="section-title">Balance by</div>
-    <div class="tabs" style="max-width:320px;">
-      <div class="tab ${splitMode === 'mixed' ? 'active' : ''}" data-split-mode="mixed">Mixed ability</div>
-      <div class="tab ${splitMode === 'same' ? 'active' : ''}" data-split-mode="same">Same stream</div>
-    </div>
-    <div class="muted small" style="margin-top:6px;">${splitMode === 'same'
-      ? 'Clusters players of similar ability onto the same team — handy for running side-by-side matches at different intensities.'
-      : 'Spreads each skill stream evenly across every team, for one fair, competitive match.'}</div>
-
-    <div class="section-title">Team Selection (${included.length}/${active.length})</div>
+    <div class="section-title" style="margin-top:0;">Team Selection (${included.length}/${active.length})</div>
     <div class="card" style="overflow-x:auto;">
       <div class="spread" style="margin-bottom:10px; flex-wrap:wrap; gap:8px;">
         <button class="btn ghost sm" data-action="select-all">Select All</button>
@@ -257,6 +308,13 @@ export function renderBalanceTeams(app, gameId) {
         <div class="chip-list" style="margin-bottom:12px;">
           ${teamAllocValues.map((v) => `<button type="button" class="bench-chip ${squadTeamAllocFilter === v ? 'picking' : ''}" data-team-alloc-filter="${escapeHtml(v)}">${escapeHtml(v)}</button>`).join('')}
           ${squadTeamAllocFilter ? '<button type="button" class="bench-chip" data-action="clear-team-alloc-filter">✕ Clear</button>' : ''}
+        </div>
+      ` : ''}
+      ${streamValues.length ? `
+        <div class="muted small" style="margin-bottom:4px;">Stream (pick more than one to show several at once)</div>
+        <div class="chip-list" style="margin-bottom:12px;">
+          ${streamValues.map((s) => `<button type="button" class="bench-chip ${squadStreamFilter.has(s) ? 'picking' : ''}" data-stream-filter="${s}">Stream ${s}</button>`).join('')}
+          ${squadStreamFilter.size ? '<button type="button" class="bench-chip" data-action="clear-stream-filter">✕ Clear</button>' : ''}
         </div>
       ` : ''}
       ${active.length ? `
@@ -278,14 +336,14 @@ export function renderBalanceTeams(app, gameId) {
             </tr>
           </thead>
           <tbody>
-            ${squadRows.length ? sortSquadPlayers(squadRows).map((p) => squadRowHtml(p, includedIds.has(p.id))).join('') : `<tr><td colspan="5" style="padding:6px 8px;"><span class="muted small">No players with this team allocation.</span></td></tr>`}
+            ${squadRows.length ? sortSquadPlayers(squadRows).map((p) => squadRowHtml(p, includedIds.has(p.id))).join('') : `<tr><td colspan="5" style="padding:6px 8px;"><span class="muted small">No players match the current filter.</span></td></tr>`}
           </tbody>
         </table>
       ` : '<span class="muted small">No active players on the roster.</span>'}
     </div>
 
-    <button class="btn big block" data-action="split" style="margin:16px 0;" ${canSplit ? '' : 'disabled'}>🎲 ${split ? 'Shuffle Again' : 'Random Split'}</button>
-    ${!canSplit ? `<div class="muted small" style="margin-top:-10px; margin-bottom:16px;">Pick at least ${teamCount * 2} players to split into ${teamCount} teams.</div>` : ''}
+    <button class="btn big block" data-action="open-randomise" style="margin:16px 0;" ${canOpenRandomise ? '' : 'disabled'}>🎲 ${split ? 'Shuffle Again' : 'Randomise Teams'}</button>
+    ${!canOpenRandomise ? `<div class="muted small" style="margin-top:-10px; margin-bottom:16px;">Pick at least ${MIN_TEAMS * 2} players to split into teams.</div>` : ''}
 
     ${split ? `
       <div class="spread" style="margin-bottom:10px;">
@@ -305,10 +363,10 @@ export function renderBalanceTeams(app, gameId) {
   `;
 
   app.querySelector('[data-action="select-all"]').addEventListener('click', () => {
-    // Scoped to whatever the Team Allocation filter is currently showing
-    // (squadRows === active when no filter is set) — selecting "all"
-    // while filtered to one team should only add that team, not silently
-    // pull in everyone else hidden by the filter.
+    // Scoped to whatever the current filters are showing (squadRows ===
+    // active when nothing's filtered) — selecting "all" while filtered to
+    // one team/stream should only add those players, not silently pull in
+    // everyone else hidden by the filter.
     squadRows.forEach((p) => includedIds.add(p.id));
     split = null;
     resetImportStatus();
@@ -319,24 +377,6 @@ export function renderBalanceTeams(app, gameId) {
     split = null;
     resetImportStatus();
     renderBalanceTeams(app, gameId);
-  });
-
-  app.querySelectorAll('[data-team-count]').forEach((el) => {
-    el.addEventListener('click', () => {
-      teamCount = Number(el.dataset.teamCount);
-      split = null;
-      resetImportStatus();
-      renderBalanceTeams(app, gameId);
-    });
-  });
-
-  app.querySelectorAll('[data-split-mode]').forEach((el) => {
-    el.addEventListener('click', () => {
-      splitMode = el.dataset.splitMode;
-      split = null;
-      resetImportStatus();
-      renderBalanceTeams(app, gameId);
-    });
   });
 
   app.querySelectorAll('[data-team-alloc-filter]').forEach((btn) => {
@@ -350,6 +390,22 @@ export function renderBalanceTeams(app, gameId) {
   if (clearFilterBtn) {
     clearFilterBtn.addEventListener('click', () => {
       squadTeamAllocFilter = null;
+      renderBalanceTeams(app, gameId);
+    });
+  }
+
+  app.querySelectorAll('[data-stream-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const value = btn.dataset.streamFilter;
+      if (squadStreamFilter.has(value)) squadStreamFilter.delete(value);
+      else squadStreamFilter.add(value);
+      renderBalanceTeams(app, gameId);
+    });
+  });
+  const clearStreamFilterBtn = app.querySelector('[data-action="clear-stream-filter"]');
+  if (clearStreamFilterBtn) {
+    clearStreamFilterBtn.addEventListener('click', () => {
+      squadStreamFilter = new Set();
       renderBalanceTeams(app, gameId);
     });
   }
@@ -390,13 +446,9 @@ export function renderBalanceTeams(app, gameId) {
     });
   });
 
-  const splitBtn = app.querySelector('[data-action="split"]');
-  if (splitBtn) {
-    splitBtn.addEventListener('click', () => {
-      split = splitByMode(included, teamCount, splitMode);
-      resetImportStatus();
-      renderBalanceTeams(app, gameId);
-    });
+  const openRandomiseBtn = app.querySelector('[data-action="open-randomise"]');
+  if (openRandomiseBtn) {
+    openRandomiseBtn.addEventListener('click', () => openRandomiseModal(app, gameId, included));
   }
 
   app.querySelectorAll('[data-team-assign]').forEach((sel) => {

@@ -93,7 +93,9 @@ function assert(cond, msg) {
   // ============ Split into teams, send Team 1 to both ticked matches at once ============
   await page.click('[data-action="select-all"]');
   await page.waitForTimeout(100);
-  await page.click('[data-action="split"]');
+  await page.click('[data-action="open-randomise"]');
+  await page.waitForSelector('[data-action="confirm-split"]');
+  await page.click('[data-action="confirm-split"]');
   await page.waitForTimeout(150);
 
   const importTeamBtn = page.locator('[data-action="import-team"][data-team-index="0"]');

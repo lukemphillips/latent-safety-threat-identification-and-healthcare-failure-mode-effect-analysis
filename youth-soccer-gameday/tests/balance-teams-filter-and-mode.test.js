@@ -75,7 +75,9 @@ function assert(cond, msg) {
   const squadHeadingAfterFilteredSelectAll = await page.textContent('.section-title:has-text("Team Selection")');
   assert(squadHeadingAfterFilteredSelectAll.includes(`(4/${active.length})`), `"Select All" while filtered to "9.4" only selects those 4, got "${squadHeadingAfterFilteredSelectAll}"`);
 
-  await page.click('[data-action="split"]');
+  await page.click('[data-action="open-randomise"]');
+  await page.waitForSelector('[data-action="confirm-split"]');
+  await page.click('[data-action="confirm-split"]');
   await page.waitForTimeout(150);
   const splitPlayerNames = await page.$$eval('.player-row .player-name', (els) => els.map((e) => e.textContent.trim()));
   assert(splitPlayerNames.length === 4, `Random split with the filtered selection only includes those 4 players, got ${splitPlayerNames.length}: ${JSON.stringify(splitPlayerNames)}`);
@@ -86,21 +88,25 @@ function assert(cond, msg) {
   await page.click('[data-action="select-all"]');
   await page.waitForTimeout(100);
 
-  // ============ Balance by ability or stream ============
+  // ============ Balance by ability or stream (now chosen in the Randomise modal) ============
+  await page.click('[data-action="open-randomise"]');
+  await page.waitForSelector('[data-split-mode]');
   const modeTabs = await page.$$eval('[data-split-mode]', (els) => els.map((e) => e.textContent.trim()));
   assert(modeTabs.includes('Mixed ability') && modeTabs.includes('Same stream'), `Both balance modes are offered, got ${JSON.stringify(modeTabs)}`);
 
   await page.click('[data-split-mode="same"]');
   await page.waitForTimeout(100);
-  await page.click('[data-action="split"]');
+  await page.click('[data-action="confirm-split"]');
   await page.waitForTimeout(150);
 
   let teamCardsText = await page.$$eval('.card', (els) => els.map((e) => e.textContent));
   assert(teamCardsText.some((t) => /Team \d+ \(\d+\)/.test(t)), 'Same-stream split produced team cards');
 
+  await page.click('[data-action="open-randomise"]');
+  await page.waitForSelector('[data-split-mode="mixed"]');
   await page.click('[data-split-mode="mixed"]');
   await page.waitForTimeout(100);
-  await page.click('[data-action="split"]');
+  await page.click('[data-action="confirm-split"]');
   await page.waitForTimeout(150);
 
   teamCardsText = await page.$$eval('.card', (els) => els.map((e) => e.textContent));
