@@ -47,6 +47,16 @@ import { getState, applyCloudSync } from './store.js';
 
 const SYNC_CONFIG_KEY = 'ysg-cloud-sync-v1';
 
+// Bumped whenever buildAppsScript's merge logic changes in a way that
+// matters for data safety (not for every cosmetic edit to this file) —
+// baked into the generated script itself (see SCRIPT_LOGIC_VERSION
+// below) and echoed back on every request, so a device can tell whether
+// the Apps Script it's actually talking to has caught up with what this
+// build of the app expects, without a coach having to remember to check.
+// One shared constant for both sides of that comparison, rather than two
+// numbers that could quietly drift apart.
+export const CLOUD_SYNC_SCRIPT_VERSION = 2;
+
 function loadConfig() {
   try {
     const raw = localStorage.getItem(SYNC_CONFIG_KEY);
@@ -71,6 +81,29 @@ export function getSyncConfig() {
 
 export function isCloudSyncConnected() {
   return !!loadConfig();
+}
+
+// `result` is whatever pullFromCloud/pushToCloud resolved to. scriptVersion
+// reflects whatever code is running on the Apps Script AT THE MOMENT it
+// answered — a property of the deployed script, not of the stored team
+// data — so it's folded into this device's own connection config rather
+// than treated like lastServerMeta (which IS about the stored data).
+function recordScriptVersion(cfg, result) {
+  if (!cfg || !result || typeof result.scriptVersion !== 'number') return cfg;
+  return { ...cfg, lastKnownScriptVersion: result.scriptVersion };
+}
+
+// Settings' Cloud Sync section uses this to show a "your script needs
+// updating" banner instead of a coach only finding out a merge-logic fix
+// exists by stumbling onto "Update Script" in More options. A device
+// that's never actually completed a sync since this field was
+// introduced has lastKnownScriptVersion === undefined, which correctly
+// reads as outdated too — exactly the device most likely still running
+// whatever it originally deployed.
+export function isScriptOutdated() {
+  const cfg = loadConfig();
+  if (!cfg) return false;
+  return (cfg.lastKnownScriptVersion || 0) < CLOUD_SYNC_SCRIPT_VERSION;
 }
 
 // Used by roster.js, settings.js (Team/Rules), training.js, and drills.js
@@ -116,6 +149,12 @@ export function buildAppsScript({ fullEditToken, matchdayToken }) {
 // token can only push match data and add brand-new players.
 var FULL_EDIT_TOKEN = '${fullEditToken}';
 var MATCHDAY_TOKEN = '${matchdayToken}';
+
+// Echoed back on every response as scriptVersion — how the app (see
+// cloudSync.js's CLOUD_SYNC_SCRIPT_VERSION) tells whether THIS deployed
+// copy has caught up with a merge-logic fix, so it can prompt for an
+// update instead of the bug just quietly coming back on an old script.
+var SCRIPT_LOGIC_VERSION = ${CLOUD_SYNC_SCRIPT_VERSION};
 
 var SHEET_NAME = 'BootRoomData';
 var CHUNK_COUNT_CELL = 'A1';
@@ -220,34 +259,63 @@ function gameIsNewer_(incoming, existing) {
   if (c1 !== c2) return c1 > c2;
   return (incoming.updatedAt || 0) > (existing.updatedAt || 0);
 }
-function isGameLike_(g) {
-  return !!(g && typeof g === 'object');
+// Shared by every mergeXxx_ below — every one of them turned out to be
+// the exact same shape (a push landing after someone else's is a BLIND
+// overwrite unless something here unions the two id-keyed lists instead
+// of just trusting whichever arrived last), just with a different rule
+// for which side wins when both have the SAME id. Pulling that shape out
+// once means a brand-new synced list only ever needs its own one-line
+// pickFn_ here, not a whole new copy of this same merge loop — most of
+// what used to require pasting an updated script for.
+//
+// pickFn_(incoming, existing) decides, for an id present on BOTH sides,
+// whether the posted (incoming) copy should replace what's already in
+// the result; it's never called for an id only one side has, since
+// there's nothing to pick between there. Posted-only ids are added in
+// posted's own order, then current-only ids in current's own order —
+// arbitrary, but consistent regardless of what pickFn_ does. A record
+// without an id can't be merged by id at all — both sides' idless
+// records are carried through unmerged (current's then posted's) rather
+// than risking a collision under some shared "undefined" key, or
+// dropping data silently. Anything that isn't even an object (null, a
+// stray string) is dropped rather than preserved forever.
+function isRecordLike_(r) {
+  return !!(r && typeof r === 'object');
 }
-function mergeGames_(currentGames, postedGames) {
-  // A genuine game object without an id can't be merged by id at all —
-  // carry it through unmerged rather than letting it collide with every
-  // other id-less entry under the same "undefined" key, or throw trying
-  // to compare it. Anything that isn't even an object at all (null, a
-  // stray string) is just dropped rather than preserved forever.
-  var validCurrent = (currentGames || []).filter(function (g) { return isGameLike_(g) && g.id; });
-  var validPosted = (postedGames || []).filter(function (g) { return isGameLike_(g) && g.id; });
-  var idless = (currentGames || []).concat(postedGames || []).filter(function (g) { return isGameLike_(g) && !g.id; });
+function mergeById_(currentList, postedList, pickFn_) {
+  var validCurrent = (currentList || []).filter(function (r) { return isRecordLike_(r) && r.id; });
+  var validPosted = (postedList || []).filter(function (r) { return isRecordLike_(r) && r.id; });
+  var idless = (currentList || []).concat(postedList || []).filter(function (r) { return isRecordLike_(r) && !r.id; });
 
   var byId = {};
-  validCurrent.forEach(function (g) { byId[g.id] = g; });
+  validCurrent.forEach(function (r) { byId[r.id] = r; });
   validPosted.forEach(function (incoming) {
     var existing = byId[incoming.id];
-    if (!existing || gameIsNewer_(incoming, existing)) byId[incoming.id] = incoming;
+    if (!existing || pickFn_(incoming, existing)) byId[incoming.id] = incoming;
   });
   var result = [];
   var seenIds = {};
-  validPosted.forEach(function (g) {
-    if (!seenIds[g.id]) { result.push(byId[g.id]); seenIds[g.id] = true; }
+  validPosted.forEach(function (r) {
+    if (!seenIds[r.id]) { result.push(byId[r.id]); seenIds[r.id] = true; }
   });
-  validCurrent.forEach(function (g) {
-    if (!seenIds[g.id]) { result.push(byId[g.id]); seenIds[g.id] = true; }
+  validCurrent.forEach(function (r) {
+    if (!seenIds[r.id]) { result.push(byId[r.id]); seenIds[r.id] = true; }
   });
   return result.concat(idless);
+}
+
+// Two coaches each running their own separate match and syncing normally
+// throughout the day is exactly the case mergeById_ above exists for:
+// without it, whichever device's sync happens to land last would
+// silently revert every OTHER match to whatever stale copy that device
+// last knew about, even though the client-side merge (which only ever
+// protects what a device pulls INTO itself) had nothing wrong with it.
+// gameIsNewer_'s "how far along is this" comparison (status first, then
+// how much has actually been logged, then updatedAt as a last tiebreak)
+// is the pickFn_: on a genuine id collision, whichever copy is further
+// along wins, not just whichever happened to be posted.
+function mergeGames_(currentGames, postedGames) {
+  return mergeById_(currentGames, postedGames, gameIsNewer_);
 }
 
 // Reported bug: a Player of the Week set from one Full Edit device
@@ -257,33 +325,27 @@ function mergeGames_(currentGames, postedGames) {
 // whichever Full Edit device's push landed last would silently overwrite
 // the server's whole team object — including any weekly award a
 // DIFFERENT device had just pushed and this device never pulled before
-// posting its own (still-stale) copy. Unioning by id, same idea as
-// mergeTombstones_ below, keeps any award either side knows about; on a
-// genuine edit to the SAME award id (a coach reopening Player of the
-// Week and changing the winner) the posted copy wins, since it's
-// whatever this exact push just intentionally set.
+// posting its own (still-stale) copy. On a genuine edit to the SAME
+// award id (a coach reopening Player of the Week and changing the
+// winner) the posted copy always wins, since it's whatever this exact
+// push just intentionally set — there's no "further along" to compare
+// the way there is for a game, so pickFn_ here is just "incoming wins".
 function mergeAwards_(current, posted) {
-  var byId = {};
-  (current || []).forEach(function (a) { if (a && a.id) byId[a.id] = a; });
-  (posted || []).forEach(function (a) { if (a && a.id) byId[a.id] = a; });
-  return Object.keys(byId).map(function (id) { return byId[id]; });
+  return mergeById_(current, posted, function () { return true; });
 }
 
-// mergeGames_ deliberately never lets a game disappear just because one
+// mergeById_ deliberately never lets a record disappear just because one
 // side's push didn't mention it — that's the whole point of it, and
 // exactly why a deleted game (or, below, a deleted player) used to come
 // straight back on the next sync: there was no way to tell "deleted"
 // apart from "this device never knew about it". A tombstone ({id,
-// deletedAt}) is that explicit signal. Union two tombstone lists, keeping
-// the later deletedAt for any id both sides know about. Shared by games
-// and players — same shape, same merge rule either way.
+// deletedAt}) is that explicit signal. On a genuine id collision, keep
+// whichever tombstone has the later deletedAt. Shared by games and
+// players — same shape, same merge rule either way.
 function mergeTombstones_(current, posted) {
-  var byId = {};
-  (current || []).concat(posted || []).forEach(function (t) {
-    if (!t || !t.id) return;
-    if (!byId[t.id] || (t.deletedAt || 0) > (byId[t.id].deletedAt || 0)) byId[t.id] = t;
+  return mergeById_(current, posted, function (incoming, existing) {
+    return (incoming.deletedAt || 0) > (existing.deletedAt || 0);
   });
-  return Object.keys(byId).map(function (id) { return byId[id]; });
 }
 
 // Drops any merged game whose tombstone is at least as new as the game's
@@ -315,7 +377,7 @@ function doGet(e) {
     var role = roleForToken_(token);
     if (!role) return jsonResponse_({ error: 'Invalid or missing Cloud Sync link.' });
     var stored = readStored_();
-    return jsonResponse_({ role: role, data: stored.data, meta: stored.meta });
+    return jsonResponse_({ role: role, data: stored.data, meta: stored.meta, scriptVersion: SCRIPT_LOGIC_VERSION });
   } catch (err) {
     return jsonResponse_({ error: 'Server error in doGet: ' + (err && err.message || String(err)) });
   }
@@ -391,7 +453,7 @@ function doPost(e) {
     }
 
     writeStored_(toStore, posted.syncedByName || '');
-    return jsonResponse_({ ok: true, role: role });
+    return jsonResponse_({ ok: true, role: role, scriptVersion: SCRIPT_LOGIC_VERSION });
   } catch (err) {
     return jsonResponse_({ error: 'Server error in doPost: ' + (err && err.message || String(err)) });
   }
@@ -623,7 +685,8 @@ export async function setUpAsFullEditor(baseUrl, coachName, tokens) {
   const matchdayUrl = `${trimmedBase}?token=${matchdayToken}`;
 
   saveConfig({ url: fullEditUrl, role: 'editor', coachName: coachName || '', baseUrl: trimmedBase, fullEditToken, matchdayToken, lastSyncedAt: null });
-  await pushToCloud(fullEditUrl, coachName);
+  const pushResult = await pushToCloud(fullEditUrl, coachName);
+  saveConfig(recordScriptVersion(loadConfig(), pushResult));
   markSynced();
 
   return { fullEditUrl, matchdayUrl };
@@ -637,7 +700,7 @@ export async function joinWithLink(url, coachName) {
   if (!trimmedUrl) throw new Error('Paste the Cloud Sync link you were given.');
 
   const result = await pullFromCloud(trimmedUrl);
-  saveConfig({ url: trimmedUrl, role: result.role, coachName: coachName || '', lastSyncedAt: new Date().toISOString(), lastServerMeta: result.meta || null });
+  saveConfig(recordScriptVersion({ url: trimmedUrl, role: result.role, coachName: coachName || '', lastSyncedAt: new Date().toISOString(), lastServerMeta: result.meta || null }, result));
   if (result.data) applyCloudSync(result.data);
   markSynced();
   return result;
@@ -662,7 +725,9 @@ export async function syncNow() {
   // this device, which is the useful "who else is syncing with me" signal
   // (a device just echoing its own last push back at itself isn't).
   if (pulled.meta) saveConfig({ ...cfg, lastServerMeta: pulled.meta });
-  await pushToCloud(cfg.url, cfg.coachName);
+  saveConfig(recordScriptVersion(loadConfig(), pulled));
+  const pushResult = await pushToCloud(cfg.url, cfg.coachName);
+  saveConfig(recordScriptVersion(loadConfig(), pushResult));
   markSynced();
   return mergeResult;
 }

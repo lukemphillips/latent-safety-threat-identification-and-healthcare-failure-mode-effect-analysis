@@ -4,7 +4,7 @@ import { escapeHtml, uid, copyToClipboard, resizeImageFile, matchEligiblePlayers
 import { openModal, closeModal, confirmDialog, alertDialog } from '../modal.js';
 import { getErrorLog, clearErrorLog, formatErrorLogText } from '../errorLog.js';
 import { APP_VERSION } from '../version.js';
-import { getSyncConfig, isMatchdayOnly, buildAppsScript, generateSyncTokens, setUpAsFullEditor, joinWithLink, syncNow, disconnectCloudSync, diagnoseCloudSyncConnection } from '../cloudSync.js';
+import { getSyncConfig, isMatchdayOnly, buildAppsScript, generateSyncTokens, setUpAsFullEditor, joinWithLink, syncNow, disconnectCloudSync, diagnoseCloudSyncConnection, isScriptOutdated } from '../cloudSync.js';
 
 // Guards a post-await re-render (e.g. after "Sync Now", which can take a
 // couple of seconds against a real Apps Script) against overwriting a
@@ -797,6 +797,7 @@ function cloudSyncSectionHtml(syncConfig) {
       <p class="muted small mt-0">This device has <strong>${roleLabel}</strong> access${syncConfig.coachName ? ` (as ${escapeHtml(syncConfig.coachName)})` : ''}.${syncConfig.role === 'matchday' ? ' Roster and team settings can only be changed from a Full Edit device — those controls are hidden here, and a change to them wouldn\'t save to the shared team anyway.' : ''} Training sessions and the Drill Library aren't part of Cloud Sync — they stay on this device only.</p>
       <div class="small">${syncConfig.lastSyncedAt ? `Last synced: ${new Date(syncConfig.lastSyncedAt).toLocaleString()}` : 'Not synced yet'}</div>
       ${syncConfig.lastServerMeta && syncConfig.lastServerMeta.updatedAt ? `<div class="small muted">Shared data last updated${syncConfig.lastServerMeta.updatedBy ? ` by ${escapeHtml(syncConfig.lastServerMeta.updatedBy)}` : ' by another device'} on ${new Date(syncConfig.lastServerMeta.updatedAt).toLocaleString()}</div>` : ''}
+      ${syncConfig.role === 'editor' && isScriptOutdated() ? `<div class="banner warn">🔧 A Cloud Sync bug fix is available for your script. Open "More options" below and tap <strong>Update Script</strong>, then redeploy in Apps Script.</div>` : ''}
       <div class="banner warn">⚠️ Running two matches at once (e.g. two pitches) is fine — each match syncs back independently. Just never have <strong>two devices both live-tracking the same match</strong> at the same time: sync isn't real-time, so whichever device syncs first can silently overwrite the other's events for that match. One device per live match.</div>
       <button class="btn secondary block" data-action="cloud-sync-now">🔄 Sync Now</button>
       <button class="btn ghost block" data-action="cloud-sync-diagnose">🔍 Diagnose Connection</button>
@@ -930,7 +931,7 @@ function openUpdateScriptModal(cfg) {
   openModal({
     title: 'Update Cloud Sync Script',
     bodyHtml: `
-      <p class="muted small mt-0">Fixes a bug where two coaches syncing separate matches around the same time could have one match silently revert to "scheduled" on everyone's device. This updates the script only — your Matchday/Full Edit links stay exactly the same, so nothing needs re-sending.</p>
+      <p class="muted small mt-0">Fixes two bugs: two coaches syncing separate matches around the same time could have one match silently revert to "scheduled" on everyone's device, and a Player of the Week award could get erased the same way. This updates the script only — your Matchday/Full Edit links stay exactly the same, so nothing needs re-sending.</p>
       <ol class="stack" style="margin:0; padding-left:18px;">
         <li>Open the Google Sheet you set Cloud Sync up with, then <strong>Extensions → Apps Script</strong>.</li>
         <li>Select all the existing code and delete it, then paste in the replacement below.</li>
